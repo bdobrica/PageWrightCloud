@@ -1,0 +1,31 @@
+# Ignore build artifacts
+/manager-server
+/worker
+*.exe
+*.test
+*.out
+
+# Ignore test coverage
+coverage.txt
+coverage.html
+
+# Ignore dependencies
+vendor/
+
+# Ignore temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.iml
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore data directories
+/data/

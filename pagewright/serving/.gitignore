@@ -1,0 +1,7 @@
+serving-runner
+coverage.txt
+test/var/www/*
+test/etc/nginx/sites-enabled/*
+!test/var/www/.gitkeep
+!test/etc/nginx/sites-enabled/.gitkeep
+*.tar.gz

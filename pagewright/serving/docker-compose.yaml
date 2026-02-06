@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: pagewright-nginx
+    ports:
+      - "8084:80"
+    volumes:
+      - ./test/var/www:/var/www
+      - ./test/etc/nginx/sites-enabled:/etc/nginx/sites-enabled
+      - ./test/etc/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./test/etc/pagewright:/etc/pagewright
+    depends_on:
+      - serving-runner
+    networks:
+      - pagewright-net
+
+  serving-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pagewright-serving-runner
+    ports:
+      - "8083:8083"
+    environment:
+      - PAGEWRIGHT_SERVING_PORT=8083
+      - PAGEWRIGHT_WWW_ROOT=/var/www
+      - PAGEWRIGHT_NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
+      - PAGEWRIGHT_NGINX_RELOAD_COMMAND=nginx -s reload
+      - PAGEWRIGHT_STORAGE_URL=http://storage:8080
+      - PAGEWRIGHT_MAX_VERSIONS_PER_SITE=10
+      - PAGEWRIGHT_MAINTENANCE_PAGE_PATH=/etc/pagewright/503.html
+    volumes:
+      - ./test/var/www:/var/www
+      - ./test/etc/nginx/sites-enabled:/etc/nginx/sites-enabled
+      - ./test/etc/pagewright:/etc/pagewright
+    networks:
+      - pagewright-net
+
+networks:
+  pagewright-net:
+    driver: bridge

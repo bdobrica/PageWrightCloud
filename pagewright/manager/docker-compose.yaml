@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: pagewright-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - pagewright-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  manager-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pagewright-manager
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - PAGEWRIGHT_PORT=8081
+      - PAGEWRIGHT_QUEUE_BACKEND=redis
+      - PAGEWRIGHT_WORKER_SPAWNER=docker
+      - PAGEWRIGHT_REDIS_ADDR=redis:6379
+      - PAGEWRIGHT_REDIS_PASSWORD=
+      - PAGEWRIGHT_REDIS_DB=0
+      - PAGEWRIGHT_LOCK_TTL=5m
+      - PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:latest
+      - PAGEWRIGHT_MANAGER_URL=http://manager-service:8081
+    ports:
+      - "8081:8081"
+    networks:
+      - pagewright-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  pagewright-network:
+    driver: bridge

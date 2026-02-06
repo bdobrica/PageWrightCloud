@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: pagewright
+      POSTGRES_USER: pagewright
+      POSTGRES_PASSWORD: pagewright
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pagewright"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  bff:
+    build: .
+    ports:
+      - "8085:8085"
+    environment:
+      PAGEWRIGHT_BFF_PORT: 8085
+      PAGEWRIGHT_DATABASE_URL: postgres://pagewright:pagewright@postgres:5432/pagewright?sslmode=disable
+      PAGEWRIGHT_STORAGE_URL: http://storage:8080
+      PAGEWRIGHT_MANAGER_URL: http://manager:8081
+      PAGEWRIGHT_SERVING_URL: http://serving:8083
+      PAGEWRIGHT_JWT_SECRET: dev-secret-change-in-production
+      PAGEWRIGHT_JWT_EXPIRATION: 15m
+      PAGEWRIGHT_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      PAGEWRIGHT_GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      PAGEWRIGHT_GOOGLE_REDIRECT_URL: http://localhost:8085/auth/google/callback
+      PAGEWRIGHT_LLM_KEY: ${OPENAI_API_KEY}
+      PAGEWRIGHT_LLM_URL: https://api.openai.com/v1
+      PAGEWRIGHT_DEFAULT_PAGE_SIZE: 25
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

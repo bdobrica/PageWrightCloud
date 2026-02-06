@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  nfs-server:
+    image: itsthenetwork/nfs-server-alpine:latest
+    container_name: pagewright-nfs-server
+    privileged: true
+    environment:
+      - SHARED_DIRECTORY=/nfsshare
+    volumes:
+      - nfs-data:/nfsshare
+    ports:
+      - "2049:2049"
+    networks:
+      - pagewright-network
+
+  storage-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pagewright-storage
+    depends_on:
+      - nfs-server
+    environment:
+      - PAGEWRIGHT_PORT=8080
+      - PAGEWRIGHT_STORAGE_BACKEND=nfs
+      - PAGEWRIGHT_NFS_BASE_PATH=/nfs
+    volumes:
+      - nfs-data:/nfs
+    ports:
+      - "8080:8080"
+    networks:
+      - pagewright-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  nfs-data:
+    driver: local
+
+networks:
+  pagewright-network:
+    driver: bridge
