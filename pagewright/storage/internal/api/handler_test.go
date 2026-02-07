@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/storage/internal/storage"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

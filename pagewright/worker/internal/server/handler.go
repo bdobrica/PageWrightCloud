@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/PageWrightCloud/pagewright/worker/internal/codex"
-	"github.com/PageWrightCloud/pagewright/worker/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/codex"
+	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/types"
 	"github.com/gorilla/mux"
 )
 

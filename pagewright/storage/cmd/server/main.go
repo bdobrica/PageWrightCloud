@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/storage/internal/api"
-	"github.com/PageWrightCloud/pagewright/storage/internal/config"
-	"github.com/PageWrightCloud/pagewright/storage/internal/storage"
-	"github.com/PageWrightCloud/pagewright/storage/internal/storage/nfs"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/api"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/config"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage/nfs"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/PageWrightCloud/pagewright/gateway
+module github.com/bdobrica/PageWrightCloud/pagewright/gateway
 
 go 1.22
 

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/bogdan/pagewright/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
 )
 
 // Discover walks the content directory and builds a page tree

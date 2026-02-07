@@ -1,4 +1,4 @@
-module github.com/PageWrightCloud/pagewright/manager
+module github.com/bdobrica/PageWrightCloud/pagewright/manager
 
 go 1.22
 

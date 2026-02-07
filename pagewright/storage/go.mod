@@ -1,4 +1,4 @@
-module github.com/PageWrightCloud/pagewright/storage
+module github.com/bdobrica/PageWrightCloud/pagewright/storage
 
 go 1.22
 

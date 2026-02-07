@@ -1,4 +1,4 @@
-module github.com/PageWrightCloud/pagewright/worker
+module github.com/bdobrica/PageWrightCloud/pagewright/worker
 
 go 1.22
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/manager/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/redis/go-redis/v9"
 )
 

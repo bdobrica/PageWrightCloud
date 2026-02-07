@@ -1,4 +1,4 @@
-module github.com/PageWrightCloud/pagewright/serving
+module github.com/bdobrica/PageWrightCloud/pagewright/serving
 
 go 1.22
 

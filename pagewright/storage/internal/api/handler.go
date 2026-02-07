@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/storage/internal/storage"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
 	"github.com/gorilla/mux"
 )
 

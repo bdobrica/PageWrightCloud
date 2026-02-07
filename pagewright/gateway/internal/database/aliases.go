@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 	"github.com/google/uuid"
 )
 

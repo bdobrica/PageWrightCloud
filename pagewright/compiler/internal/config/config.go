@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/bogdan/pagewright/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
 )
 
 // Load reads and merges configuration from theme and site

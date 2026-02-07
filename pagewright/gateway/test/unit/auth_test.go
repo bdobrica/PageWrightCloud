@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/auth"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 )
 
 // MockDB is a mock database for testing

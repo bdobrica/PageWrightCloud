@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/manager/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 

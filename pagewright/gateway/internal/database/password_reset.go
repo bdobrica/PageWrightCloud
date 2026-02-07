@@ -3,7 +3,7 @@ package database
 import (
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 )
 
 // CreatePasswordResetToken creates a new password reset token

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bogdan/pagewright/compiler/internal/config"
-	"github.com/bogdan/pagewright/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/config"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
 )
 
 // Theme represents a loaded theme with templates and tokens

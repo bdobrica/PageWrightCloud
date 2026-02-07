@@ -5,8 +5,8 @@ import (
 	"html/template"
 	"strings"
 
-	"github.com/bogdan/pagewright/compiler/internal/types"
-	"github.com/bogdan/pagewright/compiler/internal/util"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"

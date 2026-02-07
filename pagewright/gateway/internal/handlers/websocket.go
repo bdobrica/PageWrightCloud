@@ -4,8 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/middleware"
-	gatewayWebsocket "github.com/PageWrightCloud/pagewright/gateway/internal/websocket"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
+	gatewayWebsocket "github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/websocket"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )

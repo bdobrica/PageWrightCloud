@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bogdan/pagewright/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
 )
 
 // Parse parses markdown with MDX component blocks into nodes

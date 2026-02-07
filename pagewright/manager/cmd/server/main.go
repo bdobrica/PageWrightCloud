@@ -10,15 +10,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/manager/internal/api"
-	"github.com/PageWrightCloud/pagewright/manager/internal/config"
-	"github.com/PageWrightCloud/pagewright/manager/internal/lock"
-	lockRedis "github.com/PageWrightCloud/pagewright/manager/internal/lock/redis"
-	"github.com/PageWrightCloud/pagewright/manager/internal/queue"
-	queueRedis "github.com/PageWrightCloud/pagewright/manager/internal/queue/redis"
-	"github.com/PageWrightCloud/pagewright/manager/internal/spawner"
-	"github.com/PageWrightCloud/pagewright/manager/internal/spawner/docker"
-	"github.com/PageWrightCloud/pagewright/manager/internal/spawner/kubernetes"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/api"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/config"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock"
+	lockRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock/redis"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
+	queueRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue/redis"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner/docker"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner/kubernetes"
 )
 
 func main() {

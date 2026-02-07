@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bogdan/pagewright/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
 )
 
 // CopyThemeAssets copies theme assets to the output directory

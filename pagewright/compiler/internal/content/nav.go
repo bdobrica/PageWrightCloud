@@ -4,8 +4,8 @@ import (
 	"html/template"
 	"strings"
 
-	"github.com/bogdan/pagewright/compiler/internal/types"
-	"github.com/bogdan/pagewright/compiler/internal/util"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 )
 
 // GenerateNavHTML builds navigation HTML from the page tree

@@ -3,7 +3,7 @@ package queue
 import (
 	"context"
 
-	"github.com/PageWrightCloud/pagewright/manager/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 )
 
 // Backend defines the interface for queue backends

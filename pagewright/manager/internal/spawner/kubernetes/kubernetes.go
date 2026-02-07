@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/PageWrightCloud/pagewright/manager/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/google/uuid"
 )
 

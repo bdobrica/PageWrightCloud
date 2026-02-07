@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/auth"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/database"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/middleware"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 	"github.com/google/uuid"
 )
 

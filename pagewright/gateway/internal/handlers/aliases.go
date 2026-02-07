@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/clients"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/database"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/middleware"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/clients"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 	"github.com/gorilla/mux"
 )
 

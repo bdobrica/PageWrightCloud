@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/manager/internal/lock"
-	"github.com/PageWrightCloud/pagewright/manager/internal/queue"
-	"github.com/PageWrightCloud/pagewright/manager/internal/spawner"
-	"github.com/PageWrightCloud/pagewright/manager/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )

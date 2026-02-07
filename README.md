@@ -15,7 +15,7 @@ PageWrightCloud helps professionals (lawyers, accountants, teachers, artists) cr
 
 ```bash
 # Clone repository
-git clone https://github.com/PageWrightCloud/PageWrightCloud.git
+git clone https://github.com/bdobrica/PageWrightCloud/PageWrightCloud.git
 cd PageWrightCloud
 
 # Copy environment file and configure

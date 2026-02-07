@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/auth"
-	"github.com/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 )
 
 type contextKey string

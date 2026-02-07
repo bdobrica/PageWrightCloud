@@ -3,7 +3,7 @@ package spawner
 import (
 	"context"
 
-	"github.com/PageWrightCloud/pagewright/manager/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 )
 
 // Spawner defines the interface for worker spawners

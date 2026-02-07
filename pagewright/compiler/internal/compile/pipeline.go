@@ -6,13 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bogdan/pagewright/compiler/internal/assets"
-	"github.com/bogdan/pagewright/compiler/internal/config"
-	"github.com/bogdan/pagewright/compiler/internal/content"
-	"github.com/bogdan/pagewright/compiler/internal/markdown"
-	"github.com/bogdan/pagewright/compiler/internal/mdx"
-	"github.com/bogdan/pagewright/compiler/internal/theme"
-	"github.com/bogdan/pagewright/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/assets"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/config"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/content"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/markdown"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/mdx"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/theme"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
 )
 
 // Pipeline orchestrates the complete compilation process

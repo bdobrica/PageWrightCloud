@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 	"github.com/gorilla/websocket"
 )
 
