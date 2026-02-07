@@ -1,175 +1,149 @@
-# PageWrightCloud: AI-Driven Static Website Builder
+# PageWrightCloud
 
-## Overview
+**AI-powered static website builder for non-technical users**
 
-This project is a proof-of-concept platform for building and maintaining **simple, fast, static websites** using an AI coding agent. Users interact with the system through a chat-like UI to request changes (content or layout), preview them instantly, promote them to production, or roll back to previous versions.
+PageWrightCloud helps professionals (lawyers, accountants, teachers, artists) create and manage simple static websites through natural language chat, powered by OpenAI Codex.
 
-The system is designed around **immutability, atomic deploys, and strong isolation** to keep AI-generated changes safe, auditable, and reversible.
+## Quick Start
 
-## Project Status
+### Prerequisites
+- Docker & Docker Compose
+- Go 1.22+
+- Node.js 18+ (for UI development)
 
-✅ **Phase 1 - Storage Service**: Complete
-- REST API for artifact storage and versioning
-- NFS backend with atomic writes
-- Comprehensive test suite
-- Docker-based local development
+### Start All Services
 
-🔨 **In Progress**: Phases 2-6 (see below)
+```bash
+# Clone repository
+git clone https://github.com/PageWrightCloud/PageWrightCloud.git
+cd PageWrightCloud
 
----
+# Start infrastructure (Redis, PostgreSQL, NFS)
+cd pagewright
+docker-compose up -d
+
+# Start individual services (in separate terminals)
+cd gateway && make run     # Port 8085
+cd manager && make run     # Port 8081
+cd storage && make run     # Port 8080
+cd serving && make run     # Port 8083
+cd worker && make run      # Port 8082
+cd ui && npm run dev       # Port 5173
+```
+
+### Verify Services
+
+```bash
+curl http://localhost:8085/health  # Gateway
+curl http://localhost:8081/health  # Manager
+curl http://localhost:8080/health  # Storage
+curl http://localhost:8083/health  # Serving
+```
+
+## Architecture
+
+PageWrightCloud consists of 6 microservices:
+
+1. **Gateway** (8085) - User authentication, site management, REST API
+2. **Manager** (8081) - Job queue & worker orchestration with Redis
+3. **Storage** (8080) - Artifact versioning on NFS
+4. **Worker** (8082) - Executes Codex AI edits in isolated containers
+5. **Serving** (8083) - nginx-based static hosting with atomic deploys
+6. **UI** (5173) - React/TypeScript chat interface
+
+See [pagewright/README.md](pagewright/README.md) for detailed architecture diagram.
+
+## Testing
+
+### Run All Tests
+
+```bash
+# Individual service tests
+cd pagewright/gateway && make test
+cd pagewright/manager && make test
+cd pagewright/storage && make test
+cd pagewright/serving && make test
+cd pagewright/worker && make test
+
+# Integration tests (requires docker-compose up)
+cd pagewright/gateway && make test-integration
+cd pagewright/storage && make test-integration
+```
+
+### Coverage Reports
+
+```bash
+cd pagewright/<service>
+make coverage
+open coverage.html
+```
+
+## Current Status
+
+| Service | Status | Coverage |
+|---------|--------|----------|
+| Gateway | ✅ Complete | 75%+ |
+| Manager | ✅ Complete | 70%+ |
+| Storage | ✅ Complete | 80%+ |
+| Worker | ✅ Complete | 75%+ |
+| Serving | ✅ Complete | 77%+ |
+| UI | 🚧 In Progress | N/A |
 
 ## Core Concepts
 
-* **Static hosting**: websites are served as static files (no database, no runtime code).
-* **AI-assisted editing**: an AI coding agent performs scoped edits based on user instructions.
-* **Immutable versions**: every change produces a new versioned artifact.
-* **Preview & promote**: users can compare preview vs active versions instantly.
-* **Safe by design**: workers never write directly to served directories.
+- **Immutable Versions**: Every edit creates a new versioned artifact
+- **Preview & Promote**: Test changes before going live
+- **Atomic Deploys**: Zero-downtime symlink switches
+- **AI-Assisted**: Natural language site editing via Codex
+- **Safe by Design**: Workers never modify live files
 
----
+## Key Features
 
-## High-Level Architecture
+- Email/password + Google OAuth authentication
+- Multi-site management per user
+- Custom domain aliases
+- Real-time WebSocket updates
+- Version history with rollback
+- Chat-based build clarification loop
 
-### 1. UI / API Server
+## Configuration
 
-* Provides a chat-style interface for user requests.
-* Handles authentication (OAuth planned).
-* Displays version history and controls:
+All services use environment variables with `PAGEWRIGHT_` prefix:
 
-  * preview
-  * promote
-  * rollback
-* Enqueues edit jobs to Redis.
-
-### 2. Queue & Locking (Redis)
-
-* Job queue for edit requests.
-* Per-site locking ensures only one worker edits a site at a time.
-* Locks include TTLs and fencing tokens to prevent stale writes.
-
-### 3. Worker System
-
-* Each job runs in an isolated container.
-* Steps:
-
-  1. Fetch the latest site version archive.
-  2. Unpack into a temporary workspace.
-  3. Run **OpenAI Codex (non-interactive mode)** with strict editing rules.
-  4. Build static output if required.
-  5. Run headless browser checks (Chrome / Playwright).
-  6. Package a new immutable `tar.gz` artifact.
-  7. Produce a manifest describing changes and checks.
-
-Workers **never** modify live files.
-
-### 4. Storage (NFS for PoC)
-
-* Used only as a simple artifact store.
-* Stores:
-
-  * versioned `tar.gz` site artifacts
-  * per-version JSON log entries
-* No in-place mutation of version history.
-
-### 5. Deployer
-
-* Validates worker artifacts (security and correctness checks).
-* Unpacks artifacts into release directories.
-* Atomically switches symlinks for:
-
-  * `/preview`
-  * `/current`
-* Handles promotion and rollback.
-
-### 6. Serving Web Server (nginx)
-
-* Serves static files only.
-* Uses symlink-based releases:
-
-  * `releases/<build_id>/`
-  * `current -> releases/<build_id>`
-  * `preview -> releases/<build_id>`
-
----
-
-## Services
-
-### Storage Service
-**Location**: `pagewright/storage/`  
-**Status**: ✅ Complete (Phase 1)
-
-A RESTful service for managing site artifacts and version history with pluggable storage backends.
-
-**Features:**
-- Store and retrieve site artifacts (tar.gz files)
-- Version tracking with complete history
-- Atomic write operations (temp + fsync + rename)
-- NFS backend (S3 and others planned)
-
-**Quick Start:**
 ```bash
-cd pagewright/storage
-make docker-up
-curl http://localhost:8080/health
+# Gateway
+PAGEWRIGHT_GATEWAY_PORT=8085
+PAGEWRIGHT_DB_HOST=localhost
+PAGEWRIGHT_JWT_SECRET=your-secret
+
+# Manager
+PAGEWRIGHT_MANAGER_PORT=8081
+PAGEWRIGHT_REDIS_ADDR=localhost:6379
+
+# Storage
+PAGEWRIGHT_STORAGE_PORT=8080
+PAGEWRIGHT_NFS_BASE_PATH=/nfs
+
+# Worker
+PAGEWRIGHT_LLM_KEY=sk-...
+PAGEWRIGHT_CODEX_BINARY=/usr/local/bin/codex
+
+# Serving
+PAGEWRIGHT_SERVING_PORT=8083
+PAGEWRIGHT_WWW_ROOT=/var/www
 ```
 
-See [`pagewright/storage/README.md`](pagewright/storage/README.md) for complete documentation.
+## Documentation
 
----
+- [Architecture Overview](pagewright/README.md)
+- [Gateway API](pagewright/gateway/README.md)
+- [Manager API](pagewright/manager/README.md)
+- [Storage API](pagewright/storage/README.md)
+- [Worker Deployment](pagewright/worker/README.md)
+- [Serving API](pagewright/serving/README.md)
+- [UI Implementation](pagewright/ui/README.md)
+- [TODO List](TODO.md)
 
-## Versioning Model
+## License
 
-* Every change creates a **new immutable version**.
-* Versions are stored as `tar.gz` archives.
-* Version history is append-only (no edits or deletes).
-* Rollback is an O(1) symlink switch.
-
----
-
-## Safety & Guardrails
-
-* Strict separation between:
-
-  * **editing**
-  * **validation**
-  * **serving**
-* File allowlists / denylists during deploy.
-* No server-side code execution allowed.
-* Per-site concurrency locks.
-* Deterministic, auditable builds.
-
----
-
-## PoC Goals
-
-* Create a site from a template.
-* Request edits via chat.
-* Preview changes instantly.
-* Promote or roll back with one click.
-* Run entirely without Kubernetes (SSH / Ansible friendly).
-
----
-
-## Non-Goals (for PoC)
-
-* Multi-region deployment.
-* Full CMS features.
-* User-supplied backend code.
-* Complex design tooling.
-
----
-
-## Future Directions
-
-* Replace NFS with object storage (e.g. RustFS / S3).
-* Add stronger diff visualization.
-* Multi-worker scaling.
-* Custom domains & automated TLS.
-* More advanced AI validation loops.
-
----
-
-## Philosophy
-
-> **Make AI changes boring.**
-> Immutable artifacts, atomic deploys, easy rollback, and zero trust in generated code.
+See [LICENSE](LICENSE) file.

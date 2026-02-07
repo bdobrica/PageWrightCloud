@@ -1,136 +1,61 @@
-# PageWright Serving Service
+# Serving Service
 
-The Serving Service is an nginx-based static site hosting platform with an HTTP API for deployment, version management, and maintenance control.
+**Port**: 8083
 
-## Architecture
-
-- **nginx**: Serves static HTML/CSS/JS files
-- **Runner**: HTTP API that controls nginx configuration and site deployment
-
-## Features
-
-- ✅ Artifact deployment from storage service
-- ✅ Version management with symlinks (public/preview)
-- ✅ Automatic cleanup of old versions (keep max N per site)
-- ✅ Domain aliases
-- ✅ Per-site enable/disable (503 mode)
-- ✅ Global maintenance mode
-- ✅ CloudFlare-ready (reverse proxy compatible)
-
-## Configuration
-
-Environment variables with `PAGEWRIGHT_` prefix:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SERVING_PORT` | `8083` | HTTP API port |
-| `WWW_ROOT` | `/var/www` | Root directory for sites |
-| `NGINX_SITES_ENABLED` | `/etc/nginx/sites-enabled` | nginx config directory |
-| `NGINX_RELOAD_COMMAND` | `nginx -s reload` | Command to reload nginx |
-| `STORAGE_URL` | - | Storage service URL (Phase 1) |
-| `MAX_VERSIONS_PER_SITE` | `10` | Max artifact versions to keep |
-| `MAINTENANCE_PAGE_PATH` | `/etc/pagewright/503.html` | Path to 503 page |
+nginx-based static site hosting with atomic deployments and version management.
 
 ## API Endpoints
 
-All endpoints are internal-only (firewall protected, not exposed to internet).
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| POST | `/sites/{fqdn}/artifacts` | Deploy artifact from storage |
+| POST | `/sites/{fqdn}/activate` | Activate version as public |
+| POST | `/sites/{fqdn}/preview` | Activate version as preview |
+| POST | `/sites/{fqdn}/aliases` | Update domain aliases |
+| POST | `/sites/{fqdn}/disable` | Enable maintenance mode |
+| POST | `/sites/{fqdn}/enable` | Disable maintenance mode |
+| DELETE | `/sites/{fqdn}` | Remove site completely |
+| POST | `/maintenance/enable` | Global maintenance mode |
+| POST | `/maintenance/disable` | Disable global maintenance |
+
+## Request/Response Formats
 
 ### Deploy Artifact
 
-```bash
-POST /sites/{fqdn}/artifacts
-Content-Type: application/json
-
+**Request:**
+```json
 {
   "site_id": "blog-example-com",
   "version_id": "v1-20240101120000"
 }
 ```
 
-Downloads artifact from storage service and unpacks to `/var/www/{domain}/{fqdn}/artifacts/{version}/`.
+Downloads from storage and unpacks to `/var/www/{domain}/{fqdn}/artifacts/{version}/`.
 
-### Activate Version (Public)
+### Activate Version
 
-```bash
-POST /sites/{fqdn}/activate
-Content-Type: application/json
-
+**Request:**
+```json
 {
   "version_id": "v1-20240101120000"
 }
 ```
 
-Updates the `public` symlink to point to specified version.
+Updates symlink:
+- `/activate`: Updates `public` symlink
+- `/preview`: Updates `preview` symlink
 
-### Activate Version (Preview)
+### Update Aliases
 
-```bash
-POST /sites/{fqdn}/preview
-Content-Type: application/json
-
-{
-  "version_id": "v1-20240101120000"
-}
-```
-
-Updates the `preview` symlink to point to specified version. Accessible at `https://{fqdn}/preview/`.
-
-### Manage Aliases
-
-```bash
-POST /sites/{fqdn}/aliases
-Content-Type: application/json
-
+**Request:**
+```json
 {
   "aliases": ["www.example.com", "example.com"]
 }
 ```
 
-Updates domain aliases for the site (nginx `server_name` directive).
-
-### Disable Site
-
-```bash
-POST /sites/{fqdn}/disable
-```
-
-Configures nginx to return 503 for the site (maintenance mode per-site).
-
-### Enable Site
-
-```bash
-POST /sites/{fqdn}/enable
-```
-
-Re-enables the site (removes 503 response).
-
-### Remove Site
-
-```bash
-DELETE /sites/{fqdn}
-```
-
-Removes site directory and nginx configuration completely.
-
-### Global Maintenance Mode
-
-```bash
-# Enable
-POST /maintenance/enable
-
-# Disable
-POST /maintenance/disable
-```
-
-Creates/removes `000-maintenance` default_server config that catches all requests.
-
-### Health Check
-
-```bash
-GET /health
-```
-
-Returns `{"status":"ok"}`.
+Updates nginx `server_name` directive and reloads nginx.
 
 ## Directory Structure
 
@@ -147,135 +72,158 @@ Returns `{"status":"ok"}`.
 └── preview -> artifacts/v1-20240101120000/public
 ```
 
-Example for `blog.example.com`:
+**Example for blog.example.com:**
 - Path: `/var/www/example.com/blog.example.com/`
 - Public URL: `https://blog.example.com/`
 - Preview URL: `https://blog.example.com/preview/`
 
 ## nginx Configuration
 
-Each site gets a config file at `/etc/nginx/sites-enabled/{fqdn}`:
+### Per-Site Config
+
+Generated at `/etc/nginx/sites-enabled/{fqdn}`:
 
 ```nginx
 server {
     listen 80;
-    server_name blog.example.com www.example.com;
-    
+    server_name blog.example.com www.blog.example.com;
+
     root /var/www/example.com/blog.example.com/public;
     index index.html;
-    
+
+    # Preview path
+    location /preview/ {
+        alias /var/www/example.com/blog.example.com/preview/;
+        try_files $uri $uri/ =404;
+    }
+
+    # Main site
     location / {
         try_files $uri $uri/ /index.html;
     }
-    
-    location /preview/ {
-        alias /var/www/example.com/blog.example.com/preview/;
-        try_files $uri $uri/ /preview/index.html;
-    }
-    
-    error_page 503 /503.html;
-    location = /503.html {
-        root /etc/pagewright;
-        internal;
-    }
-    
-    add_header X-Content-Type-Options "nosniff" always;
+
+    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}
+```
+
+### Maintenance Mode (Per-Site)
+
+When disabled, config returns 503:
+
+```nginx
+server {
+    listen 80;
+    server_name blog.example.com;
+    return 503;
+}
+```
+
+### Global Maintenance
+
+Creates `000-maintenance` default_server:
+
+```nginx
+server {
+    listen 80 default_server;
+    server_name _;
+    root /etc/pagewright;
+    try_files /503.html =503;
 }
 ```
 
 ## Version Cleanup
 
-Cleanup runs after each deployment:
+Automatic cleanup after each deployment:
 1. List all versions in `artifacts/` directory
-2. Read `public` and `preview` symlinks to identify protected versions
+2. Read `public` and `preview` symlinks (protected)
 3. Sort remaining versions by access time (newest first)
-4. Keep up to `MAX_VERSIONS_PER_SITE` unprotected versions
+4. Keep up to `MAX_VERSIONS_PER_SITE` (default: 10)
 5. Delete oldest excess versions
 
-## Docker
+Protected versions are never deleted.
 
-### Build
+## nginx Reload
 
+After configuration changes:
 ```bash
-make docker-build
+nginx -s reload
 ```
 
-### Run
+Zero-downtime updates via SIGHUP signal.
+
+## Configuration
+
+Environment variables (all with `PAGEWRIGHT_` prefix):
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `SERVING_PORT` | `8083` | No | HTTP API port |
+| `WWW_ROOT` | `/var/www` | No | Site root directory |
+| `NGINX_SITES_ENABLED` | `/etc/nginx/sites-enabled` | No | nginx config dir |
+| `NGINX_RELOAD_COMMAND` | `nginx -s reload` | No | Reload command |
+| `STORAGE_URL` | - | Yes | Storage service URL |
+| `MAX_VERSIONS_PER_SITE` | `10` | No | Max versions to keep |
+| `MAINTENANCE_PAGE_PATH` | `/etc/pagewright/503.html` | No | Maintenance page path |
+
+## Running
 
 ```bash
+# Development
+cd pagewright/serving
+make run
+
+# Docker Compose (includes nginx)
 make docker-up
+
+# Tests
+make test
 ```
 
-Services:
-- nginx: http://localhost:8084
-- runner: http://localhost:8083
+## Docker Deployment
 
-### Stop
+### docker-compose.yaml
 
-```bash
-make docker-down
+```yaml
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./var/www:/var/www:ro
+      - ./etc/nginx/sites-enabled:/etc/nginx/sites-enabled:ro
+      - ./etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./etc/pagewright:/etc/pagewright:ro
+    depends_on:
+      - serving-runner
+
+  serving-runner:
+    build: .
+    ports:
+      - "8083:8083"
+    environment:
+      - PAGEWRIGHT_SERVING_PORT=8083
+      - PAGEWRIGHT_STORAGE_URL=http://storage:8080
+      - PAGEWRIGHT_WWW_ROOT=/var/www
+      - PAGEWRIGHT_NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
+    volumes:
+      - ./var/www:/var/www
+      - ./etc/nginx/sites-enabled:/etc/nginx/sites-enabled
+      - ./etc/pagewright:/etc/pagewright
 ```
 
-## Testing
+## CloudFlare Integration
 
-```bash
-# Unit tests
-make test-unit
+The serving service is designed to work behind CloudFlare (or any reverse proxy):
 
-# Integration tests (requires docker-compose)
-make docker-up
-make test-integration
-```
+- nginx listens on port 80 (HTTP only)
+- CloudFlare handles SSL/TLS termination
+- CloudFlare caches static assets
+- Use CloudFlare API to invalidate cache after deployments
 
-## Development
-
-```bash
-# Build binary
-make build
-
-# Run locally
-export PAGEWRIGHT_STORAGE_URL=http://localhost:8080
-export PAGEWRIGHT_NGINX_RELOAD_COMMAND="echo reload"
-./serving-runner
-```
-
-## Production Deployment
-
-1. **Storage Service**: Ensure Phase 1 storage service is running and accessible
-2. **Firewall**: Block port 8083 from internet, allow only from internal network
-3. **CloudFlare**: Configure as reverse proxy in front of nginx (port 80/443)
-4. **nginx**: Production nginx configuration with SSL/TLS certificates
-5. **Monitoring**: Monitor disk usage in `/var/www`, nginx logs, runner logs
-
-## Integration with Phase 2 (Manager)
-
-The Manager service (Phase 2) should call these endpoints after job completion:
-
-1. Worker finishes job → uploads artifact to storage
-2. Manager calls serving API:
-   - `POST /sites/{fqdn}/artifacts` - deploy artifact
-   - `POST /sites/{fqdn}/activate` - activate as public (if requested)
-3. Site is live at `https://{fqdn}/`
-
-## Security
-
-- **Internal API**: Runner HTTP API (port 8083) must NOT be exposed to internet
-- **Firewall Rules**: Allow 8083 only from trusted internal IPs
-- **nginx**: Only nginx (port 80/443) should be internet-facing
-- **CloudFlare**: Acts as WAF, DDoS protection, and CDN
-- **Static Content**: Only serves static files, no code execution
-
-## Limitations
-
-- Static sites only (HTML/CSS/JS)
-- No server-side rendering
-- No websockets (yet)
-- No custom nginx modules
-
-## Next Steps
-
-- Phase 4: Deployer service (BFF + UI for end users)
-- SSL/TLS certificate management (Let's Encrypt integration)
-- Websocket support for real-time updates
-- Custom domain verification
+No SSL certificates needed on serving host.

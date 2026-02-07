@@ -1,291 +1,162 @@
-# PageWright Storage Service
+# Storage Service
 
-A RESTful storage service for managing site artifacts and version history, designed as part of the PageWright Cloud platform. This service provides a pluggable backend architecture with atomic write guarantees for safe concurrent operations.
+**Port**: 8080
 
-## Overview
+Artifact versioning and retrieval with pluggable storage backends.
 
-The storage service implements Phase 1 of the PageWright PoC, providing:
+## API Endpoints
 
-- **Artifact Storage**: Upload and download site build artifacts (tar.gz files)
-- **Version Tracking**: Maintain a complete history of site builds
-- **Atomic Operations**: All writes use atomic operations (write to temp + fsync + rename)
-- **Pluggable Backends**: Support for multiple storage backends (NFS, S3, etc.)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| PUT | `/sites/{site_id}/artifacts/{build_id}` | Upload artifact (tar.gz) |
+| GET | `/sites/{site_id}/artifacts/{build_id}` | Download artifact |
+| POST | `/sites/{site_id}/logs` | Write log entry (JSON) |
+| GET | `/sites/{site_id}/versions` | List all versions |
 
-## Architecture
+## Request/Response Formats
 
-```
-pagewright/storage/
-├── cmd/server/          # Application entry point
-├── internal/
-│   ├── api/            # HTTP handlers and routing
-│   ├── config/         # Configuration management
-│   └── storage/        # Storage backend interface and implementations
-│       └── nfs/        # NFS backend plugin
-├── test/
-│   └── integration/    # Integration tests
-├── Dockerfile          # Container image
-├── docker-compose.yaml # Local development setup
-└── Makefile           # Build and test automation
+### Store Artifact
+
+**Request:**
+```bash
+curl -X PUT http://localhost:8080/sites/my-site/artifacts/build-123 \
+  --data-binary @artifact.tar.gz \
+  -H "Content-Type: application/gzip"
 ```
 
-## Implementation
+**Response:**
+```json
+{
+  "status": "success"
+}
+```
 
-### Storage Backend Interface
+### Fetch Artifact
 
-All storage backends implement the `Backend` interface:
+**Request:**
+```bash
+curl http://localhost:8080/sites/my-site/artifacts/build-123 -o artifact.tar.gz
+```
+
+Returns tar.gz binary stream.
+
+### Write Log Entry
+
+**Request:**
+```json
+{
+  "build_id": "build-123",
+  "action": "build",
+  "status": "success",
+  "metadata": {
+    "files_changed": 3,
+    "duration_ms": 45000
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success"
+}
+```
+
+### List Versions
+
+**Response:**
+```json
+{
+  "site_id": "my-site",
+  "versions": [
+    {
+      "build_id": "build-123",
+      "size_bytes": 1024000,
+      "created_at": "2024-01-01T12:00:00Z",
+      "logs": [
+        {
+          "action": "build",
+          "status": "success",
+          "timestamp": "2024-01-01T12:00:00Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Storage Backend
+
+### NFS (Current Implementation)
+
+Directory structure:
+```
+/nfs/sites/{site_id}/
+  ├── artifacts/
+  │   ├── {build_id}.tar.gz
+  │   └── {build_id}.tar.gz
+  └── logs/
+      ├── {build_id}.json
+      └── {build_id}.json
+```
+
+### Atomic Write Operations
+
+All writes follow atomic pattern:
+1. Write to temporary file
+2. fsync() to ensure disk persistence
+3. Rename to final location (atomic operation)
+
+This guarantees no partial/corrupted artifacts even on crashes.
+
+### Pluggable Backend Interface
 
 ```go
 type Backend interface {
     StoreArtifact(siteID, buildID string, reader io.Reader) error
     FetchArtifact(siteID, buildID string) (io.ReadCloser, error)
-    WriteLogEntry(siteID string, entry *LogEntry) error
+    WriteLog(siteID string, entry LogEntry) error
     ListVersions(siteID string) ([]*Version, error)
 }
 ```
 
-### NFS Directory Structure
-
-```
-/nfs/
-└── sites/
-    └── <site_id>/
-        ├── artifacts/
-        │   └── <build_id>.tar.gz
-        ├── logs/
-        │   └── <timestamp>-<build_id>.json
-        └── meta.json
-```
-
-### API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| PUT | `/sites/{site_id}/artifacts/{build_id}` | Upload artifact |
-| GET | `/sites/{site_id}/artifacts/{build_id}` | Download artifact |
-| POST | `/sites/{site_id}/logs` | Write log entry |
-| GET | `/sites/{site_id}/versions` | List all versions |
-
-#### Example: Store Artifact
-
-```bash
-curl -X PUT \
-  http://localhost:8080/sites/my-site/artifacts/build-123 \
-  --data-binary @artifact.tar.gz
-```
-
-#### Example: Fetch Artifact
-
-```bash
-curl -X GET \
-  http://localhost:8080/sites/my-site/artifacts/build-123 \
-  -o downloaded.tar.gz
-```
-
-#### Example: Write Log Entry
-
-```bash
-curl -X POST \
-  http://localhost:8080/sites/my-site/logs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "build_id": "build-123",
-    "action": "build",
-    "status": "success",
-    "metadata": {
-      "user": "alice",
-      "branch": "main"
-    }
-  }'
-```
-
-#### Example: List Versions
-
-```bash
-curl -X GET http://localhost:8080/sites/my-site/versions
-```
+Future backends:
+- S3-compatible (AWS, MinIO, DigitalOcean Spaces)
+- Azure Blob Storage
+- Google Cloud Storage
 
 ## Configuration
 
-Configuration is managed via environment variables prefixed with `PAGEWRIGHT_`:
+Environment variables (all with `PAGEWRIGHT_` prefix):
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PAGEWRIGHT_PORT` | `8080` | HTTP server port |
-| `PAGEWRIGHT_STORAGE_BACKEND` | `nfs` | Storage backend type |
-| `PAGEWRIGHT_NFS_BASE_PATH` | `/nfs` | NFS mount point |
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `PORT` | `8080` | No | HTTP server port |
+| `STORAGE_BACKEND` | `nfs` | No | Backend type (nfs, s3, azure, gcs) |
+| `NFS_BASE_PATH` | `/nfs` | Yes | NFS mount point |
 
-## Setup
-
-### Prerequisites
-
-- Go 1.22 or later
-- Docker and Docker Compose (for local testing)
-- Make (optional, for convenience)
-
-### Quick Start
-
-1. **Start the infrastructure:**
+## Running
 
 ```bash
-make docker-up
-```
-
-This starts:
-- NFS server container
-- Storage service container
-
-2. **Verify service is running:**
-
-```bash
-curl http://localhost:8080/health
-```
-
-3. **Stop the infrastructure:**
-
-```bash
-make docker-down
-```
-
-### Local Development
-
-Run the service locally without Docker:
-
-```bash
+# Development
+cd pagewright/storage
 make run
-```
 
-Or manually:
-
-```bash
-export PAGEWRIGHT_PORT=8080
-export PAGEWRIGHT_STORAGE_BACKEND=nfs
-export PAGEWRIGHT_NFS_BASE_PATH=/tmp/nfs-test
-go run ./cmd/server/main.go
-```
-
-## Testing
-
-### Run All Tests
-
-```bash
-make test
-```
-
-### Unit Tests Only
-
-```bash
-make test-unit
-```
-
-### Integration Tests
-
-Integration tests require the Docker infrastructure to be running:
-
-```bash
+# Docker Compose (includes NFS server)
 make docker-up
+
+# Tests
+make test
 make test-integration
 ```
 
-Or run the complete end-to-end test suite:
+## Queue Usage
 
-```bash
-make e2e
-```
+**Note**: The storage service does NOT use Redis or any queue system. It is a simple synchronous HTTP service.
 
-### Test Coverage
+Queue operations are handled by:
+- **Manager Service**: Job queue management
+- **Gateway Service**: Enqueues build requests to manager
 
-Generate a coverage report:
-
-```bash
-make coverage
-```
-
-This creates `coverage.html` in the current directory.
-
-## Building
-
-### Build Binary
-
-```bash
-make build
-```
-
-### Build Docker Image
-
-```bash
-make docker-build
-```
-
-## Development Tools
-
-### Format Code
-
-```bash
-make fmt
-```
-
-### Run Linter
-
-```bash
-make vet
-```
-
-### View Logs
-
-```bash
-make docker-logs
-```
-
-## Key Features
-
-### Atomic Writes
-
-All write operations are atomic to prevent partial writes:
-
-1. Write data to `<path>.tmp`
-2. Call `fsync()` to ensure data is on disk
-3. Atomically rename temp file to final path
-
-This ensures that concurrent operations never see partial writes and that data survives crashes.
-
-### Log Entry Format
-
-Each log entry is stored as a separate JSON file with the format:
-
-```json
-{
-  "timestamp": "2026-02-06T10:30:45.123456Z",
-  "build_id": "build-123",
-  "site_id": "my-site",
-  "action": "build",
-  "status": "success",
-  "metadata": {
-    "user": "alice",
-    "branch": "main"
-  }
-}
-```
-
-Filenames use the pattern: `<timestamp>-<build_id>.json`
-
-This approach:
-- Avoids JSONL append hazards
-- Provides natural chronological sorting
-- Ensures each build has a complete, atomic log entry
-
-## Project Status
-
-✅ **Implemented:**
-- NFS storage backend with atomic writes
-- REST API for artifacts, logs, and versions
-- Complete unit test suite
-- Integration tests with real NFS mount
-- Docker and docker-compose setup
-- Makefile for automation
-
-See [TODO.md](TODO.md) for planned features and improvements.
-
-## License
-
-See [LICENSE](../../LICENSE) file in the repository root.
+Storage service only stores and retrieves artifacts on-demand.
