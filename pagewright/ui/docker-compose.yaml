@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pagewright-ui
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_PAGEWRIGHT_API_URL=http://localhost:8080
+      - VITE_PAGEWRIGHT_WS_URL=ws://localhost:8080/ws
+      - VITE_PAGEWRIGHT_DEFAULT_DOMAIN=pagewright.io
+    networks:
+      - pagewright-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  pagewright-network:
+    external: true

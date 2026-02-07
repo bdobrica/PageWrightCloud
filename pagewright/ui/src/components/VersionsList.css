@@ -1,0 +1,61 @@
+.versions-list {
+  background: #f9f9f9;
+  border-left: 1px solid #ddd;
+  padding: 1rem;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.versions-list h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.no-versions {
+  color: #999;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.versions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.version-item {
+  padding: 0.75rem;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.version-item:hover {
+  border-color: #1f8dd6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.version-id {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+
+.version-time {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+@media (max-width: 768px) {
+  .versions-list {
+    border-left: none;
+    border-top: 1px solid #ddd;
+    height: auto;
+    max-height: 200px;
+  }
+}
