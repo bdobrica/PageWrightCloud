@@ -1,0 +1,23 @@
+<header class="header">
+  <div class="container header-inner">
+    <div class="brand">
+      <a class="brand-link" href="{{ .Site.BaseURL }}/">
+        {{ if .Site.LogoURL }}
+          <img class="brand-logo" src="{{ .Site.LogoURL }}" alt="{{ .Site.Name }} logo" />
+        {{ end }}
+        <span class="brand-name">{{ .Site.Name }}</span>
+      </a>
+    </div>
+
+    <div class="header-actions">
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav" data-nav-toggle>
+        <span class="nav-toggle-icon" aria-hidden="true"></span>
+        <span class="sr-only">Toggle navigation</span>
+      </button>
+
+      {{ if .Site.PrimaryCTA }}
+        <a class="btn btn-primary" href="{{ .Site.PrimaryCTA.Href }}">{{ .Site.PrimaryCTA.Label }}</a>
+      {{ end }}
+    </div>
+  </div>
+</header>

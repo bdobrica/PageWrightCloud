@@ -1,0 +1,15 @@
+<!-- Props: video_id (string), title (string), caption (string) -->
+<div class="card" style="padding:0; overflow:hidden;">
+  <div style="position:relative; padding-top:56.25%;">
+    <iframe
+      src="https://www.youtube-nocookie.com/embed/{{ .video_id }}"
+      title="{{ .title }}"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen
+      style="position:absolute; inset:0; width:100%; height:100%; border:0;">
+    </iframe>
+  </div>
+  {{ if .caption }}
+    <p class="muted" style="margin:12px 14px 14px;">{{ .caption }}</p>
+  {{ end }}
+</div>

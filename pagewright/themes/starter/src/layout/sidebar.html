@@ -1,0 +1,24 @@
+<aside class="sidebar">
+  <div class="sidebar-inner">
+    {{ if .Page.TOCHTML }}
+      <section class="card">
+        <h2 class="card-title">On this page</h2>
+        <div class="toc">
+          {{ .Page.TOCHTML }}
+        </div>
+      </section>
+    {{ end }}
+
+    {{ if .Page.SidebarHTML }}
+      <section class="card">
+        {{ .Page.SidebarHTML }}
+      </section>
+    {{ end }}
+
+    {{ if .Site.SidebarDefaultHTML }}
+      <section class="card">
+        {{ .Site.SidebarDefaultHTML }}
+      </section>
+    {{ end }}
+  </div>
+</aside>

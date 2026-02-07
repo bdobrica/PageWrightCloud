@@ -24,6 +24,7 @@ help:
 	@echo "  make test-storage        - Run storage tests"
 	@echo "  make test-worker         - Run worker tests"
 	@echo "  make test-serving        - Run serving tests"
+	@echo "  make test-compiler       - Run compiler tests"
 	@echo "  make coverage            - Generate coverage reports for all services"
 	@echo ""
 	@echo "Build Commands:"
@@ -33,6 +34,7 @@ help:
 	@echo "  make build-storage       - Build storage binary"
 	@echo "  make build-worker        - Build worker binary"
 	@echo "  make build-serving       - Build serving binary"
+	@echo "  make build-compiler      - Build compiler binary"
 	@echo ""
 	@echo "Cleanup Commands:"
 	@echo "  make clean               - Clean all build artifacts"
@@ -105,6 +107,9 @@ docker-build-worker:
 docker-build-serving:
 	docker-compose build serving
 
+docker-build-themes:
+	docker-compose build themes
+
 docker-build-ui:
 	docker-compose build ui
 
@@ -117,7 +122,7 @@ docker-clean:
 # Testing Commands
 # =============================================================================
 
-test-all: test-gateway test-manager test-storage test-worker test-serving
+test-all: test-gateway test-manager test-storage test-worker test-serving test-compiler
 	@echo "All tests completed!"
 
 test-gateway:
@@ -140,6 +145,10 @@ test-serving:
 	@echo "Running serving tests..."
 	@cd pagewright/serving && $(MAKE) test
 
+test-compiler:
+	@echo "Running compiler tests..."
+	@cd pagewright/compiler && $(MAKE) test
+
 # Integration tests (require docker-compose up)
 test-integration: docker-up-infra
 	@echo "Running integration tests..."
@@ -151,7 +160,7 @@ test-integration: docker-up-infra
 # Build Commands
 # =============================================================================
 
-build-all: build-gateway build-manager build-storage build-worker build-serving
+build-all: build-gateway build-manager build-storage build-worker build-serving build-compiler
 	@echo "All binaries built!"
 
 build-gateway:
@@ -174,6 +183,10 @@ build-serving:
 	@echo "Building serving..."
 	@cd pagewright/serving && $(MAKE) build
 
+build-compiler:
+	@echo "Building compiler..."
+	@cd pagewright/compiler && $(MAKE) build
+
 # =============================================================================
 # Coverage Commands
 # =============================================================================
@@ -185,6 +198,7 @@ coverage:
 	@cd pagewright/storage && $(MAKE) coverage
 	@cd pagewright/worker && $(MAKE) coverage
 	@cd pagewright/serving && $(MAKE) coverage
+	@cd pagewright/compiler && $(MAKE) coverage
 	@echo "Coverage reports generated. Open coverage.html in each service directory."
 
 # =============================================================================
@@ -198,6 +212,7 @@ clean:
 	@cd pagewright/storage && $(MAKE) clean
 	@cd pagewright/worker && $(MAKE) clean
 	@cd pagewright/serving && $(MAKE) clean
+	@cd pagewright/compiler && $(MAKE) clean
 	@echo "Cleanup complete."
 
 # =============================================================================
@@ -211,6 +226,7 @@ fmt:
 	@cd pagewright/storage && go fmt ./...
 	@cd pagewright/worker && go fmt ./...
 	@cd pagewright/serving && go fmt ./...
+	@cd pagewright/compiler && go fmt ./...
 	@echo "Code formatted."
 
 vet:
@@ -220,6 +236,7 @@ vet:
 	@cd pagewright/storage && go vet ./...
 	@cd pagewright/worker && go vet ./...
 	@cd pagewright/serving && go vet ./...
+	@cd pagewright/compiler && go vet ./...
 	@echo "Vet completed."
 
 lint: fmt vet

@@ -37,6 +37,7 @@ This starts:
 - **Manager** - Job orchestration (port 8081)
 - **Storage** - Artifact storage (port 8080)
 - **Serving** - Static hosting (port 8083)
+- **Themes** - Theme registry & downloads (port 8086)
 - **nginx** - Web server (port 8084)
 - **UI** - React frontend (port 3000)
 
@@ -58,6 +59,7 @@ curl http://localhost:8085/health  # Gateway
 curl http://localhost:8081/health  # Manager
 curl http://localhost:8080/health  # Storage
 curl http://localhost:8083/health  # Serving
+curl http://localhost:8086/        # Themes (returns JSON index)
 ```
 
 ### Development Workflow
@@ -89,7 +91,7 @@ make docker-down
 
 ## Architecture
 
-PageWrightCloud consists of 6 microservices:
+PageWrightCloud consists of 7 microservices:
 
 1. **Gateway** (8085) - User authentication, site management, REST API
 2. **Manager** (8081) - Job queue & worker orchestration with Redis
@@ -97,8 +99,19 @@ PageWrightCloud consists of 6 microservices:
 4. **Worker** (8082) - Executes Codex AI edits in isolated containers
 5. **Serving** (8083) - nginx-based static hosting with atomic deploys
 6. **UI** (5173) - React/TypeScript chat interface
+7. **Compiler** - Standalone Go binary that transforms markdown + theme → static HTML
+8. **Themes** (8086) - Theme registry serving zipped themes via HTTP
 
-See [pagewright/README.md](pagewright/README.md) for detailed architecture diagram.
+### Compiler & Themes
+
+The compiler is a security boundary that limits what AI agents can modify:
+
+- **AI agents CAN:** Edit markdown, modify site.json, add page assets
+- **AI agents CANNOT:** Change base URLs, edit theme templates, run arbitrary code
+
+Themes define the look and feel using Go templates, CSS tokens, and MDX components.
+
+See [pagewright/compiler/README.md](pagewright/compiler/README.md) and [pagewright/themes/README.md](pagewright/themes/README.md) for details.
 
 ## Testing
 
@@ -140,6 +153,7 @@ cd pagewright/manager && make coverage && open coverage.html
 | Storage | ✅ Complete | 80%+ |
 | Worker | ✅ Complete | 75%+ |
 | Serving | ✅ Complete | 77%+ |
+| Compiler | ✅ Complete | 0% (needs tests) |
 | UI | 🚧 In Progress | N/A |
 
 ## Core Concepts
@@ -194,6 +208,8 @@ PAGEWRIGHT_WWW_ROOT=/var/www
 - [Storage API](pagewright/storage/README.md)
 - [Worker Deployment](pagewright/worker/README.md)
 - [Serving API](pagewright/serving/README.md)
+- [Compiler](pagewright/compiler/README.md)
+- [Themes](pagewright/themes/README.md)
 - [UI Implementation](pagewright/ui/README.md)
 - [TODO List](TODO.md)
 

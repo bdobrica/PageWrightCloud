@@ -1,0 +1,13 @@
+<footer class="footer">
+  <div class="container footer-inner">
+    <p class="muted">
+      © {{ .Site.Year }} {{ .Site.Name }} · Built with Pagewright
+    </p>
+
+    <div class="footer-links">
+      {{ if .Site.FooterLinksHTML }}
+        {{ .Site.FooterLinksHTML }}
+      {{ end }}
+    </div>
+  </div>
+</footer>

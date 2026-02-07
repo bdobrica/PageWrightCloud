@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="{{ .Site.Lang }}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ .Page.Title }}</title>
+  {{ if .Page.Description }}<meta name="description" content="{{ .Page.Description }}" />{{ end }}
+
+  <!-- Theme CSS -->
+  <link rel="stylesheet" href="/assets/css/tokens.css" />
+  <link rel="stylesheet" href="/assets/css/theme.css" />
+</head>
+
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  {{ template "header.html" . }}
+
+  <div class="app">
+    {{ template "nav.html" . }}
+
+    <div class="layout">
+      {{ template "sidebar.html" . }}
+
+      <main id="main" class="main">
+        {{ template "body.html" . }}
+      </main>
+    </div>
+
+    {{ template "footer.html" . }}
+  </div>
+
+  <script src="/assets/js/theme.js" defer></script>
+</body>
+</html>

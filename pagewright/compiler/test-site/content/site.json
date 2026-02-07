@@ -1,0 +1,9 @@
+{
+  "site_name": "My Test Site",
+  "author": "Test Author",
+  "lang": "en",
+  "primary_cta": {
+    "label": "Get Started",
+    "href": "/contact"
+  }
+}

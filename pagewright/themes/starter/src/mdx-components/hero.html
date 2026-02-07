@@ -1,0 +1,16 @@
+<!-- Props: headline (string), subheadline (string), cta_text (string), cta_href (string), secondary_text (string), secondary_href (string) -->
+<section class="card" style="padding: 22px;">
+  <div style="display:grid; gap: 10px;">
+    {{ if .headline }}<h2 style="margin:0; font-size: 28px;">{{ .headline }}</h2>{{ end }}
+    {{ if .subheadline }}<p class="muted" style="margin:0; font-size: 16px;">{{ .subheadline }}</p>{{ end }}
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 6px;">
+      {{ if .cta_href }}
+        <a class="btn btn-primary" href="{{ .cta_href }}">{{ .cta_text }}</a>
+      {{ end }}
+      {{ if .secondary_href }}
+        <a class="btn" href="{{ .secondary_href }}">{{ .secondary_text }}</a>
+      {{ end }}
+    </div>
+  </div>
+</section>

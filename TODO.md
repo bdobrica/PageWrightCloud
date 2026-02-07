@@ -2,6 +2,16 @@
 
 ## High Priority
 
+### Compiler & Themes
+- [ ] Add comprehensive unit tests for compiler (target 80%+)
+- [ ] Create Makefile for compiler (build, test, clean targets)
+- [ ] Add incremental build support (hash-based caching)
+- [ ] Create additional themes (blog, portfolio, docs)
+- [ ] Add theme validation tool
+- [ ] Support custom component props validation
+- [ ] Add sitemap.xml and RSS generation
+- [ ] Implement draft pages support
+
 ### UI Completion
 - [ ] Complete remaining React components
   - [ ] Dashboard page with site cards
