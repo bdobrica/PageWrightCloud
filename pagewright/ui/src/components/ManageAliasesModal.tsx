@@ -9,7 +9,7 @@ interface ManageAliasesModalProps {
   onClose: () => void;
 }
 
-export const ManageAliasesModal: React.FC<ManageAliasesModalProps> = ({ siteId, fqdn, onClose }) => {
+export const ManageAliasesModal: React.FC<ManageAliasesModalProps> = ({ fqdn, onClose }) => {
   const [aliases, setAliases] = useState<SiteAlias[]>([]);
   const [newAlias, setNewAlias] = useState('');
   const [isLoading, setIsLoading] = useState(true);

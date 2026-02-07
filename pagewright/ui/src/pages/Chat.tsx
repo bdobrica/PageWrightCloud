@@ -84,7 +84,7 @@ export const Chat: React.FC = () => {
           ...prev,
           {
             id: Date.now().toString() + '-q',
-            text: response.question,
+            text: response.question || '',
             sender: 'agent',
             timestamp: new Date(),
           },

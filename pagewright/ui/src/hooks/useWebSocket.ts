@@ -5,7 +5,7 @@ import type { JobStatusUpdate } from '../types/api';
 export const useWebSocket = (onMessage: (update: JobStatusUpdate) => void) => {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<number>();
+  const reconnectTimeoutRef = useRef<number | undefined>(undefined);
 
   const connect = useCallback(() => {
     const token = localStorage.getItem('token');

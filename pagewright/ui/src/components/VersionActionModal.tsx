@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Version } from '../types/api';
+import type { Version } from '../types/api';
 import { formatTimestamp } from '../utils/format';
 import './Modal.css';
 
@@ -14,7 +14,6 @@ interface VersionActionModalProps {
 
 export const VersionActionModal: React.FC<VersionActionModalProps> = ({
   version,
-  siteId,
   onClose,
   onPreview,
   onPromote,
@@ -57,7 +56,7 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
         </div>
         <div className="modal-body">
           <p>
-            <strong>Created:</strong> {formatTimestamp(version.timestamp)}
+            <strong>Created:</strong> {formatTimestamp(version.created_at)}
           </p>
           <div className="modal-actions">
             <button className="pure-button pure-button-primary" onClick={onPreview}>
