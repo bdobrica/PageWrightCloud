@@ -18,26 +18,73 @@ PageWrightCloud helps professionals (lawyers, accountants, teachers, artists) cr
 git clone https://github.com/PageWrightCloud/PageWrightCloud.git
 cd PageWrightCloud
 
-# Start infrastructure (Redis, PostgreSQL, NFS)
-cd pagewright
-docker-compose up -d
+# Copy environment file and configure
+cp .env.example .env
+# Edit .env and add your GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and LLM_KEY
 
-# Start individual services (in separate terminals)
-cd gateway && make run     # Port 8085
-cd manager && make run     # Port 8081
-cd storage && make run     # Port 8080
-cd serving && make run     # Port 8083
-cd worker && make run      # Port 8082
-cd ui && npm run dev       # Port 5173
+# Start all services with docker-compose
+make docker-up
+
+# Check service health
+make docker-ps
 ```
+
+This starts:
+- **PostgreSQL** - Gateway database (port 5432)
+- **Redis** - Manager job queue (port 6379)
+- **NFS Server** - Storage backend (port 2049)
+- **Gateway** - API & auth (port 8085)
+- **Manager** - Job orchestration (port 8081)
+- **Storage** - Artifact storage (port 8080)
+- **Serving** - Static hosting (port 8083)
+- **nginx** - Web server (port 8084)
+- **UI** - React frontend (port 3000)
 
 ### Verify Services
 
 ```bash
+# Check all services are running
+make docker-ps
+
+# View logs
+make docker-logs
+
+# View specific service logs
+make docker-logs-gateway
+make docker-logs-manager
+
+# Test API
 curl http://localhost:8085/health  # Gateway
 curl http://localhost:8081/health  # Manager
 curl http://localhost:8080/health  # Storage
 curl http://localhost:8083/health  # Serving
+```
+
+### Development Workflow
+
+**Option 1: All services in Docker**
+```bash
+make docker-up
+make docker-logs
+```
+
+**Option 2: Infrastructure in Docker, services locally**
+```bash
+# Start only infrastructure (PostgreSQL, Redis, NFS)
+make docker-up-infra
+
+# Run services locally (in separate terminals)
+cd pagewright/gateway && make run
+cd pagewright/manager && make run
+cd pagewright/storage && make run
+cd pagewright/serving && make run
+cd pagewright/ui && npm run dev
+```
+
+### Stop Services
+
+```bash
+make docker-down
 ```
 
 ## Architecture
@@ -58,24 +105,30 @@ See [pagewright/README.md](pagewright/README.md) for detailed architecture diagr
 ### Run All Tests
 
 ```bash
-# Individual service tests
-cd pagewright/gateway && make test
-cd pagewright/manager && make test
-cd pagewright/storage && make test
-cd pagewright/serving && make test
-cd pagewright/worker && make test
+# All services (requires infrastructure running)
+make docker-up-infra
+make test-all
 
-# Integration tests (requires docker-compose up)
-cd pagewright/gateway && make test-integration
-cd pagewright/storage && make test-integration
+# Individual service tests
+make test-gateway
+make test-manager
+make test-storage
+make test-worker
+make test-serving
+
+# Integration tests (requires docker-up-infra)
+make test-integration
 ```
 
 ### Coverage Reports
 
 ```bash
-cd pagewright/<service>
+# Generate coverage for all services
 make coverage
-open coverage.html
+
+# View individual coverage
+cd pagewright/gateway && make coverage && open coverage.html
+cd pagewright/manager && make coverage && open coverage.html
 ```
 
 ## Current Status
