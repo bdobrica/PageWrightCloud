@@ -33,6 +33,6 @@ func (db *DB) Close() error {
 // In production, consider using a migration tool like golang-migrate
 func (db *DB) RunMigrations(migrationsPath string) error {
 	// This is a simplified version - in production use golang-migrate or similar
-	// For now, migrations are applied manually or via docker-compose init scripts
+	// For now, migrations are applied manually or via docker compose init scripts
 	return nil
 }

@@ -45,77 +45,77 @@ help:
 
 docker-up:
 	@echo "Starting all services..."
-	docker-compose up -d
+	docker compose up -d
 	@echo "Services started. Check health with: make docker-ps"
 
 docker-up-infra:
 	@echo "Starting infrastructure only..."
-	docker-compose up -d postgres redis nfs-server
+	docker compose up -d postgres redis nfs-server
 	@echo "Infrastructure started."
 
 docker-up-worker:
 	@echo "Starting all services including worker..."
-	docker-compose --profile worker up -d
+	docker compose --profile worker up -d
 	@echo "All services started including worker."
 
 docker-down:
 	@echo "Stopping all services..."
-	docker-compose down
+	docker compose down
 	@echo "Services stopped."
 
 docker-logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 docker-logs-gateway:
-	docker-compose logs -f gateway
+	docker compose logs -f gateway
 
 docker-logs-manager:
-	docker-compose logs -f manager
+	docker compose logs -f manager
 
 docker-logs-storage:
-	docker-compose logs -f storage
+	docker compose logs -f storage
 
 docker-logs-worker:
-	docker-compose logs -f worker
+	docker compose logs -f worker
 
 docker-logs-serving:
-	docker-compose logs -f serving
+	docker compose logs -f serving
 
 docker-logs-ui:
-	docker-compose logs -f ui
+	docker compose logs -f ui
 
 docker-ps:
-	docker-compose ps
+	docker compose ps
 
 docker-build:
 	@echo "Building all service images..."
-	docker-compose build
+	docker compose build
 	@echo "All images built."
 
 docker-build-gateway:
-	docker-compose build gateway
+	docker compose build gateway
 
 docker-build-manager:
-	docker-compose build manager
+	docker compose build manager
 
 docker-build-storage:
-	docker-compose build storage
+	docker compose build storage
 
 docker-build-worker:
-	docker-compose build worker
+	docker compose build worker
 
 docker-build-serving:
-	docker-compose build serving
+	docker compose build serving
 
 docker-build-themes:
-	docker-compose build themes
+	docker compose build themes
 
 docker-build-ui:
-	docker-compose build ui
+	docker compose build ui
 
 docker-clean:
 	@echo "Cleaning up Docker resources..."
-	docker-compose down -v --rmi all
+	docker compose down -v --rmi all
 	@echo "Cleanup complete."
 
 # =============================================================================
@@ -149,7 +149,7 @@ test-compiler:
 	@echo "Running compiler tests..."
 	@cd pagewright/compiler && $(MAKE) test
 
-# Integration tests (require docker-compose up)
+# Integration tests (require docker compose up)
 test-integration: docker-up-infra
 	@echo "Running integration tests..."
 	@cd pagewright/gateway && $(MAKE) test-integration

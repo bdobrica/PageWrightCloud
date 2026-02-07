@@ -315,8 +315,8 @@ Style it with CSS:
 
 7. **Rebuild themes service** to include your new theme:
    ```bash
-   docker-compose build themes
-   docker-compose up -d themes
+   docker compose build themes
+   docker compose up -d themes
    ```
 
 ## Best Practices
