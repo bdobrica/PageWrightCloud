@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
@@ -41,16 +42,20 @@ func TestMain(m *testing.M) {
 	}
 	defer dbConn.Close()
 
-	testDB = database.NewDB(dbConn)
+	testDB, err = database.NewDB(dbURL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize database: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Setup test JWT manager
-	testJWTManager = auth.NewJWTManager("test-secret", "15m")
+	testJWTManager = auth.NewJWTManager("test-secret", 15*time.Minute)
 
 	// Setup test router
 	testRouter = setupTestRouter()
 
 	// Run migrations
-	if err := runTestMigrations(dbConn.DB); err != nil {
+	if err := runTestMigrations(dbConn); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to run migrations: %v\n", err)
 		os.Exit(1)
 	}
@@ -59,7 +64,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// Cleanup
-	cleanupTestData(dbConn.DB)
+	cleanupTestData(dbConn)
 
 	os.Exit(code)
 }
@@ -215,7 +220,7 @@ func TestAuthFlow(t *testing.T) {
 
 func TestJWTValidation(t *testing.T) {
 	// Create test user
-	user, err := testDB.CreateUser("test-jwt@example.com", "hash", "", "")
+	user, err := testDB.CreateUser("test-jwt@example.com", "hash", nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create test user: %v", err)
 	}
@@ -247,7 +252,7 @@ func TestJWTValidation(t *testing.T) {
 
 	t.Run("Expired JWT token", func(t *testing.T) {
 		// Create manager with very short expiration
-		shortJWT := auth.NewJWTManager("test-secret", "1ns")
+		shortJWT := auth.NewJWTManager("test-secret", 1*time.Nanosecond)
 		token, _ := shortJWT.GenerateToken(user.ID, user.Email)
 
 		// Wait a bit to ensure expiration

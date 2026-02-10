@@ -171,6 +171,127 @@ Environment variables (all with `PAGEWRIGHT_` prefix):
 | `LLM_URL` | `https://api.openai.com/v1` | No | OpenAI base URL |
 | `DEFAULT_PAGE_SIZE` | `25` | No | Pagination default |
 
+## User Management CLI
+
+A command-line tool is provided for managing users directly in the database. This is especially useful for:
+- Initial setup and creating admin users
+- Local development and testing
+- User management in containerized environments
+
+### Available Commands
+
+- `create -email <email> -password <password>` - Create a new user
+- `list` - List all users with details
+- `delete -email <email>` - Delete a user by email
+
+### Method 1: Using Docker Compose (Recommended for Testing)
+
+Start the gateway service:
+
+```bash
+cd pagewright/gateway
+docker compose up -d
+```
+
+Wait for services to be ready, then create a user:
+
+```bash
+docker compose exec bff ./users create -email admin@pagewright.local -password admin123
+```
+
+List all users:
+
+```bash
+docker compose exec bff ./users list
+```
+
+### Method 2: Local Development (Without Docker)
+
+1. Start PostgreSQL (via docker compose or locally):
+   ```bash
+   docker compose up -d postgres
+   ```
+
+2. Set environment variable:
+   ```bash
+   export PAGEWRIGHT_DATABASE_URL="postgres://pagewright:pagewright@localhost:5432/pagewright?sslmode=disable"
+   ```
+
+3. Build and use the CLI:
+   ```bash
+   make build-cli
+   ./bin/users create -email test@example.com -password testpass123
+   ./bin/users list
+   ```
+
+### Common Use Cases
+
+**Create admin user for development:**
+```bash
+docker compose exec bff ./users create -email admin@dev.local -password devpass
+```
+
+**Create multiple test users:**
+```bash
+docker compose exec bff ./users create -email user1@test.com -password pass1
+docker compose exec bff ./users create -email user2@test.com -password pass2
+docker compose exec bff ./users create -email user3@test.com -password pass3
+```
+
+**View all users:**
+```bash
+docker compose exec bff ./users list
+```
+
+Output example:
+```
+ID                                    EMAIL                AUTH METHOD  CREATED AT
+----                                  -----                -----------  ----------
+550e8400-e29b-41d4-a716-446655440000  admin@dev.local      password     2026-02-10 14:30:00
+660e8400-e29b-41d4-a716-446655440001  user1@test.com       password     2026-02-10 14:35:00
+
+Total: 2 user(s)
+```
+
+**Delete a test user:**
+```bash
+docker compose exec bff ./users delete -email user1@test.com
+```
+
+### Integration with Testing Scripts
+
+You can use the CLI in your test setup scripts:
+
+```bash
+#!/bin/bash
+# setup-test-env.sh
+
+# Start services
+docker compose up -d
+
+# Wait for database to be ready
+sleep 5
+
+# Create test users
+docker compose exec -T bff ./users create -email admin@test.local -password admin
+docker compose exec -T bff ./users create -email user@test.local -password user
+
+echo "Test environment ready!"
+```
+
+### Troubleshooting
+
+**Error: "PAGEWRIGHT_DATABASE_URL environment variable is required"**
+- Make sure the environment variable is set (in docker compose it's already configured)
+
+**Error: "Failed to connect to database"**
+- Ensure PostgreSQL is running: `docker compose ps`
+- Check database URL is correct
+
+**Error: "User with email X already exists"**
+- User already created, use `list` to see existing users
+- Or delete the user first: `./users delete -email X`
+
 ## Running
 
 ```bash

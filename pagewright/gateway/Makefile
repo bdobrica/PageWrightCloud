@@ -1,9 +1,10 @@
-.PHONY: help build run test test-unit test-integration coverage docker-build clean
+.PHONY: help build build-cli run test test-unit test-integration coverage docker-build clean
 
 help:
 	@echo "Gateway Service - Makefile"
 	@echo ""
 	@echo "  build              - Build the gateway binary"
+	@echo "  build-cli          - Build the users CLI tool"
 	@echo "  run                - Run the service locally"
 	@echo "  test               - Run all tests"
 	@echo "  test-unit          - Run unit tests"
@@ -15,6 +16,10 @@ help:
 build:
 	@echo "Building gateway..."
 	go build -o bin/gateway cmd/gateway/main.go
+
+build-cli:
+	@echo "Building users CLI..."
+	go build -o bin/users cmd/users/main.go
 
 run:
 	@echo "Running gateway service..."

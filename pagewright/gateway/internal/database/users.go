@@ -77,3 +77,35 @@ func (db *DB) GetUserByID(id string) (*types.User, error) {
 
 	return user, nil
 }
+
+func (db *DB) ListUsers() ([]*types.User, error) {
+	var users []*types.User
+	query := `SELECT id, email, password_hash, oauth_provider, oauth_id, created_at FROM users ORDER BY created_at DESC`
+
+	err := db.Select(&users, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+
+	return users, nil
+}
+
+func (db *DB) DeleteUser(id string) error {
+	query := `DELETE FROM users WHERE id = $1`
+
+	result, err := db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
