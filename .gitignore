@@ -21,7 +21,8 @@
 go.work
 go.work.sum
 
-# env file
-.env
 # Environment variables
 .env
+
+# Playwright test results for MCP
+.playwright-mcp/

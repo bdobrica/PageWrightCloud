@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -38,9 +37,7 @@ const App: React.FC = () => {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
+                <Dashboard />
               </ProtectedRoute>
             }
           />
@@ -48,9 +45,7 @@ const App: React.FC = () => {
             path="/create-site"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <CreateSite />
-                </Layout>
+                <CreateSite />
               </ProtectedRoute>
             }
           />
@@ -58,9 +53,7 @@ const App: React.FC = () => {
             path="/chat/:siteId"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Chat />
-                </Layout>
+                <Chat />
               </ProtectedRoute>
             }
           />
@@ -68,9 +61,7 @@ const App: React.FC = () => {
             path="/profile"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Profile />
-                </Layout>
+                <Profile />
               </ProtectedRoute>
             }
           />

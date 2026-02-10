@@ -20,7 +20,7 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => 
       try {
         setIsLoading(true);
         const response = await apiClient.listVersions(fqdn, 1, 10);
-        setVersions(response.data);
+        setVersions(response.data || []);
       } catch (error) {
         console.error('Failed to fetch versions:', error);
       } finally {

@@ -66,44 +66,44 @@ func main() {
 	r.Use(middleware.CORS)
 
 	// Public routes
-	r.HandleFunc("/auth/register", authHandler.Register).Methods("POST")
-	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST")
-	r.HandleFunc("/auth/forgot-password", authHandler.ForgotPassword).Methods("POST")
-	r.HandleFunc("/auth/reset-password", authHandler.ResetPassword).Methods("POST")
-	r.HandleFunc("/auth/google/login", authHandler.GoogleLogin).Methods("GET")
-	r.HandleFunc("/auth/google/callback", authHandler.GoogleCallback).Methods("GET")
+	r.HandleFunc("/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
+	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
+	r.HandleFunc("/auth/forgot-password", authHandler.ForgotPassword).Methods("POST", "OPTIONS")
+	r.HandleFunc("/auth/reset-password", authHandler.ResetPassword).Methods("POST", "OPTIONS")
+	r.HandleFunc("/auth/google/login", authHandler.GoogleLogin).Methods("GET", "OPTIONS")
+	r.HandleFunc("/auth/google/callback", authHandler.GoogleCallback).Methods("GET", "OPTIONS")
 
 	// Protected routes
 	api := r.PathPrefix("/").Subrouter()
 	api.Use(middleware.AuthMiddleware(jwtManager))
 
 	// Auth
-	api.HandleFunc("/auth/update-password", authHandler.UpdatePassword).Methods("POST")
+	api.HandleFunc("/auth/update-password", authHandler.UpdatePassword).Methods("POST", "OPTIONS")
 
 	// WebSocket
-	api.HandleFunc("/ws", wsHandler.HandleWebSocket).Methods("GET")
+	api.HandleFunc("/ws", wsHandler.HandleWebSocket).Methods("GET", "OPTIONS")
 
 	// Sites
-	api.HandleFunc("/sites", sitesHandler.CreateSite).Methods("POST")
-	api.HandleFunc("/sites", sitesHandler.ListSites).Methods("GET")
-	api.HandleFunc("/sites/{fqdn}", sitesHandler.GetSite).Methods("GET")
-	api.HandleFunc("/sites/{fqdn}", sitesHandler.DeleteSite).Methods("DELETE")
-	api.HandleFunc("/sites/{fqdn}/enable", sitesHandler.EnableSite).Methods("POST")
-	api.HandleFunc("/sites/{fqdn}/disable", sitesHandler.DisableSite).Methods("POST")
+	api.HandleFunc("/sites", sitesHandler.CreateSite).Methods("POST", "OPTIONS")
+	api.HandleFunc("/sites", sitesHandler.ListSites).Methods("GET", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}", sitesHandler.GetSite).Methods("GET", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}", sitesHandler.DeleteSite).Methods("DELETE", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/enable", sitesHandler.EnableSite).Methods("POST", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/disable", sitesHandler.DisableSite).Methods("POST", "OPTIONS")
 
 	// Aliases
-	api.HandleFunc("/sites/{fqdn}/aliases", aliasesHandler.ListAliases).Methods("GET")
-	api.HandleFunc("/sites/{fqdn}/aliases", aliasesHandler.AddAlias).Methods("POST")
-	api.HandleFunc("/sites/{fqdn}/aliases/{alias}", aliasesHandler.DeleteAlias).Methods("DELETE")
+	api.HandleFunc("/sites/{fqdn}/aliases", aliasesHandler.ListAliases).Methods("GET", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/aliases", aliasesHandler.AddAlias).Methods("POST", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/aliases/{alias}", aliasesHandler.DeleteAlias).Methods("DELETE", "OPTIONS")
 
 	// Versions
-	api.HandleFunc("/sites/{fqdn}/versions", versionsHandler.ListVersions).Methods("GET")
-	api.HandleFunc("/sites/{fqdn}/versions/{version_id}/deploy", versionsHandler.DeployVersion).Methods("POST")
-	api.HandleFunc("/sites/{fqdn}/versions/{version_id}", versionsHandler.DeleteVersion).Methods("DELETE")
-	api.HandleFunc("/sites/{fqdn}/versions/{version_id}/download", versionsHandler.DownloadVersion).Methods("GET")
+	api.HandleFunc("/sites/{fqdn}/versions", versionsHandler.ListVersions).Methods("GET", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/versions/{version_id}/deploy", versionsHandler.DeployVersion).Methods("POST", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/versions/{version_id}", versionsHandler.DeleteVersion).Methods("DELETE", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/versions/{version_id}/download", versionsHandler.DownloadVersion).Methods("GET", "OPTIONS")
 
 	// Build (chat interface)
-	api.HandleFunc("/sites/{fqdn}/build", buildHandler.Build).Methods("POST")
+	api.HandleFunc("/sites/{fqdn}/build", buildHandler.Build).Methods("POST", "OPTIONS")
 
 	// Health check
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

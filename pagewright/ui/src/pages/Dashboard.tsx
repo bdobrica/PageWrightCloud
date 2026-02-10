@@ -19,7 +19,7 @@ export const Dashboard: React.FC = () => {
   const loadSites = async () => {
     try {
       const response = await apiClient.listSites();
-      setSites(response.data);
+      setSites(response.data || []);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load sites');
     } finally {
