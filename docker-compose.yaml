@@ -212,13 +212,13 @@ services:
     build:
       context: ./pagewright/ui
       dockerfile: Dockerfile
+      args:
+        VITE_PAGEWRIGHT_API_URL: ${VITE_PAGEWRIGHT_API_URL:-http://localhost:8085}
+        VITE_PAGEWRIGHT_WS_URL: ${VITE_PAGEWRIGHT_WS_URL:-ws://localhost:8085/ws}
+        VITE_PAGEWRIGHT_DEFAULT_DOMAIN: ${VITE_PAGEWRIGHT_DEFAULT_DOMAIN:-pagewright.dev}
     container_name: pagewright-ui
     ports:
       - "${PAGEWRIGHT_UI_PORT:-3000}:80"
-    environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:8085}
-      - VITE_WS_URL=${VITE_WS_URL:-ws://localhost:8085/ws}
-      - VITE_DEFAULT_DOMAIN=${VITE_DEFAULT_DOMAIN:-pagewright.dev}
     depends_on:
       gateway:
         condition: service_healthy

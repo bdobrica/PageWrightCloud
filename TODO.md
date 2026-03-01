@@ -1,10 +1,67 @@
 # TODO
 
+## State Snapshot (2026-03-01)
+
+- Verified against code and local test runs.
+- Updated checklist items below only where implementation is clearly present.
+- Remaining unchecked items should be treated as active roadmap work.
+- Added local-domain verification workflow (`docker-up-local-domain`, `docker-verify-local-domain`, `docker-verify-local-domain-strict`).
+- Strict local-domain verification passed after using non-default storage host port due to local port conflict (`PAGEWRIGHT_STORAGE_PORT=18080`).
+- Serving still assumes in-process nginx reload by default; split-container nginx deployments require explicit external reload strategy.
+
+## Resume Plan (Next 2 Weeks, Security First)
+
+### Week 1 — Critical Security Hardening
+
+#### Day 1-2: CORS and WebSocket Origin Hardening
+- [ ] Replace wildcard CORS with environment-driven allowlist in gateway
+- [ ] Replace WebSocket `CheckOrigin: true` with allowlist validation
+- [ ] Add tests for allowed vs denied origins (HTTP + WebSocket handshake)
+
+#### Day 3: Gateway Rate Limiting
+- [ ] Add middleware rate limiting per IP for unauthenticated routes
+- [ ] Add stricter limits on auth endpoints (login/reset)
+- [ ] Add higher, token-keyed limits for authenticated users
+
+#### Day 4: Authentication Hardening
+- [ ] Raise password requirements (length + complexity) for reset/update flows
+- [ ] Add account lockout after repeated failed login attempts
+- [ ] Normalize auth error responses to avoid user enumeration
+
+#### Day 5: Secrets and Baseline Security Hygiene
+- [ ] Remove insecure default secrets from docker-compose/.env.example
+- [ ] Document required secret values and minimum complexity in README
+- [ ] Add startup validation for missing critical secrets
+
+### Week 2 — Reliability + Security Boundary Testing
+
+#### Day 6-7: Gateway Reliability Improvements
+- [ ] Configure DB pooling in gateway (`SetMaxOpenConns`, idle/lifetime limits)
+- [ ] Add request timeout/cancellation coverage for downstream HTTP clients
+- [ ] Add request size limits for JSON/file upload endpoints
+
+#### Day 8-9: Compiler Test Foundation (Security Boundary)
+- [ ] Add first compiler unit test suite (markdown, mdx parse, content discover)
+- [ ] Add path traversal prevention tests for content/theme/assets handling
+- [ ] Add malformed component props validation tests
+
+#### Day 10: WebSocket and Integration Coverage
+- [ ] Add gateway integration tests for `/ws` auth + subscription flow
+- [ ] Verify job status broadcast flow from manager to connected UI client
+- [ ] Document local test command sequence for websocket/integration tests
+
+### Definition of Done for This 2-Week Block
+- [ ] No wildcard origin policies remain in gateway HTTP/WebSocket paths
+- [ ] Rate limiting is active and covered by tests
+- [ ] Critical auth hardening (password + lockout) is implemented
+- [ ] Gateway DB pooling and timeouts are configured
+- [ ] Compiler has initial automated tests committed
+
 ## High Priority
 
 ### Compiler & Themes
 - [ ] Add comprehensive unit tests for compiler (target 80%+)
-- [ ] Create Makefile for compiler (build, test, clean targets)
+- [x] Create Makefile for compiler (build, test, clean targets)
 - [ ] Add incremental build support (hash-based caching)
 - [ ] Create additional themes (blog, portfolio, docs)
 - [ ] Add theme validation tool
@@ -13,14 +70,14 @@
 - [ ] Implement draft pages support
 
 ### UI Completion
-- [ ] Complete remaining React components
-  - [ ] Dashboard page with site cards
-  - [ ] Chat interface for build requests
-  - [ ] Version management modal
-  - [ ] Profile and password reset pages
-- [ ] Integrate WebSocket for real-time updates
+- [x] Complete remaining React components
+  - [x] Dashboard page with site cards
+  - [x] Chat interface for build requests
+  - [x] Version management modal
+  - [x] Profile and password reset pages
+- [x] Integrate WebSocket for real-time updates
 - [ ] Add responsive mobile layouts
-- [ ] Docker deployment configuration
+- [x] Docker deployment configuration
 
 ### Testing & Documentation
 - [ ] Add integration tests for Gateway WebSocket endpoints
@@ -38,7 +95,7 @@
 - [ ] Multi-factor authentication (2FA)
 
 ### API Features
-- [ ] Pagination for site listings (currently basic)
+- [x] Pagination for site listings (currently basic)
 - [ ] Search/filter sites by template, status, date
 - [ ] Bulk operations (delete multiple sites)
 - [ ] API versioning strategy

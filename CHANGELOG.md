@@ -16,6 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Serving service with nginx-based hosting
 - React/TypeScript UI foundation
 
+### Changed
+- Expanded runtime composition to include themes service and UI container in root docker-compose setup.
+- Added root Makefile targets for compiler build/test/coverage integration.
+- Fixed root UI compose configuration to use correct Vite build-time variables (`VITE_PAGEWRIGHT_*`).
+
+### Implemented
+- UI pages for dashboard, chat, profile, forgot/reset password, and site creation.
+- UI components for site cards, version actions/listing, alias management, chat messages, and file attachments.
+- WebSocket client hook in UI and authenticated `/ws` endpoint in gateway for real-time job updates.
+- Gateway site listing pagination (`page`, `page_size`) with bounded page size.
+- Added local-domain compose overlay (`docker-compose.local-domain.yaml`) for `pagewright.io` testing.
+- Added Make targets for local-domain startup/shutdown and host-routing verification.
+- Added strict local-domain verification target that validates auth + site creation + host-based `200` serving.
+
+### Known Gaps
+- Compiler has no test files yet.
+- UI has no automated test suite yet.
+- Serving service still assumes in-container nginx reload by default; split-container nginx setups need explicit external reload strategy.
+
 ## How to Update
 
 When creating a new release:

@@ -83,6 +83,47 @@ cd pagewright/serving && make run
 cd pagewright/ui && npm run dev
 ```
 
+### Local Domain Test Mode (`pagewright.io`)
+
+Use this when you want browser traffic to run through real hostnames instead of `localhost`.
+
+```bash
+# Start stack with local-domain UI build configuration
+make docker-up-local-domain
+
+# If local 8080 is already in use on your machine:
+PAGEWRIGHT_STORAGE_PORT=18080 make docker-up-local-domain
+
+# Verify health + host-based routing (override fqdn if needed)
+make docker-verify-local-domain
+# or: make docker-verify-local-domain TEST_FQDN=blog.pagewright.io
+
+# Strict verification: create/login test user, create site, seed placeholder index,
+# enable site, and require HTTP 200 from serving
+make docker-verify-local-domain-strict
+# or with overrides:
+# make docker-verify-local-domain-strict TEST_FQDN=blog.pagewright.io TEST_EMAIL=test@pagewright.io TEST_PASSWORD='StrongPass123!'
+# and with storage port override when needed:
+# PAGEWRIGHT_STORAGE_PORT=18080 make docker-verify-local-domain-strict
+```
+
+This command applies [docker-compose.local-domain.yaml](docker-compose.local-domain.yaml), which builds UI with:
+- `VITE_PAGEWRIGHT_API_URL=http://pagewright.io:8085`
+- `VITE_PAGEWRIGHT_WS_URL=ws://pagewright.io:8085/ws`
+- `VITE_PAGEWRIGHT_DEFAULT_DOMAIN=pagewright.io`
+
+The root compose setup now passes these as Docker build args for the UI image (`VITE_PAGEWRIGHT_*`).
+
+Prerequisite DNS mapping (Pi-hole or host `/etc/hosts`):
+- `pagewright.io` → your Docker host IP
+- your test site (example: `demo.pagewright.io`) → your Docker host IP
+
+Stop local-domain mode:
+
+```bash
+make docker-down-local-domain
+```
+
 ### Stop Services
 
 ```bash
@@ -91,7 +132,7 @@ make docker-down
 
 ## Architecture
 
-PageWrightCloud consists of 7 microservices:
+PageWrightCloud consists of 8 core services (plus nginx for static delivery):
 
 1. **Gateway** (8085) - User authentication, site management, REST API
 2. **Manager** (8081) - Job queue & worker orchestration with Redis
@@ -146,15 +187,24 @@ cd pagewright/manager && make coverage && open coverage.html
 
 ## Current Status
 
+_Last verified against repository state: 2026-03-01._
+
 | Service | Status | Coverage |
 |---------|--------|----------|
-| Gateway | ✅ Complete | 75%+ |
-| Manager | ✅ Complete | 70%+ |
-| Storage | ✅ Complete | 80%+ |
-| Worker | ✅ Complete | 75%+ |
-| Serving | ✅ Complete | 77%+ |
-| Compiler | ✅ Complete | 0% (needs tests) |
-| UI | 🚧 In Progress | N/A |
+| Gateway | ✅ Implemented and tested (unit/packages) | Tests present |
+| Manager | ✅ Implemented and tested (unit/packages) | Tests present |
+| Storage | ✅ Implemented and tested (unit/packages) | Tests present |
+| Worker | ✅ Implemented and tested (unit/packages) | Tests present |
+| Serving | ✅ Implemented and tested (unit/packages) | Tests present |
+| Compiler | ✅ Implemented | No test files yet |
+| UI | ✅ Functional MVP (dashboard/chat/profile/password reset) | No UI tests yet |
+
+### March 2026 State Notes
+
+- UI has implemented pages and components previously marked as pending in TODO (dashboard, chat, versions modal, profile, reset-password flow).
+- Gateway includes authenticated WebSocket endpoint and site listing pagination.
+- Root `go test ./...` checks pass for existing tests in gateway/manager/storage/worker/serving.
+- Compiler currently has no `*_test.go` files and remains the largest testing gap.
 
 ## Core Concepts
 
