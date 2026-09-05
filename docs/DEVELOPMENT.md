@@ -66,3 +66,25 @@ deliberately before retrying; migrations do not delete or invent credentials.
 File-based/manual schemas without version tracking are also covered by tests.
 Rollback after application upgrades should use a backup and the matching binary;
 the startup runner does not automatically execute historical `.down.sql` files.
+
+## Single-host storage and startup smoke test
+
+Root Compose uses the existing filesystem backend directly on a named volume.
+Its backend identifier remains `nfs` for compatibility, but no NFS daemon, mount
+or privileged container is needed. The volume remains named `nfs_data` to retain
+existing installations' artifacts. Container storage uses `/nfs`; port overrides
+change only host-published ports, while service-to-service URLs and healthchecks
+use stable internal ports. Container names are scoped by Compose project.
+
+```bash
+PAGEWRIGHT_STORAGE_PORT=18080 make docker-up
+make smoke-stack
+```
+
+The smoke test uses a generated project, empty named volumes and randomly
+allocated host ports. It checks auth, a site DB record, storage round-trip, UI,
+theme registry and nginx configuration, recreates containers with the same
+volumes, and verifies the data again. Its cleanup removes only its own volumes
+and containers. Node from the documented baseline is required. This checks
+startup/persistence; it does not compile or publish an AI-generated site, and
+the separate serving/nginx reload limitation remains M3 work.

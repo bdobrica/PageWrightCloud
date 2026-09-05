@@ -2,13 +2,12 @@ services:
   # Infrastructure Services
   postgres:
     image: postgres:15-alpine
-    container_name: pagewright-postgres
     environment:
       POSTGRES_DB: pagewright
       POSTGRES_USER: pagewright
       POSTGRES_PASSWORD: pagewright
     ports:
-      - "5432:5432"
+      - "${PAGEWRIGHT_POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -21,9 +20,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: pagewright-redis
     ports:
-      - "6379:6379"
+      - "${PAGEWRIGHT_REDIS_PORT:-6379}:6379"
     networks:
       - pagewright
     healthcheck:
@@ -32,39 +30,25 @@ services:
       timeout: 3s
       retries: 5
 
-  nfs-server:
-    image: itsthenetwork/nfs-server-alpine:latest
-    container_name: pagewright-nfs
-    privileged: true
-    environment:
-      - SHARED_DIRECTORY=/nfsshare
-    volumes:
-      - nfs_data:/nfsshare
-    ports:
-      - "2049:2049"
-    networks:
-      - pagewright
-
   # Application Services
   gateway:
     build:
       context: ./pagewright/gateway
       dockerfile: Dockerfile
-    container_name: pagewright-gateway
     ports:
-      - "${PAGEWRIGHT_GATEWAY_PORT:-8085}:${PAGEWRIGHT_GATEWAY_PORT:-8085}"
+      - "${PAGEWRIGHT_GATEWAY_PORT:-8085}:8085"
     environment:
-      - PAGEWRIGHT_GATEWAY_PORT=${PAGEWRIGHT_GATEWAY_PORT:-8085}
+      - PAGEWRIGHT_GATEWAY_PORT=8085
       - PAGEWRIGHT_DATABASE_URL=${PAGEWRIGHT_DATABASE_URL:-postgres://pagewright:pagewright@postgres:5432/pagewright?sslmode=disable}
       - PAGEWRIGHT_STORAGE_URL=${PAGEWRIGHT_STORAGE_URL:-http://storage:8080}
       - PAGEWRIGHT_MANAGER_URL=${PAGEWRIGHT_MANAGER_URL:-http://manager:8081}
       - PAGEWRIGHT_SERVING_URL=${PAGEWRIGHT_SERVING_URL:-http://serving:8083}
       - PAGEWRIGHT_JWT_SECRET=${PAGEWRIGHT_JWT_SECRET:-dev-secret-change-in-production}
       - PAGEWRIGHT_JWT_EXPIRATION=${PAGEWRIGHT_JWT_EXPIRATION:-15m}
-      - PAGEWRIGHT_GOOGLE_CLIENT_ID=${PAGEWRIGHT_GOOGLE_CLIENT_ID}
-      - PAGEWRIGHT_GOOGLE_CLIENT_SECRET=${PAGEWRIGHT_GOOGLE_CLIENT_SECRET}
+      - PAGEWRIGHT_GOOGLE_CLIENT_ID=${PAGEWRIGHT_GOOGLE_CLIENT_ID:-}
+      - PAGEWRIGHT_GOOGLE_CLIENT_SECRET=${PAGEWRIGHT_GOOGLE_CLIENT_SECRET:-}
       - PAGEWRIGHT_GOOGLE_REDIRECT_URL=${PAGEWRIGHT_GOOGLE_REDIRECT_URL:-http://localhost:8085/auth/google/callback}
-      - PAGEWRIGHT_LLM_KEY=${PAGEWRIGHT_LLM_KEY}
+      - PAGEWRIGHT_LLM_KEY=${PAGEWRIGHT_LLM_KEY:-}
       - PAGEWRIGHT_LLM_URL=${PAGEWRIGHT_LLM_URL:-https://api.openai.com/v1}
       - PAGEWRIGHT_DEFAULT_PAGE_SIZE=${PAGEWRIGHT_DEFAULT_PAGE_SIZE:-25}
     depends_on:
@@ -90,11 +74,10 @@ services:
     build:
       context: ./pagewright/manager
       dockerfile: Dockerfile
-    container_name: pagewright-manager
     ports:
-      - "${PAGEWRIGHT_MANAGER_PORT:-8081}:${PAGEWRIGHT_MANAGER_PORT:-8081}"
+      - "${PAGEWRIGHT_MANAGER_PORT:-8081}:8081"
     environment:
-      - PAGEWRIGHT_PORT=${PAGEWRIGHT_MANAGER_PORT:-8081}
+      - PAGEWRIGHT_PORT=8081
       - PAGEWRIGHT_QUEUE_BACKEND=${PAGEWRIGHT_QUEUE_BACKEND:-redis}
       - PAGEWRIGHT_WORKER_SPAWNER=${PAGEWRIGHT_WORKER_SPAWNER:-docker}
       - PAGEWRIGHT_REDIS_ADDR=${PAGEWRIGHT_REDIS_ADDR:-redis:6379}
@@ -122,17 +105,14 @@ services:
     build:
       context: ./pagewright/storage
       dockerfile: Dockerfile
-    container_name: pagewright-storage
     ports:
-      - "${PAGEWRIGHT_STORAGE_PORT:-8080}:${PAGEWRIGHT_STORAGE_PORT:-8080}"
+      - "${PAGEWRIGHT_STORAGE_PORT:-8080}:8080"
     environment:
-      - PAGEWRIGHT_PORT=${PAGEWRIGHT_STORAGE_PORT:-8080}
+      - PAGEWRIGHT_PORT=8080
       - PAGEWRIGHT_STORAGE_BACKEND=${PAGEWRIGHT_STORAGE_BACKEND:-nfs}
-      - PAGEWRIGHT_NFS_BASE_PATH=${PAGEWRIGHT_NFS_BASE_PATH:-/nfs}
+      - PAGEWRIGHT_NFS_BASE_PATH=/nfs
     volumes:
       - nfs_data:/nfs
-    depends_on:
-      - nfs-server
     networks:
       - pagewright
     restart: unless-stopped
@@ -147,11 +127,10 @@ services:
     build:
       context: ./pagewright/serving
       dockerfile: Dockerfile
-    container_name: pagewright-serving
     ports:
-      - "${PAGEWRIGHT_SERVING_PORT:-8083}:${PAGEWRIGHT_SERVING_PORT:-8083}"
+      - "${PAGEWRIGHT_SERVING_PORT:-8083}:8083"
     environment:
-      - PAGEWRIGHT_SERVING_PORT=${PAGEWRIGHT_SERVING_PORT:-8083}
+      - PAGEWRIGHT_SERVING_PORT=8083
       - PAGEWRIGHT_WWW_ROOT=${PAGEWRIGHT_WWW_ROOT:-/var/www}
       - PAGEWRIGHT_NGINX_SITES_ENABLED=${PAGEWRIGHT_NGINX_SITES_ENABLED:-/etc/nginx/sites-enabled}
       - PAGEWRIGHT_NGINX_RELOAD_COMMAND=${PAGEWRIGHT_NGINX_RELOAD_COMMAND:-nginx -s reload}
@@ -181,14 +160,13 @@ services:
     build:
       context: ./pagewright/themes
       dockerfile: Dockerfile
-    container_name: pagewright-themes
     ports:
       - "${PAGEWRIGHT_THEMES_PORT:-8086}:80"
     networks:
       - pagewright
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -196,7 +174,6 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: pagewright-nginx
     ports:
       - "${PAGEWRIGHT_NGINX_PORT:-8084}:80"
     volumes:
@@ -216,7 +193,6 @@ services:
         VITE_PAGEWRIGHT_API_URL: ${VITE_PAGEWRIGHT_API_URL:-http://localhost:8085}
         VITE_PAGEWRIGHT_WS_URL: ${VITE_PAGEWRIGHT_WS_URL:-ws://localhost:8085/ws}
         VITE_PAGEWRIGHT_DEFAULT_DOMAIN: ${VITE_PAGEWRIGHT_DEFAULT_DOMAIN:-pagewright.dev}
-    container_name: pagewright-ui
     ports:
       - "${PAGEWRIGHT_UI_PORT:-3000}:80"
     depends_on:
@@ -231,15 +207,14 @@ services:
     build:
       context: ./pagewright/worker
       dockerfile: Dockerfile
-    container_name: pagewright-worker
     profiles:
       - worker
     ports:
-      - "${PAGEWRIGHT_WORKER_PORT:-8082}:${PAGEWRIGHT_WORKER_PORT:-8082}"
+      - "${PAGEWRIGHT_WORKER_PORT:-8082}:8082"
     environment:
-      - PAGEWRIGHT_WORKER_PORT=${PAGEWRIGHT_WORKER_PORT:-8082}
+      - PAGEWRIGHT_WORKER_PORT=8082
       - PAGEWRIGHT_WORK_DIR=${PAGEWRIGHT_WORK_DIR:-/work}
-      - PAGEWRIGHT_LLM_KEY=${PAGEWRIGHT_LLM_KEY}
+      - PAGEWRIGHT_LLM_KEY=${PAGEWRIGHT_LLM_KEY:-}
       - PAGEWRIGHT_LLM_URL=${PAGEWRIGHT_LLM_URL:-https://api.openai.com/v1}
       - PAGEWRIGHT_MANAGER_URL=${PAGEWRIGHT_MANAGER_URL:-http://manager:8081}
       - PAGEWRIGHT_STORAGE_URL=${PAGEWRIGHT_STORAGE_URL:-http://storage:8080}
@@ -262,6 +237,7 @@ networks:
 volumes:
   postgres_data:
     driver: local
+  # Historical name retained to preserve existing filesystem artifacts.
   nfs_data:
     driver: local
   www_data:

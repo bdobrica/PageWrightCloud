@@ -1,4 +1,4 @@
-.PHONY: test-integration test-compiler build-compiler lint vet fmt help docker-up docker-down docker-logs docker-build docker-clean \
+.PHONY: smoke-stack test-integration test-compiler build-compiler lint vet fmt help docker-up docker-down docker-logs docker-build docker-clean \
         test-all test-gateway test-manager test-storage test-worker test-serving \
         build-all build-gateway build-manager build-storage build-worker build-serving \
 	clean coverage docker-verify-local-domain docker-verify-local-domain-strict
@@ -14,7 +14,7 @@ help:
 	@echo "Docker Commands:"
 	@echo "  make docker-up           - Start all services (infrastructure + apps)"
 	@echo "  make docker-up-local-domain - Start all services with pagewright.io UI domain config"
-	@echo "  make docker-up-infra     - Start only infrastructure (postgres, redis, nfs)"
+	@echo "  make docker-up-infra     - Start only infrastructure (postgres, redis)"
 	@echo "  make docker-up-worker    - Start all services including worker"
 	@echo "  make docker-down         - Stop all services"
 	@echo "  make docker-down-local-domain - Stop services started with local-domain overlay"
@@ -63,7 +63,7 @@ docker-up-local-domain:
 
 docker-up-infra:
 	@echo "Starting infrastructure only..."
-	docker compose up -d postgres redis nfs-server
+	docker compose up -d postgres redis
 	@echo "Infrastructure started."
 
 docker-up-worker:
@@ -137,7 +137,7 @@ docker-verify-local-domain-strict:
 	case "$$create_code" in 200|201|400|409|500) ;; *) echo "Create site failed: $$create_code"; exit 1 ;; esac; \
 	echo "[5/7] Seed placeholder index for deterministic 200"; \
 	test_domain=$$(printf '%s' '$(TEST_FQDN)' | cut -d. -f2-); \
-	docker exec pagewright-serving sh -lc 'mkdir -p "/var/www/$(TEST_FQDN)/public" \
+	docker compose exec -T serving sh -lc 'mkdir -p "/var/www/$(TEST_FQDN)/public" \
 	  && mkdir -p "/var/www/'"$$test_domain"'/$(TEST_FQDN)/public" \
 	  && printf "<html><body><h1>$(TEST_FQDN)</h1></body></html>" > "/var/www/$(TEST_FQDN)/public/index.html" \
 	  && printf "<html><body><h1>$(TEST_FQDN)</h1></body></html>" > "/var/www/'"$$test_domain"'/$(TEST_FQDN)/public/index.html"'; \
@@ -151,7 +151,7 @@ docker-verify-local-domain-strict:
 	  exit 1; \
 	fi; \
 	echo "[6.5/7] Reload nginx container"; \
-	docker exec pagewright-nginx nginx -s reload >/dev/null; \
+	docker compose exec -T nginx nginx -s reload >/dev/null; \
 	echo "[7/7] Validate host-based serving returns HTTP 200"; \
 	serving_code=$$(curl --silent --output /dev/null --write-out "%{http_code}" -H "Host: $(TEST_FQDN)" http://localhost:8084/); \
 	if [ "$$serving_code" != "200" ]; then \
@@ -186,7 +186,7 @@ docker-ps:
 
 docker-build:
 	@echo "Building all service images..."
-	docker compose build
+	docker compose --profile worker build
 	@echo "All images built."
 
 docker-build-gateway:
@@ -249,6 +249,9 @@ test-compiler:
 # Isolated HTTP/database integration tests; no development volumes or ports.
 test-integration:
 	sh scripts/test-integration.sh
+
+smoke-stack:
+	sh scripts/smoke-stack.sh
 
 # =============================================================================
 # Build Commands
