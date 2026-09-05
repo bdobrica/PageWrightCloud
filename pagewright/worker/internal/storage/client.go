@@ -135,7 +135,11 @@ func (c *Client) UploadArtifact(siteID, versionID, artifactPath string) error {
 
 // UploadManifest uploads a manifest JSON file
 func (c *Client) UploadManifest(siteID, versionID string, manifest interface{}) error {
-	url := fmt.Sprintf("%s/artifacts/%s/%s/manifest", c.baseURL, siteID, versionID)
+	base, err := c.artifactURL(siteID, versionID)
+	if err != nil {
+		return err
+	}
+	url := base + "/manifest"
 
 	jsonData, err := json.Marshal(manifest)
 	if err != nil {
@@ -164,7 +168,11 @@ func (c *Client) UploadManifest(siteID, versionID string, manifest interface{}) 
 
 // UploadLog uploads execution logs
 func (c *Client) UploadLog(siteID, versionID, logContent string) error {
-	url := fmt.Sprintf("%s/artifacts/%s/%s/logs", c.baseURL, siteID, versionID)
+	base, err := c.artifactURL(siteID, versionID)
+	if err != nil {
+		return err
+	}
+	url := base + "/logs"
 
 	logData := map[string]string{
 		"content": logContent,

@@ -6,16 +6,20 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/artifact"
 )
 
 // Uses the same fixture and stored bytes subsequently consumed by gateway and
-// serving. No AI, manifest, worker orchestration or publishing is exercised.
+// serving, including metadata commit visibility. No AI, worker orchestration
+// or publishing is exercised.
 func TestArtifactTransportIntegration(t *testing.T) {
 	env := make(map[string]string)
 	for _, key := range []string{"TEST_STORAGE_URL", "TEST_ARTIFACT_FIXTURE", "TEST_ARTIFACT_SITE_ID", "TEST_ARTIFACT_VERSION_ID", "TEST_ARTIFACT_PATH"} {
@@ -125,6 +129,59 @@ func TestArtifactTransportIntegration(t *testing.T) {
 	}
 	if seen != len(expected) {
 		t.Fatalf("unpacked files=%d expected=%d", seen, len(expected))
+	}
+	// Commit metadata through the real worker client. Listing stays empty until
+	// the final manifest; private log content never enters the packed archive.
+	base := env["TEST_STORAGE_URL"] + "/sites/" + env["TEST_ARTIFACT_SITE_ID"]
+	checkListing := func(count int) {
+		t.Helper()
+		resp, err := http.Get(base + "/versions")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var listing struct {
+			Count int `json:"count"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&listing); err != nil || resp.StatusCode != 200 || listing.Count != count {
+			t.Fatalf("listing %+v: %v status %d", listing, err, resp.StatusCode)
+		}
+	}
+	manifest := map[string]interface{}{"site_id": env["TEST_ARTIFACT_SITE_ID"], "build_id": env["TEST_ARTIFACT_VERSION_ID"], "created_at": time.Now().UTC(), "checks_passed": false, "prompt": "private fixture prompt"}
+	if err := client.UploadManifest(env["TEST_ARTIFACT_SITE_ID"], env["TEST_ARTIFACT_VERSION_ID"], manifest); err == nil {
+		t.Fatal("manifest accepted before log")
+	}
+	checkListing(0)
+	privateOutput := "private fixture output\nUTF-8 café\x00"
+	if err := client.UploadLog(env["TEST_ARTIFACT_SITE_ID"], env["TEST_ARTIFACT_VERSION_ID"], privateOutput); err != nil {
+		t.Fatal(err)
+	}
+	checkListing(0)
+	if err := client.UploadManifest(env["TEST_ARTIFACT_SITE_ID"], env["TEST_ARTIFACT_VERSION_ID"], manifest); err != nil {
+		t.Fatal(err)
+	}
+	checkListing(1)
+	for _, suffix := range []string{"manifest", "logs"} {
+		resp, err := http.Get(base + "/artifacts/" + env["TEST_ARTIFACT_VERSION_ID"] + "/" + suffix)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != 200 || resp.Header.Get("Cache-Control") != "no-store" {
+			t.Fatalf("metadata fetch: %v status %d", err, resp.StatusCode)
+		}
+		if suffix == "logs" {
+			var got struct{ Content string }
+			if json.Unmarshal(body, &got) != nil || got.Content != privateOutput {
+				t.Fatal("private log changed")
+			}
+		} else {
+			expected, _ := json.Marshal(manifest)
+			if !bytes.Equal(body, expected) {
+				t.Fatal("manifest changed")
+			}
+		}
 	}
 	// The harness provides an isolated path shared only with subsequent suites.
 	if err := os.WriteFile(env["TEST_ARTIFACT_PATH"], original, 0600); err != nil {

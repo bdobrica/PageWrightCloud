@@ -33,6 +33,8 @@ func (h *Handler) SetupRoutes() *mux.Router {
 	// Artifact endpoints
 	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}", h.StoreArtifact).Methods("PUT")
 	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}", h.FetchArtifact).Methods("GET")
+	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}/manifest", h.VersionMetadata).Methods("POST", "GET")
+	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}/logs", h.VersionMetadata).Methods("POST", "GET")
 
 	// Log and version endpoints
 	r.HandleFunc("/sites/{site_id}/logs", h.WriteLog).Methods("POST")
@@ -167,8 +169,8 @@ func (h *Handler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	siteID := vars["site_id"]
 
-	if siteID == "" {
-		http.Error(w, "site_id is required", http.StatusBadRequest)
+	if !artifactID.MatchString(siteID) {
+		http.Error(w, "invalid site_id", http.StatusBadRequest)
 		return
 	}
 

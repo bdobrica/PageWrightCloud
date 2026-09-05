@@ -46,7 +46,7 @@ identifiers, redirects and interrupted transfers.
 Storage is deliberately an opaque byte store: `application/gzip` is a transport
 contract, not server-side archive validation. Existing malformed objects are not
 repaired. A successful upload does not imply a complete, publishable version.
-Manifest and private execution-log endpoints/commit visibility remain M1.4;
+M1.4 adds [manifest/private-log persistence and commit visibility](VERSION_METADATA.md);
 immutability, concurrent replacement and deletion semantics remain M1.5.
 The existing `/sites/{site_id}/logs` endpoint stores event records, not the
 worker's private per-version log payload. Gateway deletion now addresses the
@@ -54,5 +54,5 @@ canonical artifact path but still fails when storage returns `405`.
 
 Archive layout/bootstrap and hostile-input limits remain M1.7/M4. Extraction is
 not transactional: a failed extraction can leave files in its target directory.
-This milestone does not establish internal-service authorization, size limits,
+This milestone does not establish internal-service authorization, archive size limits,
 safe publication, nginx activation or an end-to-end AI build.

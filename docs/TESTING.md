@@ -35,6 +35,12 @@ extracted files across all three storage clients. Gateway's authenticated
 download and interrupted upstream response are also exercised. Serving tests
 use its real extractor, not nginx activation or the publish workflow.
 
+[M1.4 metadata tests](VERSION_METADATA.md) verify manifest-last completion,
+required private-log writes, hidden partial/legacy versions, safe retry,
+backend restart and worker callback gating. Integration uses the actual worker
+metadata client and checks committed-version visibility through gateway.
+Startup smoke also checks private metadata after container recreation.
+
 ## Known skipped tests
 
 Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.

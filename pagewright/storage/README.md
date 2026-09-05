@@ -11,8 +11,14 @@ Artifact versioning and retrieval with pluggable storage backends.
 | GET | `/health` | Health check |
 | PUT | `/sites/{site_id}/artifacts/{build_id}` | Upload artifact (tar.gz) |
 | GET | `/sites/{site_id}/artifacts/{build_id}` | Download artifact |
-| POST | `/sites/{site_id}/logs` | Write log entry (JSON) |
-| GET | `/sites/{site_id}/versions` | List all versions |
+| POST / GET | `/sites/{site_id}/artifacts/{build_id}/logs` | Persist/read private execution log JSON |
+| POST / GET | `/sites/{site_id}/artifacts/{build_id}/manifest` | Commit/read manifest after artifact + log writes |
+| POST | `/sites/{site_id}/logs` | Write event record (does not commit a version) |
+| GET | `/sites/{site_id}/versions` | List committed versions only |
+
+See the [metadata contract](../../docs/VERSION_METADATA.md) for schemas, limits,
+legacy visibility changes and privacy boundaries. Storage has no service
+authentication yet; do not expose its port to untrusted networks.
 
 ## Request/Response Formats
 
@@ -50,8 +56,8 @@ Returns tar.gz binary stream.
   "action": "build",
   "status": "success",
   "metadata": {
-    "files_changed": 3,
-    "duration_ms": 45000
+    "files_changed": "3",
+    "duration_ms": "45000"
   }
 }
 ```
@@ -72,17 +78,12 @@ Returns tar.gz binary stream.
   "versions": [
     {
       "build_id": "build-123",
-      "size_bytes": 1024000,
-      "created_at": "2024-01-01T12:00:00Z",
-      "logs": [
-        {
-          "action": "build",
-          "status": "success",
-          "timestamp": "2024-01-01T12:00:00Z"
-        }
-      ]
+      "timestamp": "2024-01-01T12:00:00Z",
+      "action": "build",
+      "status": "completed"
     }
-  ]
+  ],
+  "count": 1
 }
 ```
 
@@ -96,19 +97,21 @@ Directory structure:
   ├── artifacts/
   │   ├── {build_id}.tar.gz
   │   └── {build_id}.tar.gz
-  └── logs/
-      ├── {build_id}.json
-      └── {build_id}.json
+  ├── metadata/{build_id}/
+  │   ├── execution.json
+  │   └── manifest.json
+  └── logs/{timestamp}-{build_id}.json
 ```
 
 ### Atomic Write Operations
 
-All writes follow atomic pattern:
+Writes use a temporary-file pattern:
 1. Write to temporary file
 2. fsync() to ensure disk persistence
 3. Rename to final location (atomic operation)
 
-This guarantees no partial/corrupted artifacts even on crashes.
+Metadata checks write/sync/close before rename. This is not an immutable
+multi-file transaction or a guarantee of power-loss durability; see M1.5.
 
 ### Pluggable Backend Interface
 
@@ -116,7 +119,7 @@ This guarantees no partial/corrupted artifacts even on crashes.
 type Backend interface {
     StoreArtifact(siteID, buildID string, reader io.Reader) error
     FetchArtifact(siteID, buildID string) (io.ReadCloser, error)
-    WriteLog(siteID string, entry LogEntry) error
+    WriteLogEntry(siteID string, entry *LogEntry) error
     ListVersions(siteID string) ([]*Version, error)
 }
 ```

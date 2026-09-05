@@ -105,7 +105,7 @@ the same snapshot:
   "created_at":"2026-09-05T12:00:00Z",
   "updated_at":"2026-09-05T12:00:05Z",
   "result":"Homepage title updated.",
-  "manifest_path":"/artifacts/site-1/version-2/manifest"
+  "manifest_path":"/sites/site-1/artifacts/version-2/manifest"
 }
 ```
 

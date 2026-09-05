@@ -1,9 +1,29 @@
 package storage
 
 import (
+	"encoding/json"
+	"errors"
 	"io"
 	"time"
 )
+
+var ErrIncomplete = errors.New("artifact and private log must be persisted before manifest")
+
+// VersionMetadata is separate from event logs and from the downloadable archive.
+type VersionMetadata interface {
+	StorePrivateLog(siteID, buildID string, data []byte) error
+	FetchPrivateLog(siteID, buildID string) ([]byte, error)
+	CommitManifest(siteID, buildID string, data json.RawMessage) error
+	FetchManifest(siteID, buildID string) (json.RawMessage, error)
+}
+
+// ManifestIdentity is the persistence envelope. Compiler-specific fields remain
+// in the stored JSON; their truthfulness/layout are later validation gates.
+type ManifestIdentity struct {
+	SiteID    string    `json:"site_id"`
+	BuildID   string    `json:"build_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
 
 // Backend defines the interface for storage backends
 type Backend interface {
@@ -16,7 +36,7 @@ type Backend interface {
 	// WriteLogEntry writes a log entry for a site
 	WriteLogEntry(siteID string, entry *LogEntry) error
 
-	// ListVersions lists all versions for a site, sorted by timestamp
+	// ListVersions lists committed versions only, sorted by timestamp.
 	ListVersions(siteID string) ([]*Version, error)
 }
 

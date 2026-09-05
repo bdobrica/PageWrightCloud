@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
 )
@@ -72,42 +71,40 @@ func (n *NFSBackend) WriteLogEntry(siteID string, entry *storage.LogEntry) error
 }
 
 func (n *NFSBackend) ListVersions(siteID string) ([]*storage.Version, error) {
-	logDir := filepath.Join(n.basePath, "sites", siteID, "logs")
+	metadataDir := filepath.Join(n.basePath, "sites", siteID, "metadata")
 
 	// Check if directory exists
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+	if _, err := os.Stat(metadataDir); os.IsNotExist(err) {
 		return []*storage.Version{}, nil
 	}
 
-	entries, err := os.ReadDir(logDir)
+	entries, err := os.ReadDir(metadataDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read log directory: %w", err)
+		return nil, fmt.Errorf("failed to read metadata directory: %w", err)
 	}
 
 	versions := make([]*storage.Version, 0, len(entries))
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+		if !entry.IsDir() {
 			continue
 		}
 
-		logPath := filepath.Join(logDir, entry.Name())
-		data, err := os.ReadFile(logPath)
+		data, err := n.FetchManifest(siteID, entry.Name())
 		if err != nil {
-			continue // Skip unreadable files
+			continue // Incomplete, missing or corrupt commit records stay hidden.
 		}
 
-		var logEntry storage.LogEntry
-		if err := json.Unmarshal(data, &logEntry); err != nil {
+		var manifest storage.ManifestIdentity
+		if err := json.Unmarshal(data, &manifest); err != nil {
 			continue // Skip malformed files
 		}
 
 		versions = append(versions, &storage.Version{
-			BuildID:   logEntry.BuildID,
-			Timestamp: logEntry.Timestamp,
-			Action:    logEntry.Action,
-			Status:    logEntry.Status,
-			Metadata:  logEntry.Metadata,
+			BuildID:   manifest.BuildID,
+			Timestamp: manifest.CreatedAt,
+			Action:    "build",
+			Status:    "completed",
 		})
 	}
 
@@ -144,7 +141,10 @@ func atomicWrite(path string, reader io.Reader) error {
 		return fmt.Errorf("failed to sync file: %w", err)
 	}
 
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to close file: %w", err)
+	}
 
 	// Atomic rename
 	if err := os.Rename(tmpPath, path); err != nil {

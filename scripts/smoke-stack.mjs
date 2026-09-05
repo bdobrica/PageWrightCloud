@@ -42,9 +42,27 @@ assert.equal(sites.total_count, 1);
 assert.equal(sites.data[0].fqdn, 'smoke.example.test');
 const artifactPath = `/sites/${sites.data[0].id}/artifacts/smoke-v1`;
 const marker = 'M0 persistent artifact smoke check';
+const privateLog = { content: 'M1.4 private execution output\n' };
+const manifest = { site_id: sites.data[0].id, build_id: 'smoke-v1', created_at: '2026-09-05T12:00:00Z', checks_passed: false, prompt: 'private smoke prompt' };
+const versionsPath = `/sites/${sites.data[0].id}/versions`;
 if (stage === 'fresh') {
   await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync(marker) }, 201);
+  await request(storage, artifactPath + '/manifest', json(manifest), 409);
+  assert.equal((await (await request(storage, versionsPath)).json()).count, 0);
+  await request(storage, artifactPath + '/logs', json(privateLog), 201);
+  assert.equal((await (await request(storage, versionsPath)).json()).count, 0);
+  await request(storage, artifactPath + '/manifest', json(manifest), 201);
 }
 const artifact = await request(storage, artifactPath);
 assert.equal(gunzipSync(Buffer.from(await artifact.arrayBuffer())).toString(), marker);
-console.log(`${stage}: health, UI, theme registry, auth, site and artifact persistence passed`);
+for (const [suffix, expected] of [['logs', privateLog], ['manifest', manifest]]) {
+  const response = await request(storage, `${artifactPath}/${suffix}`);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), expected);
+}
+const versions = await (await request(storage, versionsPath)).json();
+assert.equal(versions.count, 1);
+assert.equal(versions.versions[0].build_id, 'smoke-v1');
+assert.equal(versions.versions[0].status, 'completed');
+assert.ok(!JSON.stringify(versions).includes('private'));
+console.log(`${stage}: health, UI, theme registry, auth, site, artifact and private metadata persistence passed`);

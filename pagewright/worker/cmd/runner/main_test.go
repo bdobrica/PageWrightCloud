@@ -19,7 +19,7 @@ func TestReportResultWireContract(t *testing.T) {
 	for _, status := range []string{"completed", "failed"} {
 		t.Run(status, func(t *testing.T) {
 			job := contractJob()
-			manifest, failure := "/artifacts/site-456/target-2/manifest", ""
+			manifest, failure := "/sites/site-456/artifacts/target-2/manifest", ""
 			if status == "failed" {
 				manifest, failure = "", "compiler failed"
 			}

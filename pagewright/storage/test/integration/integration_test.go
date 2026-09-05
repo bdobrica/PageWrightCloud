@@ -156,14 +156,10 @@ func TestIntegrationWriteLogAndListVersions(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, siteID, result["site_id"])
-	assert.Equal(t, float64(3), result["count"])
+	assert.Equal(t, float64(0), result["count"])
 
 	versions := result["versions"].([]interface{})
-	assert.Len(t, versions, 3)
-
-	// Verify versions are sorted (newest first)
-	firstVersion := versions[0].(map[string]interface{})
-	assert.Equal(t, "build-3", firstVersion["build_id"])
+	assert.Empty(t, versions, "event records must not expose incomplete versions")
 }
 
 func TestIntegrationFetchNonExistentArtifact(t *testing.T) {

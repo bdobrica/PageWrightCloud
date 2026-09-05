@@ -38,6 +38,10 @@ func TestGatewayArtifactTransport(t *testing.T) {
 	if err != nil || !bytes.Equal(got, original) {
 		t.Fatalf("worker/gateway archive mismatch: %v", err)
 	}
+	versions, err := clients.NewStorageClient(env["TEST_STORAGE_URL"]).ListVersions(env["TEST_ARTIFACT_SITE_ID"])
+	if err != nil || len(versions) != 1 || versions[0].BuildID != env["TEST_ARTIFACT_VERSION_ID"] {
+		t.Fatalf("committed worker version missing from gateway listing: %v %v", versions, err)
+	}
 	fixtureBytes, err := os.ReadFile(env["TEST_ARTIFACT_FIXTURE"])
 	if err != nil {
 		t.Fatal(err)

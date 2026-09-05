@@ -145,28 +145,33 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 
 	// Step 8: Upload artifact and manifest
 	srv.UpdateStatus("uploading", "Uploading results to storage", 90)
+	if err := persistAndReport(storageClient, cfg.ManagerURL, job, outputArtifact, manifest, executor.GetOutput()); err != nil {
+		return err
+	}
+	srv.UpdateStatus("done", "Job completed", 100)
+	return nil
+}
 
+func persistAndReport(storageClient *storage.Client, managerURL string, job *types.Job, outputArtifact string, manifest types.Manifest, logContent string) error {
 	fmt.Printf("Uploading artifact: site=%s, version=%s\n", job.SiteID, job.TargetVersion)
 	if err := storageClient.UploadArtifact(job.SiteID, job.TargetVersion, outputArtifact); err != nil {
 		return fmt.Errorf("failed to upload artifact: %w", err)
 	}
 
-	fmt.Println("Uploading manifest...")
+	// Private logs are required. The manifest is uploaded last as the storage
+	// commit record; no completed callback is sent on any persistence failure.
+	if err := storageClient.UploadLog(job.SiteID, job.TargetVersion, logContent); err != nil {
+		return fmt.Errorf("failed to upload logs: %w", err)
+	}
+	fmt.Println("Committing manifest...")
 	if err := storageClient.UploadManifest(job.SiteID, job.TargetVersion, manifest); err != nil {
 		return fmt.Errorf("failed to upload manifest: %w", err)
 	}
 
-	// Upload logs
-	logContent := executor.GetOutput()
-	if err := storageClient.UploadLog(job.SiteID, job.TargetVersion, logContent); err != nil {
-		fmt.Printf("WARNING: Failed to upload logs: %v\n", err)
-	}
-
 	// Step 9: Report completion to manager
-	srv.UpdateStatus("done", "Job completed", 100)
-	manifestPath := fmt.Sprintf("/artifacts/%s/%s/manifest", job.SiteID, job.TargetVersion)
+	manifestPath := fmt.Sprintf("/sites/%s/artifacts/%s/manifest", job.SiteID, job.TargetVersion)
 
-	if err := reportResult(cfg.ManagerURL, job, "completed", manifestPath, ""); err != nil {
+	if err := reportResult(managerURL, job, "completed", manifestPath, ""); err != nil {
 		return fmt.Errorf("failed to report result: %w", err)
 	}
 

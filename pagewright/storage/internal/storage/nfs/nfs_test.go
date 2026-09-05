@@ -191,12 +191,7 @@ func TestListVersions(t *testing.T) {
 	// List versions
 	versions, err := backend.ListVersions(siteID)
 	assert.NoError(t, err)
-	assert.Len(t, versions, 3)
-
-	// Verify sorting (newest first)
-	assert.Equal(t, "build-3", versions[0].BuildID)
-	assert.Equal(t, "build-2", versions[1].BuildID)
-	assert.Equal(t, "build-1", versions[2].BuildID)
+	assert.Empty(t, versions, "event logs alone cannot commit versions")
 }
 
 func TestListVersionsEmpty(t *testing.T) {
@@ -230,7 +225,5 @@ func TestListVersionsWithMetadata(t *testing.T) {
 
 	versions, err := backend.ListVersions(siteID)
 	assert.NoError(t, err)
-	require.Len(t, versions, 1)
-
-	assert.Equal(t, metadata, versions[0].Metadata)
+	require.Empty(t, versions, "event metadata is not a committed manifest")
 }

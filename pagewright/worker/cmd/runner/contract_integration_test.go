@@ -46,7 +46,7 @@ func TestManagerWorkerContractRoundTrip(t *testing.T) {
 			if err := job.ValidateLaunch(); err != nil {
 				t.Fatalf("manager snapshot is not launchable: %v", err)
 			}
-			manifest, failure := "/artifacts/"+siteID+"/target-version/manifest", ""
+			manifest, failure := "/sites/"+siteID+"/artifacts/target-version/manifest", ""
 			if status == "failed" {
 				manifest, failure = "", "fixture execution failed"
 			}
