@@ -19,7 +19,7 @@ There is useful implementation across all services, but the application is still
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
 | Execution | [Docker spawner](pagewright/manager/internal/spawner/docker/docker.go) and Kubernetes spawner only log. [Worker Dockerfile](pagewright/worker/Dockerfile) installs a mock command. | An accepted job cannot execute the intended AI workflow. There are also two worker implementations/images; select `pagewright/worker` as the MVP runner. |
 | First site | [CreateSite](pagewright/gateway/internal/handlers/sites.go) inserts a DB row only. [Build](pagewright/gateway/internal/handlers/build.go) falls back to `initial`; the worker always downloads a source artifact. UI selects `template-1`, while the supplied theme is `starter`. | Bootstrap a valid, versioned source and map the supported template explicitly. |
-| Artifact transport | M1.3 (`0fa1044`) aligns worker/gateway/serving with [storage routes](pagewright/storage/internal/api/handler.go) and raw `application/gzip` transport. M1.4 (`73d3635`) persists private metadata and lists versions only after a manifest-last commit. | Immutable commits and deletion remain M1.5. Storage is still opaque, not an archive-validation, authorization or publishing gate. |
+| Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` is hard-coded. [Serving](pagewright/serving/internal/artifact/manager.go) requires an archive containing `public/`. | Integrate `pagewrightc`, generate `public/index.html`, and derive validation results from actual checks. |
 | Version state | M1.2 commits the job mapping and version using `target_version` before dispatch, with atomic outcome/status writes. [Version listing](pagewright/gateway/internal/handlers/versions.go) still returns storage records that differ from UI types. | Submission mapping fixed; reconcile later completion and normalize version listing in M1.9/M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
@@ -233,14 +233,45 @@ while exact archive bytes and extracted files remain unchanged. Synthetic test
 projects/data were removed; no application volumes were reset. Five known skips
 remain; no paid AI request, push or hosted CI execution occurred.
 
-M1.5 is next: immutable writes, multi-writer/atomic commit semantics and protected
-deletion (or disabled deletion UI/API). M1.4's presence-based commit is not a
-content-addressed or fenced snapshot, a distributed transaction, or a publication
-gate. Lost upload/callback responses can leave storage and manager disagreeing;
+M1.4 alone did not enforce immutable writes. Its commit is not a distributed
+transaction or a publication gate. Lost upload/callback responses can leave storage and manager disagreeing;
 reconciliation remains M2. Private metadata is separated from public output, but
 internal storage authentication/redaction remain M4. Early failed-run log capture,
 truthful compiler checks and complete archive validation also remain unfinished.
 The full M1 exit is still unverified.
+
+M1.5 completed (2026-09-05) in `0cbeaa5`. Storage writes artifact, private log,
+manifest and timestamped event files through unique temporary files with checked
+copy/fsync/close, atomic no-replace hard-link publication and directory sync.
+Independent writers/processes cannot overwrite a winner. Same-size/SHA-256 retries
+succeed; different bytes conflict with `409`, before or after manifest commit.
+Manifest publication syncs prerequisite directories first. Existing legacy files
+are protected too; partial versions retain their first-published files.
+
+The allowed disabled-deletion option was selected: UI action and deletion clients
+are removed, authenticated gateway DELETE returns `501` without DB/storage calls,
+and storage DELETE remains unsupported (`405`). No version files are deleted,
+including active live/preview versions. Future deletion must coordinate active
+references and metadata cleanup; no retention/garbage collection is claimed.
+See [immutability, retry and filesystem limits](docs/IMMUTABLE_VERSIONS.md).
+
+Verification passed: six-module package baseline; storage and final gateway race
+tests; concurrent backend-instance and competing-subprocess tests; five-module
+race-enabled isolated integration; UI contract checks, zero-warning lint and
+production build; affected gateway/storage/UI images through stack rebuild; fresh
+startup and volume-preserving recreation. Smoke checks verify identical retries,
+all three replacement conflicts, both deletion API responses, and unchanged
+artifact/private metadata before and after recreation. Synthetic test data/stacks
+were removed, not application volumes. Five known skips remain; no paid AI,
+push or hosted CI run occurred.
+
+M1.6 is next: bootstrap valid initial source from bundled `starter` with safe retry
+and visible failure handling. M1.5 targets trusted Linux local storage/named volumes,
+not unverified network filesystem semantics or hostile filesystem mutation.
+Process death may leave hidden temporary names; no unsafe online sweep is added.
+Errors after publication remain uncertain and require byte-identical retry.
+Hardware power-loss behavior, worker fencing, callback reconciliation, archive
+safety and full AI publication are still outside this acceptance result.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
