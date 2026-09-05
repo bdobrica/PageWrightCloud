@@ -253,6 +253,10 @@ test-integration:
 smoke-stack:
 	sh scripts/smoke-stack.sh
 
+.PHONY: test-compiler-smoke
+test-compiler-smoke:
+	sh scripts/test-compiler.sh
+
 # =============================================================================
 # Build Commands
 # =============================================================================

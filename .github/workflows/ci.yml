@@ -1,0 +1,69 @@
+name: MVP baseline
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.10'
+          cache-dependency-path: 'pagewright/**/go.sum'
+      - name: Package tests (known skips remain visible in verbose output)
+        run: make test-all
+      - name: Compiler fixture
+        run: make test-compiler-smoke
+      - name: Workflow validation
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+  ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: pagewright/ui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: pagewright/ui/package-lock.json
+      - run: npm ci
+      - run: npm run lint -- --max-warnings=0
+      - run: npm run build
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: make test-integration
+  startup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Build all selected images, including optional mock worker
+        run: docker compose --env-file /dev/null --profile worker build
+      - name: Fresh startup and data-preserving recreation
+        run: make smoke-stack
