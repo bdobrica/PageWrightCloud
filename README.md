@@ -1,268 +1,111 @@
 # PageWrightCloud
 
-**AI-powered static website builder for non-technical users**
+An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
 
-PageWrightCloud helps professionals (lawyers, accountants, teachers, artists) create and manage simple static websites through natural language chat, powered by OpenAI Codex.
+## Current status
 
-## Quick Start
+The reproducible development baseline (M0) is implemented and locally verified. This is **not yet a working end-to-end MVP**: build contracts, site bootstrap, real worker execution, job status and publishing still need integration. Start with [PLAN.md](PLAN.md) for findings and decisions and [TODO.md](TODO.md) for the next milestone (M1).
 
-### Prerequisites
-- Docker & Docker Compose
-- Go 1.22+
-- Node.js 18+ (for UI development)
+Verified baseline: clean dependency/image builds, zero-warning UI lint/build, Go package tests, PostgreSQL migration and API integration tests, compiler fixture output, and fresh-stack/container-recreation checks. Five existing tests remain skipped; see [test coverage and CI](docs/TESTING.md). Hosted CI runs after a push; local checks are not a hosted CI result. Dependency advisories and security hardening remain open before any remote pilot.
 
-### Start All Services
+## Start locally
+
+Use Linux or WSL2 with Docker Engine, Compose v2 and BuildKit. Local checks use Go 1.24.10, Node 24.11.1 (npm 11.6.2) and GNU Make. Go/Node need not be installed on the host just to run the containerized stack; Node is required for the startup smoke test. See [development setup](docs/DEVELOPMENT.md) for details.
+
+From a checkout of this repository:
 
 ```bash
-# Clone repository
-git clone https://github.com/bdobrica/PageWrightCloud/PageWrightCloud.git
-cd PageWrightCloud
-
-# Copy environment file and configure
+# Only if you do not already have .env:
 cp .env.example .env
-# Edit .env and add your GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and LLM_KEY
-
-# Start all services with docker-compose
-make docker-up
-
-# Check service health
+# Review .env; preserve existing configuration when resuming an old checkout.
+docker compose up -d --build --wait
 make docker-ps
 ```
 
-This starts:
-- **PostgreSQL** - Gateway database (port 5432)
-- **Redis** - Manager job queue (port 6379)
-- **NFS Server** - Storage backend (port 2049)
-- **Gateway** - API & auth (port 8085)
-- **Manager** - Job orchestration (port 8081)
-- **Storage** - Artifact storage (port 8080)
-- **Serving** - Static hosting (port 8083)
-- **Themes** - Theme registry & downloads (port 8086)
-- **nginx** - Web server (port 8084)
-- **UI** - React frontend (port 3000)
+Open http://localhost:3000 for the UI. Email/password registration and login work in the baseline; a created site's metadata does not yet imply a generated or hosted website. Google OAuth and AI credentials are not needed for startup checks. Adding an API key alone will not complete the unfinished build pipeline.
 
-### Verify Services
+This configuration is for trusted local development only: it publishes internal APIs/database ports and uses development credentials. Do not expose it to the internet; M4 is the remote-pilot gate. The root Compose database credentials are currently constants; changing `POSTGRES_*` in `.env` does not change them.
+
+| Component | Default host port | Baseline role |
+| --- | --- | --- |
+| UI | 3000 | Built React app (Vite development server uses 5173) |
+| Gateway | 8085 | Auth and site metadata |
+| Manager | 8081 | Job API and Redis-backed coordination; execution integration pending |
+| Storage | 8080 | Filesystem artifacts on the existing `nfs_data` named volume |
+| Serving | 8083 | Hosting control API; lifecycle integration pending |
+| nginx | 8084 | Hosted-content HTTP server |
+| Themes | 8086 | Bundled starter theme registry |
+| PostgreSQL / Redis | 5432 / 6379 | Local infrastructure |
+
+There is no privileged NFS server in the single-host stack. The optional `worker` profile still builds a mock executor; it is not needed for the baseline. The compiler runs separately through its fixture command.
+
+`PAGEWRIGHT_*_PORT` settings change host ports without changing internal container ports. For example:
 
 ```bash
-# Check all services are running
-make docker-ps
+PAGEWRIGHT_STORAGE_PORT=18080 docker compose up -d --build --wait
+```
 
-# View logs
-make docker-logs
+If you change the gateway host port, update browser-facing `VITE_PAGEWRIGHT_API_URL` and `VITE_PAGEWRIGHT_WS_URL` and rebuild the UI. See [.env.example](.env.example) for defaults. Historical per-service Compose files are not the supported root-stack startup path.
 
-# View specific service logs
+### Inspect, stop and resume
+
+```bash
+curl --fail http://localhost:8085/health
 make docker-logs-gateway
-make docker-logs-manager
-
-# Test API
-curl http://localhost:8085/health  # Gateway
-curl http://localhost:8081/health  # Manager
-curl http://localhost:8080/health  # Storage
-curl http://localhost:8083/health  # Serving
-curl http://localhost:8086/        # Themes (returns JSON index)
+make docker-down
+# Recreate containers using retained named volumes:
+docker compose up -d --build --wait
 ```
 
-### Development Workflow
+Stopping with `make docker-down` retains database/artifact volumes. Do not use `make docker-clean` or `down --volumes` if you want to keep data. Before upgrading an old installation, back it up and read the [migration notes](docs/DEVELOPMENT.md#database-migrations). If the previous configuration left an obsolete NFS container, `docker compose down --remove-orphans` removes project containers without deleting named volumes; use it only for the intended development project.
 
-**Option 1: All services in Docker**
+## Run checks
+
 ```bash
-make docker-up
-make docker-logs
+make test-all             # Six Go modules; no running infrastructure
+make test-compiler-smoke  # Compile starter fixture; check pages/assets
+make test-integration     # Isolated PostgreSQL/Redis/API suites with race checks
+make smoke-stack          # Isolated fresh startup and persistence after recreation
+
+cd pagewright/ui
+npm ci
+npm run lint -- --max-warnings=0
+npm run build
 ```
 
-**Option 2: Infrastructure in Docker, services locally**
-```bash
-# Start only infrastructure (PostgreSQL, Redis, NFS)
-make docker-up-infra
+Integration/startup checks create unique disposable Compose projects and remove their own synthetic data. They do not reset the development database or require your application `.env`. Image builds and these checks are configured in [CI](.github/workflows/ci.yml). See [TESTING.md](docs/TESTING.md) for exact coverage, prerequisites and known skips.
 
-# Run services locally (in separate terminals)
-cd pagewright/gateway && make run
-cd pagewright/manager && make run
-cd pagewright/storage && make run
-cd pagewright/serving && make run
-cd pagewright/ui && npm run dev
-```
+## Hosting diagnostics versus MVP acceptance
 
-### Local Domain Test Mode (`pagewright.io`)
+`make smoke-stack` verifies startup, UI assets, auth/site metadata and storage persistence. It does **not** exercise AI editing, compilation through the worker, preview or publishing.
 
-Use this when you want browser traffic to run through real hostnames instead of `localhost`.
+The optional [local-domain overlay](docker-compose.local-domain.yaml) uses `pagewright.io` as the app hostname. Map `pagewright.io` and a test hostname such as `demo.pagewright.io` to your Docker host in local DNS or your hosts file, then:
 
 ```bash
-# Start stack with local-domain UI build configuration
 make docker-up-local-domain
-
-# If local 8080 is already in use on your machine:
-PAGEWRIGHT_STORAGE_PORT=18080 make docker-up-local-domain
-
-# Verify health + host-based routing (override fqdn if needed)
 make docker-verify-local-domain
-# or: make docker-verify-local-domain TEST_FQDN=blog.pagewright.io
-
-# Strict verification: create/login test user, create site, seed placeholder index,
-# enable site, and require HTTP 200 from serving
+# Only on a disposable development stack: seeds a user, site and placeholder HTML.
 make docker-verify-local-domain-strict
-# or with overrides:
-# make docker-verify-local-domain-strict TEST_FQDN=blog.pagewright.io TEST_EMAIL=test@pagewright.io TEST_PASSWORD='StrongPass123!'
-# and with storage port override when needed:
-# PAGEWRIGHT_STORAGE_PORT=18080 make docker-verify-local-domain-strict
-```
-
-This command applies [docker-compose.local-domain.yaml](docker-compose.local-domain.yaml), which builds UI with:
-- `VITE_PAGEWRIGHT_API_URL=http://pagewright.io:8085`
-- `VITE_PAGEWRIGHT_WS_URL=ws://pagewright.io:8085/ws`
-- `VITE_PAGEWRIGHT_DEFAULT_DOMAIN=pagewright.io`
-
-The root compose setup now passes these as Docker build args for the UI image (`VITE_PAGEWRIGHT_*`).
-
-Prerequisite DNS mapping (Pi-hole or host `/etc/hosts`):
-- `pagewright.io` → your Docker host IP
-- your test site (example: `demo.pagewright.io`) → your Docker host IP
-
-Stop local-domain mode:
-
-```bash
 make docker-down-local-domain
 ```
 
-### Stop Services
+These older diagnostics assume default host ports. The basic check accepts a missing/unavailable site response. The strict check manually seeds files and reloads nginx; it mutates the selected stack and is not an isolated test or evidence of a working build/publish flow. The serving/nginx reload topology still needs M3 work.
 
-```bash
-make docker-down
-```
+The actual MVP acceptance journey is create → edit → completed version → preview → publish → second edit → rollback, with failed builds preserving live content. It remains planned in M1–M4.
 
-## Architecture
+## Project map
 
-PageWrightCloud consists of 8 core services (plus nginx for static delivery):
+Gateway owns users/sites/versions, manager coordinates jobs, worker will edit and compile versioned source, storage keeps artifacts, and serving/nginx deliver generated public files. The compiler renders Markdown/content with a trusted theme. These are intended responsibilities, not a claim that all interfaces or security boundaries are complete.
 
-1. **Gateway** (8085) - User authentication, site management, REST API
-2. **Manager** (8081) - Job queue & worker orchestration with Redis
-3. **Storage** (8080) - Artifact versioning on NFS
-4. **Worker** (8082) - Executes Codex AI edits in isolated containers
-5. **Serving** (8083) - nginx-based static hosting with atomic deploys
-6. **UI** (5173) - React/TypeScript chat interface
-7. **Compiler** - Standalone Go binary that transforms markdown + theme → static HTML
-8. **Themes** (8086) - Theme registry serving zipped themes via HTTP
+- [MVP plan](PLAN.md) and [execution checklist](TODO.md)
+- [Development and migrations](docs/DEVELOPMENT.md)
+- [Checks, CI and coverage limits](docs/TESTING.md)
+- [Architecture notes](pagewright/README.md)
+- [Compiler](pagewright/compiler/README.md) and [themes](pagewright/themes/README.md)
+- [Gateway](pagewright/gateway/README.md), [manager](pagewright/manager/README.md), [storage](pagewright/storage/README.md), [worker](pagewright/worker/README.md), [serving](pagewright/serving/README.md), [UI](pagewright/ui/README.md)
 
-### Compiler & Themes
-
-The compiler is a security boundary that limits what AI agents can modify:
-
-- **AI agents CAN:** Edit markdown, modify site.json, add page assets
-- **AI agents CANNOT:** Change base URLs, edit theme templates, run arbitrary code
-
-Themes define the look and feel using Go templates, CSS tokens, and MDX components.
-
-See [pagewright/compiler/README.md](pagewright/compiler/README.md) and [pagewright/themes/README.md](pagewright/themes/README.md) for details.
-
-## Testing
-
-### Run All Tests
-
-```bash
-# All services (requires infrastructure running)
-make docker-up-infra
-make test-all
-
-# Individual service tests
-make test-gateway
-make test-manager
-make test-storage
-make test-worker
-make test-serving
-
-# Integration tests (requires docker-up-infra)
-make test-integration
-```
-
-### Coverage Reports
-
-```bash
-# Generate coverage for all services
-make coverage
-
-# View individual coverage
-cd pagewright/gateway && make coverage && open coverage.html
-cd pagewright/manager && make coverage && open coverage.html
-```
-
-## Current Status
-
-_Last verified against repository state: 2026-03-01._
-
-| Service | Status | Coverage |
-|---------|--------|----------|
-| Gateway | ✅ Implemented and tested (unit/packages) | Tests present |
-| Manager | ✅ Implemented and tested (unit/packages) | Tests present |
-| Storage | ✅ Implemented and tested (unit/packages) | Tests present |
-| Worker | ✅ Implemented and tested (unit/packages) | Tests present |
-| Serving | ✅ Implemented and tested (unit/packages) | Tests present |
-| Compiler | ✅ Implemented | No test files yet |
-| UI | ✅ Functional MVP (dashboard/chat/profile/password reset) | No UI tests yet |
-
-### March 2026 State Notes
-
-- UI has implemented pages and components previously marked as pending in TODO (dashboard, chat, versions modal, profile, reset-password flow).
-- Gateway includes authenticated WebSocket endpoint and site listing pagination.
-- Root `go test ./...` checks pass for existing tests in gateway/manager/storage/worker/serving.
-- Compiler currently has no `*_test.go` files and remains the largest testing gap.
-
-## Core Concepts
-
-- **Immutable Versions**: Every edit creates a new versioned artifact
-- **Preview & Promote**: Test changes before going live
-- **Atomic Deploys**: Zero-downtime symlink switches
-- **AI-Assisted**: Natural language site editing via Codex
-- **Safe by Design**: Workers never modify live files
-
-## Key Features
-
-- Email/password + Google OAuth authentication
-- Multi-site management per user
-- Custom domain aliases
-- Real-time WebSocket updates
-- Version history with rollback
-- Chat-based build clarification loop
-
-## Configuration
-
-All services use environment variables with `PAGEWRIGHT_` prefix:
-
-```bash
-# Gateway
-PAGEWRIGHT_GATEWAY_PORT=8085
-PAGEWRIGHT_DB_HOST=localhost
-PAGEWRIGHT_JWT_SECRET=your-secret
-
-# Manager
-PAGEWRIGHT_MANAGER_PORT=8081
-PAGEWRIGHT_REDIS_ADDR=localhost:6379
-
-# Storage
-PAGEWRIGHT_STORAGE_PORT=8080
-PAGEWRIGHT_NFS_BASE_PATH=/nfs
-
-# Worker
-PAGEWRIGHT_LLM_KEY=sk-...
-PAGEWRIGHT_CODEX_BINARY=/usr/local/bin/codex
-
-# Serving
-PAGEWRIGHT_SERVING_PORT=8083
-PAGEWRIGHT_WWW_ROOT=/var/www
-```
-
-## Documentation
-
-- [Architecture Overview](pagewright/README.md)
-- [Gateway API](pagewright/gateway/README.md)
-- [Manager API](pagewright/manager/README.md)
-- [Storage API](pagewright/storage/README.md)
-- [Worker Deployment](pagewright/worker/README.md)
-- [Serving API](pagewright/serving/README.md)
-- [Compiler](pagewright/compiler/README.md)
-- [Themes](pagewright/themes/README.md)
-- [UI Implementation](pagewright/ui/README.md)
-- [TODO List](TODO.md)
+Older component documentation and code reviews may describe intended behavior or historical commands; the root setup and tracked acceptance evidence above are authoritative for this baseline.
 
 ## License
 
-See [LICENSE](LICENSE) file.
+See [LICENSE](LICENSE).

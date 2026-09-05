@@ -34,6 +34,7 @@ executor until M2; a successful image build does not establish a working AI buil
 
 ```bash
 make test-all          # All six modules, no external services
+make test-compiler-smoke # Starter fixture pages/assets, temporary output
 make test-integration  # Isolated PostgreSQL, Redis, manager/storage and Go runner
 cd pagewright/ui
 npm run lint -- --max-warnings=0
@@ -49,6 +50,9 @@ layers remain cached. There are no worker/serving/compiler integration suites ye
 Manager tests currently exercise its mock spawner, HTTP API, Redis and locking;
 they do not claim worker execution coverage. Gateway tests use a private schema.
 Direct tagged tests require explicit test database/service URLs; prefer the harness.
+
+See [TESTING.md](TESTING.md) for the CI jobs, the five remaining skipped tests
+and the difference between baseline verification and full MVP acceptance.
 
 ## Database migrations
 
