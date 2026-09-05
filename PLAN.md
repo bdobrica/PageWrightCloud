@@ -88,6 +88,14 @@ passed for empty/repeated startup, tracked/manual upgrades, rollback/retry,
 invalid legacy rows, concurrent starts and newer-version rejection. The full
 integration harness and rebuilt gateway image also passed.
 
+M0.5 completed in `eb6e0ec`: root Compose uses its existing artifact volume
+directly, with no privileged NFS daemon; host-port overrides preserve internal
+ports and service health checks. Names are project-scoped. `make smoke-stack`
+passed fresh startup and container recreation with persisted user/site/artifact
+data, served UI HTML/JavaScript, theme registry and nginx config validation.
+The smoke test exposed and fixed the themes IPv6-localhost health probe mismatch.
+Its temporary project and volumes were removed; existing app volumes were untouched.
+
 Resolve the UI lint/CSS baseline; document tool versions supported by the lockfiles and images. Establish explicit commands for unit tests, integration prerequisites, UI checks, image builds and migrations. Exercise startup from fresh, disposable volumes and restart with existing data. Consolidate migration ownership: gateway startup currently embeds migrations separately from the SQL files, and the DB helper's `RunMigrations` is a stub.
 
 **Exit:** a fresh checkout can build the UI and all selected service images, initialize the DB once, restart safely, and run documented checks. CI starts running these checks.
