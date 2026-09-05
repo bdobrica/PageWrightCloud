@@ -8,6 +8,6 @@ CREATE TABLE IF NOT EXISTS versions (
     CONSTRAINT unique_site_build UNIQUE (site_id, build_id)
 );
 
-CREATE INDEX idx_versions_site_id ON versions(site_id);
-CREATE INDEX idx_versions_build_id ON versions(build_id);
-CREATE INDEX idx_versions_created_at ON versions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_versions_site_id ON versions(site_id);
+CREATE INDEX IF NOT EXISTS idx_versions_build_id ON versions(build_id);
+CREATE INDEX IF NOT EXISTS idx_versions_created_at ON versions(created_at DESC);

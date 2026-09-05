@@ -49,3 +49,20 @@ layers remain cached. There are no worker/serving/compiler integration suites ye
 Manager tests currently exercise its mock spawner, HTTP API, Redis and locking;
 they do not claim worker execution coverage. Gateway tests use a private schema.
 Direct tagged tests require explicit test database/service URLs; prefer the harness.
+
+## Database migrations
+
+Gateway startup applies the embedded `pagewright/gateway/migrations/*.up.sql`
+files. SQL files are the single source; binaries and integration tests use the
+same runner. Pending migrations and their version records commit together under
+a PostgreSQL transaction advisory lock. Startup has a bounded migration timeout.
+Repeated startup is safe, and a binary refuses unknown newer recorded versions.
+
+Existing databases with versions 1–5 are upgraded by migration 006, which
+reconciles column widths, defaults, indexes and the user identity constraint.
+If legacy users have neither a password hash nor a complete OAuth identity,
+the upgrade fails and rolls back. Back up the database and repair those accounts
+deliberately before retrying; migrations do not delete or invent credentials.
+File-based/manual schemas without version tracking are also covered by tests.
+Rollback after application upgrades should use a backup and the matching binary;
+the startup runner does not automatically execute historical `.down.sql` files.

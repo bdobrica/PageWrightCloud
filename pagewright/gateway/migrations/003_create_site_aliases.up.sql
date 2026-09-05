@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS site_aliases (
     CONSTRAINT unique_alias UNIQUE (alias)
 );
 
-CREATE INDEX idx_site_aliases_site_id ON site_aliases(site_id);
-CREATE INDEX idx_site_aliases_alias ON site_aliases(alias);
+CREATE INDEX IF NOT EXISTS idx_site_aliases_site_id ON site_aliases(site_id);
+CREATE INDEX IF NOT EXISTS idx_site_aliases_alias ON site_aliases(alias);

@@ -5,6 +5,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -83,7 +84,9 @@ func runIntegrationTests(m *testing.M) (code int) {
 	testRouter = setupTestRouter()
 
 	// Run migrations
-	if err := runTestMigrations(testDB.DB); err != nil {
+	migrationCtx, cancelMigrations := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelMigrations()
+	if err := testDB.RunMigrations(migrationCtx); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to run migrations: %v\n", err)
 		return 1
 	}
@@ -101,39 +104,6 @@ func setupTestRouter() *mux.Router {
 	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST")
 
 	return r
-}
-
-func runTestMigrations(db *sqlx.DB) error {
-	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS users (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			email VARCHAR(255) NOT NULL UNIQUE,
-			password_hash VARCHAR(255),
-			oauth_provider VARCHAR(50),
-			oauth_id VARCHAR(255),
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			UNIQUE(oauth_provider, oauth_id)
-		)`,
-		`CREATE TABLE IF NOT EXISTS sites (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			fqdn VARCHAR(255) NOT NULL UNIQUE,
-			user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-			template_id VARCHAR(100) NOT NULL,
-			live_version_id VARCHAR(100),
-			preview_version_id VARCHAR(100),
-			enabled BOOLEAN NOT NULL DEFAULT true,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-		)`,
-	}
-
-	for _, migration := range migrations {
-		if _, err := db.Exec(migration); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func TestAuthFlow(t *testing.T) {

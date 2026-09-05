@@ -11,5 +11,5 @@ CREATE TABLE IF NOT EXISTS sites (
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_sites_user_id ON sites(user_id);
-CREATE INDEX idx_sites_fqdn ON sites(fqdn);
+CREATE INDEX IF NOT EXISTS idx_sites_user_id ON sites(user_id);
+CREATE INDEX IF NOT EXISTS idx_sites_fqdn ON sites(fqdn);

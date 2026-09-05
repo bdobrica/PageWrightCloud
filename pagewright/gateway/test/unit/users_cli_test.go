@@ -3,10 +3,12 @@
 package handlers_test
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
@@ -236,40 +238,10 @@ func setupTestDB(t *testing.T) *database.DB {
 	}
 	// Cleanup runs in reverse order: scoped connection, schema, admin connection.
 	t.Cleanup(func() { db.Close() })
-	if err := runTestMigrations(db); err != nil {
+	migrationCtx, cancelMigrations := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelMigrations()
+	if err := db.RunMigrations(migrationCtx); err != nil {
 		t.Fatalf("Failed to run test migrations: %v", err)
 	}
 	return db
-}
-
-// runTestMigrations runs database migrations for testing
-func runTestMigrations(db *database.DB) error {
-	// Create users table
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			email VARCHAR(255) UNIQUE NOT NULL,
-			password_hash VARCHAR(255),
-			oauth_provider VARCHAR(50),
-			oauth_id VARCHAR(255),
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			CONSTRAINT unique_oauth UNIQUE (oauth_provider, oauth_id),
-			CONSTRAINT email_or_oauth CHECK (
-				(password_hash IS NOT NULL) OR 
-				(oauth_provider IS NOT NULL AND oauth_id IS NOT NULL)
-			)
-		)
-	`)
-	if err != nil {
-		return err
-	}
-
-	// Create indexes
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`)
-	if err != nil {
-		return err
-	}
-
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id)`)
-	return err
 }

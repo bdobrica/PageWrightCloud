@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,7 +30,10 @@ func main() {
 	defer db.Close()
 
 	// Run migrations
-	if err := runMigrations(db); err != nil {
+	migrationCtx, cancelMigrations := context.WithTimeout(context.Background(), 60*time.Second)
+	err = db.RunMigrations(migrationCtx)
+	cancelMigrations()
+	if err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
@@ -126,112 +130,4 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
-}
-
-// runMigrations runs database migrations
-func runMigrations(db *database.DB) error {
-	migrations := []string{
-		// Check if migrations table exists
-		`CREATE TABLE IF NOT EXISTS schema_migrations (
-			version INTEGER PRIMARY KEY,
-			applied_at TIMESTAMP NOT NULL DEFAULT NOW()
-		)`,
-	}
-
-	for _, migration := range migrations {
-		if _, err := db.Exec(migration); err != nil {
-			return fmt.Errorf("migration failed: %w", err)
-		}
-	}
-
-	// Apply versioned migrations
-	migrationFiles := []struct {
-		version int
-		sql     string
-	}{
-		{1, `
-			CREATE TABLE IF NOT EXISTS users (
-				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				email VARCHAR(255) NOT NULL UNIQUE,
-				password_hash VARCHAR(255),
-				oauth_provider VARCHAR(50),
-				oauth_id VARCHAR(255),
-				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-				UNIQUE(oauth_provider, oauth_id)
-			);
-			CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-			CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id);
-		`},
-		{2, `
-			CREATE TABLE IF NOT EXISTS sites (
-				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				fqdn VARCHAR(255) NOT NULL UNIQUE,
-				user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-				template_id VARCHAR(100) NOT NULL,
-				live_version_id VARCHAR(100),
-				preview_version_id VARCHAR(100),
-				enabled BOOLEAN NOT NULL DEFAULT true,
-				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-				updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-			);
-			CREATE INDEX IF NOT EXISTS idx_sites_user_id ON sites(user_id);
-			CREATE INDEX IF NOT EXISTS idx_sites_fqdn ON sites(fqdn);
-		`},
-		{3, `
-			CREATE TABLE IF NOT EXISTS site_aliases (
-				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-				alias VARCHAR(255) NOT NULL UNIQUE,
-				created_at TIMESTAMP NOT NULL DEFAULT NOW()
-			);
-			CREATE INDEX IF NOT EXISTS idx_site_aliases_site_id ON site_aliases(site_id);
-		`},
-		{4, `
-			CREATE TABLE IF NOT EXISTS versions (
-				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				site_id UUID NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
-				build_id VARCHAR(100) NOT NULL,
-				status VARCHAR(50) NOT NULL,
-				created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-				UNIQUE(site_id, build_id)
-			);
-			CREATE INDEX IF NOT EXISTS idx_versions_site_id ON versions(site_id);
-			CREATE INDEX IF NOT EXISTS idx_versions_created_at ON versions(created_at DESC);
-		`},
-		{5, `
-			CREATE TABLE IF NOT EXISTS password_reset_tokens (
-				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-				user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-				token VARCHAR(255) NOT NULL UNIQUE,
-				expires_at TIMESTAMP NOT NULL,
-				used BOOLEAN NOT NULL DEFAULT false,
-				created_at TIMESTAMP NOT NULL DEFAULT NOW()
-			);
-			CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
-			CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
-			CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_expires_at ON password_reset_tokens(expires_at);
-		`},
-	}
-
-	for _, m := range migrationFiles {
-		var applied bool
-		err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = $1)", m.version).Scan(&applied)
-		if err != nil {
-			return fmt.Errorf("failed to check migration %d: %w", m.version, err)
-		}
-
-		if !applied {
-			if _, err := db.Exec(m.sql); err != nil {
-				return fmt.Errorf("failed to apply migration %d: %w", m.version, err)
-			}
-
-			if _, err := db.Exec("INSERT INTO schema_migrations (version) VALUES ($1)", m.version); err != nil {
-				return fmt.Errorf("failed to record migration %d: %w", m.version, err)
-			}
-
-			log.Printf("Applied migration %d", m.version)
-		}
-	}
-
-	return nil
 }
