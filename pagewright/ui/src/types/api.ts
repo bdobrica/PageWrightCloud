@@ -13,6 +13,7 @@ export interface AuthResponse {
 }
 
 export interface Site {
+	initialization_status: 'legacy' | 'pending' | 'ready';
   id: string;
   fqdn: string;
   user_id: string;

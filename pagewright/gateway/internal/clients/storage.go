@@ -1,7 +1,9 @@
 package clients
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -10,6 +12,43 @@ import (
 	"strings"
 	"time"
 )
+
+var ErrBootstrapConflict = errors.New("initial source conflicts with stored bytes")
+
+// InitializeSource sends the persisted bootstrap bytes, never reserializing JSON
+// on retry. The final manifest is the immutable storage completion record.
+func (c *StorageClient) InitializeSource(siteID, versionID string, archive, log, manifest []byte) error {
+	base, err := c.artifactURL(siteID, versionID)
+	if err != nil {
+		return err
+	}
+	for _, part := range []struct {
+		method, suffix, media string
+		data                  []byte
+	}{
+		{"PUT", "", "application/gzip", archive},
+		{"POST", "/logs", "application/json", log},
+		{"POST", "/manifest", "application/json", manifest},
+	} {
+		req, err := http.NewRequest(part.method, base+part.suffix, bytes.NewReader(part.data))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", part.media)
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusConflict {
+			return ErrBootstrapConflict
+		}
+		if resp.StatusCode != 201 {
+			return fmt.Errorf("bootstrap storage write %s returned %d", part.suffix, resp.StatusCode)
+		}
+	}
+	return nil
+}
 
 type StorageClient struct {
 	baseURL    string

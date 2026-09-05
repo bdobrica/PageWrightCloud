@@ -40,6 +40,13 @@ const sites = await (await request(gateway, '/sites', {
 })).json();
 assert.equal(sites.total_count, 1);
 assert.equal(sites.data[0].fqdn, 'smoke.example.test');
+assert.equal(sites.data[0].initialization_status, 'ready');
+const initialPath = `/sites/${sites.data[0].id}/artifacts/initial`;
+const initial = gunzipSync(Buffer.from(await (await request(storage, initialPath)).arrayBuffer())).toString();
+assert.ok(initial.includes('content/site.json') && initial.includes('content/home/index.md'));
+assert.equal((await (await request(storage, initialPath + '/manifest')).json()).compiled, false);
+const retriedSite = await (await request(gateway, '/sites', json({ fqdn: 'smoke.example.test', template_id: 'starter' }, auth.token), 201)).json();
+assert.equal(retriedSite.id, sites.data[0].id);
 const artifactPath = `/sites/${sites.data[0].id}/artifacts/smoke-v1`;
 const marker = 'M0 persistent artifact smoke check';
 const privateLog = { content: 'M1.4 private execution output\n' };
@@ -48,9 +55,9 @@ const versionsPath = `/sites/${sites.data[0].id}/versions`;
 if (stage === 'fresh') {
   await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync(marker) }, 201);
   await request(storage, artifactPath + '/manifest', json(manifest), 409);
-  assert.equal((await (await request(storage, versionsPath)).json()).count, 0);
+  assert.equal((await (await request(storage, versionsPath)).json()).count, 1);
   await request(storage, artifactPath + '/logs', json(privateLog), 201);
-  assert.equal((await (await request(storage, versionsPath)).json()).count, 0);
+  assert.equal((await (await request(storage, versionsPath)).json()).count, 1);
   await request(storage, artifactPath + '/manifest', json(manifest), 201);
 }
 // The same checks run before and after recreation: retries are idempotent,
@@ -71,8 +78,7 @@ for (const [suffix, expected] of [['logs', privateLog], ['manifest', manifest]])
   assert.deepEqual(await response.json(), expected);
 }
 const versions = await (await request(storage, versionsPath)).json();
-assert.equal(versions.count, 1);
-assert.equal(versions.versions[0].build_id, 'smoke-v1');
-assert.equal(versions.versions[0].status, 'completed');
+assert.equal(versions.count, 2);
+assert.equal(versions.versions.find(version => version.build_id === 'smoke-v1').status, 'completed');
 assert.ok(!JSON.stringify(versions).includes('private'));
 console.log(`${stage}: health, UI, theme registry, auth, site, artifact and private metadata persistence passed`);

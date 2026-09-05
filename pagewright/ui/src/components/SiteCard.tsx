@@ -13,6 +13,7 @@ interface SiteCardProps {
 export const SiteCard: React.FC<SiteCardProps> = ({ site, onDelete, onToggleEnabled }) => {
   const [showAliases, setShowAliases] = useState(false);
   const navigate = useNavigate();
+  const pending = site.initialization_status === 'pending';
 
   return (
     <>
@@ -25,6 +26,7 @@ export const SiteCard: React.FC<SiteCardProps> = ({ site, onDelete, onToggleEnab
         </div>
 
         <div className="site-card-info">
+          {pending && <p>Initialization incomplete. Resume setup to safely retry.</p>}
           <p><strong>Template:</strong> {site.template_id}</p>
           <p><strong>Live Version:</strong> {site.live_version_id || 'None'}</p>
           <p><strong>Preview Version:</strong> {site.preview_version_id || 'None'}</p>
@@ -40,11 +42,11 @@ export const SiteCard: React.FC<SiteCardProps> = ({ site, onDelete, onToggleEnab
           <button onClick={() => setShowAliases(true)} className="pure-button">
             Aliases
           </button>
-          <button onClick={() => onToggleEnabled(site)} className="pure-button">
+          <button onClick={() => onToggleEnabled(site)} className="pure-button" disabled={pending}>
             {site.enabled ? 'Disable' : 'Enable'}
           </button>
-          <button onClick={() => navigate(`/chat/${site.fqdn}`)} className="pure-button pure-button-primary">
-            Build
+          <button onClick={() => navigate(pending ? `/create-site?fqdn=${encodeURIComponent(site.fqdn)}` : `/chat/${site.fqdn}`)} className="pure-button pure-button-primary">
+            {pending ? 'Resume Setup' : 'Build'}
           </button>
           <button onClick={() => onDelete(site.fqdn)} className="pure-button button-error">
             Delete

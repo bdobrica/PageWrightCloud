@@ -14,15 +14,16 @@ type User struct {
 }
 
 type Site struct {
-	ID               string    `db:"id" json:"id"`
-	FQDN             string    `db:"fqdn" json:"fqdn"`
-	UserID           string    `db:"user_id" json:"user_id"`
-	TemplateID       string    `db:"template_id" json:"template_id"`
-	LiveVersionID    *string   `db:"live_version_id" json:"live_version_id,omitempty"`
-	PreviewVersionID *string   `db:"preview_version_id" json:"preview_version_id,omitempty"`
-	Enabled          bool      `db:"enabled" json:"enabled"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	InitializationStatus string    `db:"initialization_status" json:"initialization_status"`
+	ID                   string    `db:"id" json:"id"`
+	FQDN                 string    `db:"fqdn" json:"fqdn"`
+	UserID               string    `db:"user_id" json:"user_id"`
+	TemplateID           string    `db:"template_id" json:"template_id"`
+	LiveVersionID        *string   `db:"live_version_id" json:"live_version_id,omitempty"`
+	PreviewVersionID     *string   `db:"preview_version_id" json:"preview_version_id,omitempty"`
+	Enabled              bool      `db:"enabled" json:"enabled"`
+	CreatedAt            time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type SiteAlias struct {

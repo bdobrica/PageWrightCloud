@@ -1,15 +1,17 @@
 import { getErrorMessage } from '../utils/errors';
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { apiClient } from '../api/client';
 import { config } from '../config';
 
 export const CreateSite: React.FC = () => {
-  const [mode, setMode] = useState<'fqdn' | 'subdomain'>('subdomain');
-  const [fqdn, setFqdn] = useState('');
+  const [searchParams] = useSearchParams();
+  const resumeFqdn = searchParams.get('fqdn') || '';
+  const [mode, setMode] = useState<'fqdn' | 'subdomain'>(resumeFqdn ? 'fqdn' : 'subdomain');
+  const [fqdn, setFqdn] = useState(resumeFqdn);
   const [subdomain, setSubdomain] = useState('');
-  const [templateId] = useState('template-1');
+  const [templateId] = useState('starter');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -22,8 +24,8 @@ export const CreateSite: React.FC = () => {
     const siteFqdn = mode === 'fqdn' ? fqdn : `${subdomain}.${config.defaultDomain}`;
 
     try {
-      await apiClient.createSite({ fqdn: siteFqdn, template_id: templateId });
-      navigate(`/chat/${siteFqdn}`);
+      const site = await apiClient.createSite({ fqdn: siteFqdn, template_id: templateId });
+      navigate(`/chat/${site.fqdn}`);
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Failed to create site'));
     } finally {
@@ -93,7 +95,7 @@ export const CreateSite: React.FC = () => {
 
           <label htmlFor="template">Template</label>
           <select id="template" disabled={isLoading}>
-            <option value="template-1">Basic Template</option>
+            <option value="starter">Starter</option>
           </select>
 
           <button type="submit" className="pure-button pure-button-primary" disabled={isLoading}>

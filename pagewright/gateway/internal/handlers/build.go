@@ -93,6 +93,10 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusForbidden, "access denied")
 		return
 	}
+	if site.InitializationStatus == "pending" {
+		respondError(w, http.StatusConflict, "site initialization incomplete; retry site creation first")
+		return
+	}
 	key, err := uuid.Parse(r.Header.Get("Idempotency-Key"))
 	if err != nil || key == uuid.Nil {
 		respondError(w, http.StatusBadRequest, "Idempotency-Key must be a nonzero UUID")

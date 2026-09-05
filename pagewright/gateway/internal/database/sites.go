@@ -38,7 +38,7 @@ func (db *DB) CreateSite(userID, fqdn, templateID string) (*types.Site, error) {
 func (db *DB) GetSiteByFQDN(fqdn string) (*types.Site, error) {
 	site := &types.Site{}
 	query := `
-		SELECT id, fqdn, user_id, template_id, live_version_id, preview_version_id, enabled, created_at, updated_at
+		SELECT id, fqdn, user_id, template_id, live_version_id, preview_version_id, enabled, created_at, updated_at, initialization_status
 		FROM sites WHERE fqdn = $1
 	`
 
@@ -56,7 +56,7 @@ func (db *DB) GetSiteByFQDN(fqdn string) (*types.Site, error) {
 func (db *DB) GetUserSites(userID string, limit, offset int) ([]types.Site, int, error) {
 	var sites []types.Site
 	query := `
-		SELECT id, fqdn, user_id, template_id, live_version_id, preview_version_id, enabled, created_at, updated_at
+		SELECT id, fqdn, user_id, template_id, live_version_id, preview_version_id, enabled, created_at, updated_at, initialization_status
 		FROM sites WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3

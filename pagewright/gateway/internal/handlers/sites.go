@@ -2,8 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/clients"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
@@ -15,13 +19,15 @@ import (
 type SitesHandler struct {
 	db              *database.DB
 	servingClient   *clients.ServingClient
+	storageClient   *clients.StorageClient
 	defaultPageSize int
 }
 
-func NewSitesHandler(db *database.DB, servingClient *clients.ServingClient, defaultPageSize int) *SitesHandler {
+func NewSitesHandler(db *database.DB, servingClient *clients.ServingClient, storageClient *clients.StorageClient, defaultPageSize int) *SitesHandler {
 	return &SitesHandler{
 		db:              db,
 		servingClient:   servingClient,
+		storageClient:   storageClient,
 		defaultPageSize: defaultPageSize,
 	}
 }
@@ -31,25 +37,64 @@ func (h *SitesHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	user, _ := middleware.GetUserFromContext(r)
 
 	var req types.CreateSiteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil || decoder.Decode(new(interface{})) != io.EOF {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	if req.FQDN == "" || req.TemplateID == "" {
-		respondError(w, http.StatusBadRequest, "fqdn and template_id are required")
+	req.FQDN = strings.ToLower(strings.TrimSpace(req.FQDN))
+	if !validSiteFQDN(req.FQDN) || (req.TemplateID != "starter" && req.TemplateID != "template-1") {
+		respondError(w, http.StatusBadRequest, "valid fqdn and starter template are required")
 		return
 	}
 
-	// Create site in database
-	site, err := h.db.CreateSite(user.UserID, req.FQDN, req.TemplateID)
+	site, record, err := h.db.ReserveSiteBootstrap(r.Context(), user.UserID, req.FQDN)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to create site")
+		if errors.Is(err, database.ErrSiteConflict) {
+			respondError(w, http.StatusConflict, "domain is already reserved")
+			return
+		}
+		respondError(w, http.StatusServiceUnavailable, "failed to reserve site; retry the same domain")
 		return
+	}
+	if site.InitializationStatus != "ready" {
+		if err := h.storageClient.InitializeSource(site.ID, record.VersionID, record.Archive, record.ExecutionLog, record.Manifest); err != nil {
+			if errors.Is(err, clients.ErrBootstrapConflict) {
+				respondError(w, http.StatusConflict, "initial source conflicts with stored data; no files were replaced; operator repair is required")
+				return
+			}
+			respondError(w, http.StatusServiceUnavailable, "site initialization incomplete; retry creation with the same domain and starter template")
+			return
+		}
+		if err := h.db.CompleteSiteBootstrap(r.Context(), site.ID); err != nil {
+			respondError(w, http.StatusServiceUnavailable, "site initialization confirmation failed; retry the same domain")
+			return
+		}
+		site, err = h.db.GetSiteByFQDN(req.FQDN)
+		if err != nil || site == nil || site.ID != record.SiteID || site.UserID != user.UserID {
+			respondError(w, http.StatusServiceUnavailable, "site initialization confirmed but response failed; retry the same domain")
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusCreated)
 	respondJSON(w, site)
+}
+
+var domainLabel = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
+
+func validSiteFQDN(fqdn string) bool {
+	if len(fqdn) > 253 || !strings.Contains(fqdn, ".") {
+		return false
+	}
+	for _, label := range strings.Split(fqdn, ".") {
+		if !domainLabel.MatchString(label) {
+			return false
+		}
+	}
+	return true
 }
 
 // ListSites lists all sites for the authenticated user
@@ -166,6 +211,10 @@ func (h *SitesHandler) EnableSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enable in serving infrastructure
+	if site.InitializationStatus == "pending" {
+		respondError(w, http.StatusConflict, "site initialization incomplete; retry site creation first")
+		return
+	}
 	if err := h.servingClient.EnableSite(fqdn); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to enable site")
 		return

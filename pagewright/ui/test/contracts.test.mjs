@@ -4,6 +4,15 @@ import { readFileSync } from 'node:fs';
 import { parseBuildResponse, parseJobSnapshot } from '../src/api/contracts.ts';
 import { createSubmissionIdentity, isRejectedSubmission } from '../src/api/submission.ts';
 
+test('site creation selects starter and offers pending setup recovery', () => {
+  const create = readFileSync(new URL('../src/pages/CreateSite.tsx', import.meta.url), 'utf8');
+  assert.match(create, /useState\('starter'\)/);
+  assert.doesNotMatch(create, /template-1/);
+  const card = readFileSync(new URL('../src/components/SiteCard.tsx', import.meta.url), 'utf8');
+  assert.match(card, /Resume Setup/);
+  assert.match(card, /initialization_status === 'pending'/);
+});
+
 test('MVP version deletion has no UI action or API client method', () => {
   for (const file of ['../src/components/VersionActionModal.tsx', '../src/components/VersionsList.tsx', '../src/api/client.ts']) {
     const source = readFileSync(new URL(file, import.meta.url), 'utf8');

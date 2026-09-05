@@ -4,7 +4,7 @@ An AI-assisted static website builder for non-technical users, built with Go ser
 
 ## Current status
 
-The reproducible development baseline (M0) is implemented and locally verified. This is **not yet a working end-to-end MVP**: build contracts, site bootstrap, real worker execution, job status and publishing still need integration. Start with [PLAN.md](PLAN.md) for findings and decisions and [TODO.md](TODO.md) for the next milestone (M1).
+The reproducible development baseline (M0) and M1.1–M1.6 contracts, storage and initial-site bootstrap are implemented and locally verified. This is **not yet a working end-to-end MVP**: real worker execution, live job status and publishing still need integration. Start with [PLAN.md](PLAN.md) for evidence and [TODO.md](TODO.md) for remaining M1 work.
 
 Verified baseline: clean dependency/image builds, zero-warning UI lint/build, Go package tests, PostgreSQL migration and API integration tests, compiler fixture output, and fresh-stack/container-recreation checks. Five existing tests remain skipped; see [test coverage and CI](docs/TESTING.md). Hosted CI runs after a push; local checks are not a hosted CI result. Dependency advisories and security hardening remain open before any remote pilot.
 
@@ -22,7 +22,7 @@ docker compose up -d --build --wait
 make docker-ps
 ```
 
-Open http://localhost:3000 for the UI. Email/password registration and login work in the baseline; a created site's metadata does not yet imply a generated or hosted website. Google OAuth and AI credentials are not needed for startup checks. Adding an API key alone will not complete the unfinished build pipeline.
+Open http://localhost:3000 for the UI. Email/password registration and login work; new sites receive [retry-safe starter source](docs/SITE_BOOTSTRAP.md), not a generated or hosted website. Google OAuth and AI credentials are not needed for startup checks. Adding an API key alone will not complete the unfinished build pipeline.
 
 This configuration is for trusted local development only: it publishes internal APIs/database ports and uses development credentials. Do not expose it to the internet; M4 is the remote-pilot gate. The root Compose database credentials are currently constants; changing `POSTGRES_*` in `.env` does not change them.
 
@@ -77,7 +77,7 @@ Integration/startup checks create unique disposable Compose projects and remove 
 
 ## Hosting diagnostics versus MVP acceptance
 
-`make smoke-stack` verifies startup, UI assets, auth/site metadata and storage persistence. It does **not** exercise AI editing, compilation through the worker, preview or publishing.
+`make smoke-stack` verifies startup, UI assets, auth, initial-site source, immutable storage and persistence across recreation. It does **not** exercise AI editing, compilation through the worker, preview or publishing.
 
 The optional [local-domain overlay](docker-compose.local-domain.yaml) uses `pagewright.io` as the app hostname. Map `pagewright.io` and a test hostname such as `demo.pagewright.io` to your Docker host in local DNS or your hosts file, then:
 

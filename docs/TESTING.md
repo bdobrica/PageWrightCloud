@@ -46,6 +46,11 @@ writes, retries, conflict preservation, failed-stream cleanup and disabled
 deletion. Startup/recreation smoke verifies all immutable object types and both
 deletion responses. UI contracts guard the removed deletion action.
 
+[M1.6 bootstrap checks](SITE_BOOTSTRAP.md) verify deterministic starter source,
+compiler compatibility, durable reservation/reconnect, partial-write/lost-response
+recovery, concurrent creation and pending-build rejection. Startup/recreation
+now creates the initial source through gateway rather than metadata alone.
+
 ## Known skipped tests
 
 Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.
@@ -63,7 +68,7 @@ Five existing tests explicitly skip. Passing package checks do not mean these be
 - The compiler fixture checks output presence, not complete rendering correctness or adversarial-input safety; the compiler currently has no Go test files.
 - UI lint/build does not exercise browser interactions.
 - Integration checks cover canonical migrations, rollback, restart, legacy adoption, concurrent startup and invalid history/data, but not a complete edit/build/publish workflow.
-- Startup creates metadata and stores synthetic bytes. It does not build a website, run a real AI worker, publish, validate tenant isolation, or prove production readiness.
+- Startup creates initial source and stores synthetic transport fixtures. It does not compile through the worker, run real AI, publish, validate tenant isolation, or prove production readiness.
 - Local-domain verification targets are seeded hosting diagnostics, not the MVP acceptance test. They mutate the selected development stack and are not isolated like `smoke-stack`.
 
 M1–M3 add the missing pipeline/browser coverage; M4 covers pilot hardening. See [TODO.md](../TODO.md) for acceptance criteria.
