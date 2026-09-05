@@ -44,11 +44,13 @@ npm run build
 
 `make test` / `make test-unit` in a Go service run untagged package tests.
 `make test-integration` in a service delegates to the root integration harness.
-The harness runs gateway, manager, storage and worker suites with `-race`, fresh state
+The harness runs worker, gateway, manager, storage and serving suites with `-race`, fresh state
 and no published ports, then removes only its generated test project and data,
 including on failure. It does not load the application `.env`. Docker image
-layers remain cached. Worker coverage includes manager callback contracts only;
-there are no serving/compiler integration suites yet.
+layers remain cached. Worker coverage includes manager callback contracts and
+produces the shared artifact fixture consumed by gateway and serving tests.
+Serving coverage verifies downloads and extraction, not nginx activation;
+there is no compiler integration suite yet. See [artifact transport](ARTIFACT_TRANSPORT.md).
 Manager tests currently exercise its mock spawner, HTTP API, Redis and locking;
 they do not claim worker execution coverage. Gateway tests use a private schema.
 Direct tagged tests require explicit test database/service URLs; prefer the harness.

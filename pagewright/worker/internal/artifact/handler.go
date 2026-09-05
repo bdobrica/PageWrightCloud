@@ -70,10 +70,15 @@ func Unpack(archivePath, destDir string) error {
 				outFile.Close()
 				return fmt.Errorf("failed to copy file content: %w", err)
 			}
-			outFile.Close()
+			if err := outFile.Close(); err != nil {
+				return fmt.Errorf("failed to close extracted file: %w", err)
+			}
 		}
 	}
-
+	// tar EOF can precede the gzip trailer; drain to verify checksum and size.
+	if _, err := io.Copy(io.Discard, gzr); err != nil {
+		return fmt.Errorf("failed to verify gzip trailer: %w", err)
+	}
 	return nil
 }
 
@@ -85,9 +90,18 @@ func Pack(srcDir, archivePath string) error {
 		return fmt.Errorf("failed to create archive: %w", err)
 	}
 	defer outFile.Close()
+	if err := packToWriter(srcDir, outFile); err != nil {
+		return err
+	}
+	if err := outFile.Close(); err != nil {
+		return fmt.Errorf("failed to close archive: %w", err)
+	}
+	return nil
+}
 
+func packToWriter(srcDir string, out io.Writer) error {
 	// Create gzip writer
-	gzw := gzip.NewWriter(outFile)
+	gzw := gzip.NewWriter(out)
 	defer gzw.Close()
 
 	// Create tar writer
@@ -95,7 +109,7 @@ func Pack(srcDir, archivePath string) error {
 	defer tw.Close()
 
 	// Walk the source directory
-	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -138,6 +152,16 @@ func Pack(srcDir, archivePath string) error {
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("failed to finish tar archive: %w", err)
+	}
+	if err := gzw.Close(); err != nil {
+		return fmt.Errorf("failed to finish gzip archive: %w", err)
+	}
+	return nil
 }
 
 // PatchInstructions replaces .codex/instructions.md in the unpacked site

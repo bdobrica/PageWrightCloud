@@ -1,6 +1,7 @@
 package artifact
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,8 +35,7 @@ func TestPackAndUnpack(t *testing.T) {
 	}
 
 	// Pack
-	archivePath := filepath.Join(os.TempDir(), "test-archive.tar.gz")
-	defer os.Remove(archivePath)
+	archivePath := filepath.Join(t.TempDir(), "test-archive.tar.gz")
 
 	err = Pack(srcDir, archivePath)
 	require.NoError(t, err)
@@ -55,6 +55,44 @@ func TestPackAndUnpack(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, expectedContent, string(content))
 	}
+}
+
+func TestUnpackRejectsDamagedGzipTrailer(t *testing.T) {
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "index.html"), []byte("fixture"), 0600))
+	archive := filepath.Join(t.TempDir(), "archive.tar.gz")
+	require.NoError(t, Pack(src, archive))
+	original, err := os.ReadFile(archive)
+	require.NoError(t, err)
+	for _, mode := range []string{"truncated", "checksum"} {
+		t.Run(mode, func(t *testing.T) {
+			broken := append([]byte(nil), original...)
+			if mode == "truncated" {
+				broken = broken[:len(broken)-4]
+			} else {
+				broken[len(broken)-8] ^= 0xff
+			}
+			path := filepath.Join(t.TempDir(), "broken.tar.gz")
+			require.NoError(t, os.WriteFile(path, broken, 0600))
+			require.Error(t, Unpack(path, t.TempDir()))
+		})
+	}
+}
+
+type footerFailureWriter struct{ writes int }
+
+func (w *footerFailureWriter) Write(p []byte) (int, error) {
+	w.writes++
+	if w.writes > 1 {
+		return 0, errors.New("simulated footer write failure")
+	}
+	return len(p), nil
+}
+
+func TestPackReportsFooterWriteFailure(t *testing.T) {
+	// Empty tar output is buffered in gzip until Close; only its header succeeds.
+	err := packToWriter(t.TempDir(), &footerFailureWriter{})
+	require.ErrorContains(t, err, "simulated footer write failure")
 }
 
 func TestPatchInstructions(t *testing.T) {

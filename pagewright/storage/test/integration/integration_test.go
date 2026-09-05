@@ -75,6 +75,7 @@ func TestIntegrationStoreAndFetchArtifact(t *testing.T) {
 	// Store artifact
 	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/sites/%s/artifacts/%s", baseURL, siteID, buildID), bytes.NewReader(content))
 	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/gzip")
 
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
@@ -208,6 +209,9 @@ func TestIntegrationConcurrentWrites(t *testing.T) {
 			content := []byte(fmt.Sprintf("content-%d", idx))
 
 			req, err := http.NewRequest("PUT", fmt.Sprintf("%s/sites/%s/artifacts/%s", baseURL, siteID, buildID), bytes.NewReader(content))
+			if err == nil {
+				req.Header.Set("Content-Type", "application/gzip")
+			}
 			if err != nil {
 				done <- false
 				return

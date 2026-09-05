@@ -7,7 +7,7 @@ See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from 
 | Go packages | `make test-all` | Six Go modules; no running infrastructure required |
 | Compiler fixture | `make test-compiler-smoke` | Starter theme produces three pages and required assets in a temporary directory |
 | UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, zero-warning lint, production build |
-| Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP tests and worker callback contract round-trips in an isolated Compose project |
+| Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP, worker callbacks, and shared artifact round-trips through worker/gateway/serving in isolated Compose |
 | Images | `docker compose --env-file /dev/null --profile worker build` | Selected service images, including the optional mock worker |
 | Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, auth, site metadata and storage; repeat after container recreation with volumes retained |
 
@@ -28,6 +28,12 @@ atomicity, concurrent duplicate HTTP requests, failed/lost delivery, restart
 replay, real Redis deduplication scripts, and UI retry identity. The integration
 harness provides `TEST_REDIS_ADDR` for the isolated Redis tests; they do not flush
 an existing application's Redis data.
+
+[M1.3 artifact transport tests](ARTIFACT_TRANSPORT.md) pack one shared fixture
+with the worker, persist it through real storage, and compare exact bytes and
+extracted files across all three storage clients. Gateway's authenticated
+download and interrupted upstream response are also exercised. Serving tests
+use its real extractor, not nginx activation or the publish workflow.
 
 ## Known skipped tests
 

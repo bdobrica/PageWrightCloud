@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
@@ -46,22 +49,32 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+
 func (h *Handler) StoreArtifact(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	siteID := vars["site_id"]
 	buildID := vars["build_id"]
 
-	if siteID == "" || buildID == "" {
-		http.Error(w, "site_id and build_id are required", http.StatusBadRequest)
+	if !artifactID.MatchString(siteID) || !artifactID.MatchString(buildID) {
+		http.Error(w, "invalid site_id or build_id", http.StatusBadRequest)
 		return
 	}
 
-	// Read the request body (multipart or direct stream)
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	encoding := strings.TrimSpace(strings.Join(r.Header.Values("Content-Encoding"), ","))
+	if err != nil || mediaType != "application/gzip" || (encoding != "" && !strings.EqualFold(encoding, "identity")) {
+		http.Error(w, "artifact body must be raw application/gzip without content encoding", http.StatusUnsupportedMediaType)
+		return
+	}
+	// Store the gzip file bytes verbatim, not a multipart envelope. Archive
+	// structure/size/security validation is a separate acceptance gate.
 	if err := h.backend.StoreArtifact(siteID, buildID, r.Body); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to store artifact: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message":  "Artifact stored successfully",
@@ -75,8 +88,8 @@ func (h *Handler) FetchArtifact(w http.ResponseWriter, r *http.Request) {
 	siteID := vars["site_id"]
 	buildID := vars["build_id"]
 
-	if siteID == "" || buildID == "" {
-		http.Error(w, "site_id and build_id are required", http.StatusBadRequest)
+	if !artifactID.MatchString(siteID) || !artifactID.MatchString(buildID) {
+		http.Error(w, "invalid site_id or build_id", http.StatusBadRequest)
 		return
 	}
 
@@ -93,8 +106,10 @@ func (h *Handler) FetchArtifact(w http.ResponseWriter, r *http.Request) {
 
 	// Stream the file
 	if _, err := io.Copy(w, reader); err != nil {
-		// Can't send error at this point, just log it
 		fmt.Printf("Error streaming artifact: %v\n", err)
+		// Headers may already be sent. Abort the HTTP stream so clients cannot
+		// mistake a partial archive for a successfully completed response.
+		panic(http.ErrAbortHandler)
 	}
 }
 

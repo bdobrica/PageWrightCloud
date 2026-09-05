@@ -223,10 +223,17 @@ func (m *Manager) unpack(archivePath, destDir string) error {
 				outFile.Close()
 				return fmt.Errorf("failed to copy file content: %w", err)
 			}
-			outFile.Close()
+			if err := outFile.Close(); err != nil {
+				return fmt.Errorf("failed to close extracted file: %w", err)
+			}
 		}
 	}
 
+	// tar EOF may precede the gzip checksum/trailer. Read through the gzip EOF
+	// before accepting the deployment as a complete, uncorrupted archive.
+	if _, err := io.Copy(io.Discard, gzr); err != nil {
+		return fmt.Errorf("failed to validate gzip trailer: %w", err)
+	}
 	return nil
 }
 

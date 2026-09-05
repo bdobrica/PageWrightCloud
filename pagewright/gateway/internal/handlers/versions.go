@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -199,13 +200,17 @@ func (h *VersionsHandler) DownloadVersion(w http.ResponseWriter, r *http.Request
 	}
 
 	// Fetch artifact from storage
-	data, err := h.storageClient.FetchArtifact(site.ID, versionID)
+	reader, err := h.storageClient.OpenArtifact(site.ID, versionID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch artifact")
 		return
 	}
+	defer reader.Close()
 
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", "attachment; filename="+versionID+".tar.gz")
-	w.Write(data)
+	if _, err := io.Copy(w, reader); err != nil {
+		// Do not terminate an incomplete chunked response as if it were complete.
+		panic(http.ErrAbortHandler)
+	}
 }

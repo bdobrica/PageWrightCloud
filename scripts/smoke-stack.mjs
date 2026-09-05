@@ -43,7 +43,7 @@ assert.equal(sites.data[0].fqdn, 'smoke.example.test');
 const artifactPath = `/sites/${sites.data[0].id}/artifacts/smoke-v1`;
 const marker = 'M0 persistent artifact smoke check';
 if (stage === 'fresh') {
-  await request(storage, artifactPath, { method: 'PUT', body: gzipSync(marker) }, 201);
+  await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync(marker) }, 201);
 }
 const artifact = await request(storage, artifactPath);
 assert.equal(gunzipSync(Buffer.from(await artifact.arrayBuffer())).toString(), marker);

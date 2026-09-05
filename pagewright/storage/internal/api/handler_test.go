@@ -73,6 +73,7 @@ func TestStoreArtifact(t *testing.T) {
 	mockBackend.On("StoreArtifact", "test-site", "build-123", mock.Anything).Return(nil)
 
 	req := httptest.NewRequest("PUT", "/sites/test-site/artifacts/build-123", bytes.NewReader(content))
+	req.Header.Set("Content-Type", "application/gzip")
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -97,6 +98,7 @@ func TestStoreArtifactError(t *testing.T) {
 	mockBackend.On("StoreArtifact", "test-site", "build-123", mock.Anything).Return(assert.AnError)
 
 	req := httptest.NewRequest("PUT", "/sites/test-site/artifacts/build-123", bytes.NewReader(content))
+	req.Header.Set("Content-Type", "application/gzip")
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
