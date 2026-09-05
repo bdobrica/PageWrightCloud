@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
@@ -20,8 +21,8 @@ export const Dashboard: React.FC = () => {
     try {
       const response = await apiClient.listSites();
       setSites(response.data || []);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load sites');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to load sites'));
     } finally {
       setIsLoading(false);
     }
@@ -33,8 +34,8 @@ export const Dashboard: React.FC = () => {
     try {
       await apiClient.deleteSite(fqdn);
       setSites(sites.filter((s) => s.fqdn !== fqdn));
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to delete site');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Failed to delete site'));
     }
   };
 
@@ -46,8 +47,8 @@ export const Dashboard: React.FC = () => {
         await apiClient.enableSite(site.fqdn);
       }
       setSites(sites.map((s) => (s.fqdn === site.fqdn ? { ...s, enabled: !s.enabled } : s)));
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update site');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Failed to update site'));
     }
   };
 

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
@@ -18,8 +19,8 @@ export const ForgotPassword: React.FC = () => {
     try {
       const response = await apiClient.forgotPassword({ email });
       setMessage(response.message);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send reset email');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to send reset email'));
     } finally {
       setIsLoading(false);
     }

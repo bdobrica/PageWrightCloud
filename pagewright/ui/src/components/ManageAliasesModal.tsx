@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { SiteAlias } from '../types/api';
@@ -16,19 +17,20 @@ export const ManageAliasesModal: React.FC<ManageAliasesModalProps> = ({ fqdn, on
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadAliases();
-  }, []);
-
-  const loadAliases = async () => {
-    try {
-      const data = await apiClient.listAliases(fqdn);
-      setAliases(data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load aliases');
-    } finally {
-      setIsLoading(false);
+    let active = true;
+    async function loadAliases() {
+      try {
+        const data = await apiClient.listAliases(fqdn);
+        if (active) setAliases(data);
+      } catch (err: unknown) {
+        if (active) setError(getErrorMessage(err, 'Failed to load aliases'));
+      } finally {
+        if (active) setIsLoading(false);
+      }
     }
-  };
+    void loadAliases();
+    return () => { active = false; };
+  }, [fqdn]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,8 +40,8 @@ export const ManageAliasesModal: React.FC<ManageAliasesModalProps> = ({ fqdn, on
       const alias = await apiClient.addAlias(fqdn, { alias: newAlias });
       setAliases([...aliases, alias]);
       setNewAlias('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to add alias');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to add alias'));
     }
   };
 
@@ -49,8 +51,8 @@ export const ManageAliasesModal: React.FC<ManageAliasesModalProps> = ({ fqdn, on
     try {
       await apiClient.deleteAlias(fqdn, alias);
       setAliases(aliases.filter((a) => a.alias !== alias));
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete alias');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to delete alias'));
     }
   };
 

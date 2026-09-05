@@ -1,63 +1,51 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
 import type { JobStatusUpdate } from '../types/api';
 
 export const useWebSocket = (onMessage: (update: JobStatusUpdate) => void) => {
   const [isConnected, setIsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<number | undefined>(undefined);
+  const onMessageRef = useRef(onMessage);
 
-  const connect = useCallback(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    const ws = new WebSocket(`${config.wsUrl}?token=${token}`);
-
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const update: JobStatusUpdate = JSON.parse(event.data);
-        onMessage(update);
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-      wsRef.current = null;
-
-      // Attempt to reconnect after 5 seconds
-      reconnectTimeoutRef.current = window.setTimeout(() => {
-        console.log('Attempting to reconnect WebSocket...');
-        connect();
-      }, 5000);
-    };
-
-    wsRef.current = ws;
-  }, [onMessage]);
+  useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
 
   useEffect(() => {
-    connect();
+    let disposed = false;
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: number | undefined;
 
+    function connect() {
+      const token = localStorage.getItem('token');
+      if (disposed || !token) return;
+      const ws = new WebSocket(`${config.wsUrl}?token=${encodeURIComponent(token)}`);
+      socket = ws;
+      ws.onopen = () => { if (!disposed) setIsConnected(true); };
+      ws.onmessage = (event) => {
+        if (disposed) return;
+        try {
+          onMessageRef.current(JSON.parse(event.data) as JobStatusUpdate);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+      ws.onerror = (error) => { if (!disposed) console.error('WebSocket error:', error); };
+      ws.onclose = () => {
+        if (disposed) return;
+        setIsConnected(false);
+        socket = null;
+        reconnectTimeout = window.setTimeout(connect, 5000);
+      };
+    }
+
+    connect();
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
+      disposed = true;
+      window.clearTimeout(reconnectTimeout);
+      if (socket) {
+        socket.onclose = null;
+        socket.close();
       }
     };
-  }, [connect]);
+  }, []);
 
   return { isConnected };
 };

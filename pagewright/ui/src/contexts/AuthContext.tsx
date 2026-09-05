@@ -1,39 +1,30 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import { apiClient } from '../api/client';
 import type { User, AuthResponse, LoginRequest, RegisterRequest } from '../types/api';
 
-interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
-  logout: () => void;
+import { AuthContext } from './auth';
+
+function restoreUser(): User | null {
+  const token = localStorage.getItem('token');
+  const stored = localStorage.getItem('user');
+  if (!token || !stored) return null;
+  try {
+    const user: unknown = JSON.parse(stored);
+    if (user && typeof user === 'object' &&
+        'id' in user && typeof user.id === 'string' &&
+        'email' in user && typeof user.email === 'string' &&
+        'created_at' in user && typeof user.created_at === 'string') {
+      return user as User;
+    }
+  } catch { /* Invalid saved session is discarded. */ }
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  return null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Check if user is already logged in
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-
-    if (token && userStr) {
-      try {
-        const userData = JSON.parse(userStr);
-        setUser(userData);
-      } catch (error) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
-    }
-
-    setIsLoading(false);
-  }, []);
+  const [user, setUser] = useState<User | null>(restoreUser);
+  const isLoading = false;
 
   const login = async (data: LoginRequest) => {
     const response: AuthResponse = await apiClient.login(data);
@@ -60,12 +51,4 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

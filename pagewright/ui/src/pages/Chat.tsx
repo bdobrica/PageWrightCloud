@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
@@ -105,12 +106,12 @@ export const Chat: React.FC = () => {
 
       setInputText('');
       setFiles([]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString() + '-e',
-          text: `Error: ${err.response?.data?.message || 'Failed to send message'}`,
+          text: `Error: ${getErrorMessage(err, 'Failed to send message')}`,
           sender: 'agent',
           timestamp: new Date(),
         },

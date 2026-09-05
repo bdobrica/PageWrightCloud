@@ -1,6 +1,7 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState } from 'react';
 import { Layout } from '../components/Layout';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth';
 import { apiClient } from '../api/client';
 
 export const Profile: React.FC = () => {
@@ -38,8 +39,8 @@ export const Profile: React.FC = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update password');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update password'));
     } finally {
       setIsLoading(false);
     }

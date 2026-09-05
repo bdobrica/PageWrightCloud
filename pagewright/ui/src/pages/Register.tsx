@@ -1,6 +1,7 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth';
 import './Auth.css';
 
 export const Register: React.FC = () => {
@@ -31,8 +32,8 @@ export const Register: React.FC = () => {
     try {
       await register({ email, password });
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Registration failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
@@ -23,8 +24,8 @@ export const CreateSite: React.FC = () => {
     try {
       await apiClient.createSite({ fqdn: siteFqdn, template_id: templateId });
       navigate(`/chat/${siteFqdn}`);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create site');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create site'));
     } finally {
       setIsLoading(false);
     }
