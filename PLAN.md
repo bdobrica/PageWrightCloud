@@ -16,12 +16,12 @@ There is useful implementation across all services, but the application is still
 
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
-| Job submission | M1.1 aligns [gateway](pagewright/gateway/internal/clients/manager.go), [manager](pagewright/manager/internal/api/handler.go), worker and UI around the [canonical job contract](docs/JOB_CONTRACT.md), including owner/site/source/target identity. | Wire mismatch fixed and HTTP-tested; durable job/version mapping before dispatch remains M1.2. |
+| Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
 | Execution | [Docker spawner](pagewright/manager/internal/spawner/docker/docker.go) and Kubernetes spawner only log. [Worker Dockerfile](pagewright/worker/Dockerfile) installs a mock command. | An accepted job cannot execute the intended AI workflow. There are also two worker implementations/images; select `pagewright/worker` as the MVP runner. |
 | First site | [CreateSite](pagewright/gateway/internal/handlers/sites.go) inserts a DB row only. [Build](pagewright/gateway/internal/handlers/build.go) falls back to `initial`; the worker always downloads a source artifact. UI selects `template-1`, while the supplied theme is `starter`. | Bootstrap a valid, versioned source and map the supported template explicitly. |
 | Artifact transport | [Storage routes](pagewright/storage/internal/api/handler.go) use `/sites/{site_id}/artifacts/{build_id}`; gateway, worker and serving clients use `/artifacts/{site_id}/{version}`. Worker sends multipart bytes while storage writes the raw body. | Downloads fail; fixing paths alone still leaves malformed archives. Manifest/log endpoints expected by the worker and deletion expected by the gateway are missing. |
 | Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` is hard-coded. [Serving](pagewright/serving/internal/artifact/manager.go) requires an archive containing `public/`. | Integrate `pagewrightc`, generate `public/index.html`, and derive validation results from actual checks. |
-| Version state | Gateway creates a version using the job ID, independently of manager's target version. [Version listing](pagewright/gateway/internal/handlers/versions.go) returns storage records that differ from UI types. | Use one artifact/version ID, persist the job mapping, reconcile completion, and normalize the UI response. |
+| Version state | M1.2 commits the job mapping and version using `target_version` before dispatch, with atomic outcome/status writes. [Version listing](pagewright/gateway/internal/handlers/versions.go) still returns storage records that differ from UI types. | Submission mapping fixed; reconcile later completion and normalize version listing in M1.9/M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | [Gateway serving client](pagewright/gateway/internal/clients/serving.go) sends `version_id`; [serving types](pagewright/serving/internal/types/types.go) require `version`. Preview UI only opens a URL and does not activate a preview. | Repair the payload, preview action, returned URLs, and preview assets/navigation. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
@@ -146,12 +146,41 @@ identified worker snapshot and UI timestamp validation drift; both were fixed
 and regression-tested before committing. CI includes UI contract tests and the
 expanded integration harness; hosted execution still awaits a push.
 
-M1.2 is next: persist job-to-target-version mapping before dispatch and replace
-the existing post-dispatch version row using `job_id`. M1.1 does not fix that
-write, the `initial` bootstrap placeholder, artifact endpoints, real spawning,
-callback authentication/fencing/idempotency, polling or publishing. Existing
-Redis snapshots without required associations are not automatically migrated;
-rebuild the participating services together. The full M1 exit remains unverified.
+M1.2 completed (2026-09-05) in `d86f737`. Migration 007 creates durable submissions
+and their pending versions in one transaction, preserving legacy rows without
+inventing mappings. Gateway allocates independent execution/artifact IDs and
+requires an owner/site-scoped `Idempotency-Key`; retries reuse the committed
+prompt/source/IDs before calling the provider. An atomic dispatch claim permits
+one POST. Manager atomically reserves explicit job IDs once in Redis, rejects
+conflicting reuse, remembers definite rejections and never respawns a reservation
+on replay. Worker metadata merges do not overwrite fast terminal callbacks.
+The UI reuses uncertain retry keys and synchronously blocks duplicate sends.
+
+Failure handling is explicit: reservation failure sends no manager request;
+definite rejection atomically records a failed version; lost responses or failed
+outcome writes retain the mapping and reconcile by GET. Manager redirects are
+disabled so a later redirect dial failure cannot be mistaken for nondelivery.
+See [submission state and retry rules](docs/BUILD_SUBMISSIONS.md).
+
+Verification passed: six-module package baseline; gateway/manager race tests;
+two full isolated PostgreSQL/Redis/API integration runs; 16 UI contract/retry
+tests, zero-warning lint and production build; affected image builds; fresh-stack
+startup and data-preserving recreation with migration 007. Tests prove mapping
+visibility before manager POST, transactional rollback, concurrent deduplication,
+upgrade/reconnect, site deletion preservation, lost response, rejection/outcome
+write failure and conservative behavior when manager evidence is missing.
+Independent reviews covered persistence/orchestration and documented limits.
+Synthetic test projects/data were removed; no application volumes were reset.
+
+M1.3 is next (storage HTTP routes and raw artifact transport). M1.2 does not
+provide automatic recovery for crashes between claim/send or lost manager state:
+those remain explicitly uncertain rather than being blindly redispatched. New
+Redis reservations have no TTL but root Redis is still nonpersistent; durable
+recovery and bounded retention remain M2.9. Real spawners must distinguish definite
+and ambiguous start failures. Status is a saved submission snapshot, not live
+callback synchronization; that remains M3.1. Bootstrap, real execution, callback
+authentication/fencing, polling and publishing remain unfinished. No paid AI
+request ran and no push/hosted CI execution was performed. Full M1 exit is unverified.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
@@ -159,7 +188,7 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
 
-Implement the Docker spawner and a queue dispatcher with bounded concurrency. Build the selected real worker image with the compiler and trusted theme. Bootstrap/download source, execute a bounded edit, validate allowed changes, compile to `public/`, validate output, store the artifact and report completion. Add lease renewal, fencing enforcement, worker cleanup, callback retries and reconciliation for lost callbacks or manager restarts. Persist sufficient job/version state beyond Redis's current 24-hour job TTL.
+Implement the Docker spawner and a queue dispatcher with bounded concurrency. Build the selected real worker image with the compiler and trusted theme. Bootstrap/download source, execute a bounded edit, validate allowed changes, compile to `public/`, validate output, store the artifact and report completion. Add lease renewal, fencing enforcement, worker cleanup, callback retries and reconciliation for lost callbacks or manager restarts. Persist Redis data and reconcile gateway uncertainty; define safe retention for M1.2's nonexpiring reservations and legacy expiring jobs.
 
 **Exit:** one real text request visibly changes a new site's HTML, two successive edits preserve each other, a concurrent same-site build is handled predictably, and worker failure/timeout/restart produces a recoverable terminal status without affecting live content.
 
