@@ -96,7 +96,15 @@ data, served UI HTML/JavaScript, theme registry and nginx config validation.
 The smoke test exposed and fixed the themes IPv6-localhost health probe mismatch.
 Its temporary project and volumes were removed; existing app volumes were untouched.
 
-Resolve the UI lint/CSS baseline; document tool versions supported by the lockfiles and images. Establish explicit commands for unit tests, integration prerequisites, UI checks, image builds and migrations. Exercise startup from fresh, disposable volumes and restart with existing data. Consolidate migration ownership: gateway startup currently embeds migrations separately from the SQL files, and the DB helper's `RunMigrations` is a stub.
+M0.6 completed in `1cc5cd9`: CI defines Go/compiler, UI, isolated integration,
+and image/startup/recreation jobs. The compiler fixture and actionlint passed;
+the underlying checks have local verification above. Five remaining explicit
+worker/serving skips and coverage limits are inventoried in [testing instructions](docs/TESTING.md).
+Independent workflow review found no blocking issue. Hosted CI has not run:
+the workflow will execute on a future push or pull request; no push was requested.
+
+Scope: resolve the UI lint/CSS baseline, align toolchains, standardize checks,
+make startup reproducible, consolidate migrations, and correct startup/status docs.
 
 **Exit:** a fresh checkout can build the UI and all selected service images, initialize the DB once, restart safely, and run documented checks. CI starts running these checks.
 
