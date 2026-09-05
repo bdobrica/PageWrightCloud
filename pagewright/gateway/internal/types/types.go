@@ -104,21 +104,14 @@ type BuildRequest struct {
 }
 
 type BuildResponse struct {
-	JobID          *string `json:"job_id,omitempty"`          // Set when job is queued
+	*JobAccepted           // Set when manager accepts the job
 	Question       *string `json:"question,omitempty"`        // Set when clarification needed
 	ConversationID *string `json:"conversation_id,omitempty"` // For follow-up
 }
 
 // WebSocket Types
 
-type JobStatusUpdate struct {
-	JobID     string    `json:"job_id"`
-	SiteID    string    `json:"site_id"`
-	Status    string    `json:"status"` // queued, running, success, failed
-	BuildID   *string   `json:"build_id,omitempty"`
-	Message   string    `json:"message,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
-}
+type JobStatusUpdate = Job
 
 type PaginatedRequest struct {
 	Page     int `json:"page,omitempty"`
@@ -134,19 +127,6 @@ type PaginatedResponse struct {
 }
 
 // External Service Types (for communication with other microservices)
-
-type ManagerJobRequest struct {
-	SiteID          string            `json:"site_id"`
-	BaseBuildID     string            `json:"base_build_id"`
-	RequestedAction string            `json:"requested_action"`
-	UserText        string            `json:"user_text"`
-	Metadata        map[string]string `json:"metadata,omitempty"`
-}
-
-type ManagerJobResponse struct {
-	JobID  string `json:"job_id"`
-	Status string `json:"status"`
-}
 
 type StorageVersionsResponse struct {
 	Versions []StorageVersion `json:"versions"`

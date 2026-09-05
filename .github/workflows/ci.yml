@@ -44,6 +44,7 @@ jobs:
           cache-dependency-path: pagewright/ui/package-lock.json
       - run: npm ci
       - run: npm run lint -- --max-warnings=0
+      - run: npm run test:contracts
       - run: npm run build
   integration:
     runs-on: ubuntu-24.04

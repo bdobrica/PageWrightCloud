@@ -47,13 +47,24 @@ export interface PaginatedResponse<T> {
   total_pages: number;
 }
 
-export interface JobStatusUpdate {
+export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface AcceptedBuildResponse {
   job_id: string;
   site_id: string;
-  status: 'queued' | 'running' | 'success' | 'failed';
-  build_id?: string;
-  message?: string;
-  timestamp: string;
+  owner_id: string;
+  source_version: string;
+  target_version: string;
+  status: JobStatus;
+}
+
+export interface JobSnapshot extends AcceptedBuildResponse {
+  prompt: string;
+  created_at: string;
+  updated_at: string;
+  result?: string;
+  error_message?: string;
+  manifest_path?: string;
 }
 
 // Request Types
@@ -98,14 +109,14 @@ export interface DeployVersionRequest {
 export interface BuildRequest {
   message: string;
   conversation_id?: string;
-  files?: File[];
 }
 
-export interface BuildResponse {
-  job_id?: string;
-  question?: string;
-  conversation_id?: string;
+export interface ClarificationBuildResponse {
+  question: string;
+  conversation_id: string;
 }
+
+export type BuildResponse = AcceptedBuildResponse | ClarificationBuildResponse;
 
 export interface ErrorResponse {
   error: string;

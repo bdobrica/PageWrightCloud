@@ -7,7 +7,7 @@ import { ChatMessage } from '../components/ChatMessage';
 import { FileAttachment } from '../components/FileAttachment';
 import { apiClient } from '../api/client';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { JobStatusUpdate } from '../types/api';
+import type { JobSnapshot } from '../types/api';
 import './Chat.css';
 
 interface Message {
@@ -27,13 +27,13 @@ export const Chat: React.FC = () => {
   const [versionRefresh, setVersionRefresh] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleJobUpdate = (update: JobStatusUpdate) => {
-    if (update.status === 'success') {
+  const handleJobUpdate = (update: JobSnapshot) => {
+    if (update.status === 'completed') {
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
-          text: `✓ Build completed! Version ${update.build_id} is ready.`,
+          text: `✓ Build completed! Version ${update.target_version} is ready.`,
           sender: 'agent',
           timestamp: new Date(),
         },
@@ -44,7 +44,7 @@ export const Chat: React.FC = () => {
         ...prev,
         {
           id: Date.now().toString(),
-          text: `✗ Build failed: ${update.message || 'Unknown error'}`,
+          text: `✗ Build failed: ${update.error_message || 'Unknown error'}`,
           sender: 'agent',
           timestamp: new Date(),
         },
@@ -78,7 +78,7 @@ export const Chat: React.FC = () => {
         files,
       });
 
-      if (response.question) {
+      if ('question' in response) {
         // Agent needs clarification
         setConversationId(response.conversation_id);
         setMessages((prev) => [
@@ -90,7 +90,7 @@ export const Chat: React.FC = () => {
             timestamp: new Date(),
           },
         ]);
-      } else if (response.job_id) {
+      } else {
         // Job enqueued
         setConversationId(undefined);
         setMessages((prev) => [

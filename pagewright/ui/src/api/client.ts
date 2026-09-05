@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, AxiosError } from 'axios';
 import { config } from '../config';
+import { parseBuildResponse } from './contracts';
 import type {
   AuthResponse,
   RegisterRequest,
@@ -148,8 +149,8 @@ class ApiClient {
   }
 
   // Build endpoint
-  async build(fqdn: string, data: BuildRequest): Promise<BuildResponse> {
-    // Handle file uploads with multipart/form-data
+  async build(fqdn: string, data: BuildRequest & { files?: File[] }): Promise<BuildResponse> {
+    // Legacy attachment path is still unsupported by Gateway; tracked in M3.9.
     if (data.files && data.files.length > 0) {
       const formData = new FormData();
       formData.append('message', data.message);
@@ -160,16 +161,17 @@ class ApiClient {
         formData.append('files', file);
       });
 
-      const response = await this.client.post<BuildResponse>(`/sites/${fqdn}/build`, formData, {
+      const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return response.data;
+      return parseBuildResponse(response.data);
     }
 
-    const response = await this.client.post<BuildResponse>(`/sites/${fqdn}/build`, data);
-    return response.data;
+    const payload: BuildRequest = { message: data.message, conversation_id: data.conversation_id };
+    const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, payload);
+    return parseBuildResponse(response.data);
   }
 }
 

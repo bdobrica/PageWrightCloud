@@ -37,16 +37,18 @@ make test-all          # All six modules, no external services
 make test-compiler-smoke # Starter fixture pages/assets, temporary output
 make test-integration  # Isolated PostgreSQL, Redis, manager/storage and Go runner
 cd pagewright/ui
+npm run test:contracts
 npm run lint -- --max-warnings=0
 npm run build
 ```
 
 `make test` / `make test-unit` in a Go service run untagged package tests.
 `make test-integration` in a service delegates to the root integration harness.
-The harness runs gateway, manager and storage suites with `-race`, fresh state
+The harness runs gateway, manager, storage and worker suites with `-race`, fresh state
 and no published ports, then removes only its generated test project and data,
 including on failure. It does not load the application `.env`. Docker image
-layers remain cached. There are no worker/serving/compiler integration suites yet.
+layers remain cached. Worker coverage includes manager callback contracts only;
+there are no serving/compiler integration suites yet.
 Manager tests currently exercise its mock spawner, HTTP API, Redis and locking;
 they do not claim worker execution coverage. Gateway tests use a private schema.
 Direct tagged tests require explicit test database/service URLs; prefer the harness.

@@ -54,8 +54,13 @@ func main() {
 
 	// Call back to manager
 	statusUpdate := types.JobStatusUpdate{
-		Status: types.JobStatusCompleted,
-		Result: result,
+		JobID:         job.JobID,
+		SiteID:        job.SiteID,
+		OwnerID:       job.OwnerID,
+		SourceVersion: job.SourceVersion,
+		TargetVersion: job.TargetVersion,
+		Status:        types.JobStatusCompleted,
+		Result:        result,
 	}
 
 	if err := sendCallback(managerURL, job.JobID, statusUpdate); err != nil {

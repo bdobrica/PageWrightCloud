@@ -3,7 +3,9 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock"
@@ -57,14 +59,14 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	var req types.JobRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+	if err := decodeRequest(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
 
 	// Validate required fields
-	if req.SiteID == "" || req.Prompt == "" {
-		http.Error(w, "site_id and prompt are required", http.StatusBadRequest)
+	if blank(req.SiteID) || blank(req.OwnerID) || blank(req.Prompt) || blank(req.SourceVersion) || (req.TargetVersion != "" && blank(req.TargetVersion)) {
+		writeError(w, http.StatusBadRequest, "invalid_request", "site_id, owner_id, prompt and source_version must be nonblank; target_version must be nonblank when supplied")
 		return
 	}
 
@@ -78,6 +80,7 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	job := &types.Job{
 		JobID:         jobID,
 		SiteID:        req.SiteID,
+		OwnerID:       req.OwnerID,
 		Prompt:        req.Prompt,
 		SourceVersion: req.SourceVersion,
 		TargetVersion: req.TargetVersion,
@@ -90,7 +93,7 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	token, fencingToken, err := h.lockMgr.Acquire(ctx, req.SiteID, h.lockTTL)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to acquire lock: %v", err), http.StatusConflict)
+		writeError(w, http.StatusConflict, "job_busy", fmt.Sprintf("Failed to acquire lock: %v", err))
 		return
 	}
 
@@ -101,7 +104,7 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	if err := h.queue.Push(ctx, job); err != nil {
 		// Release lock if we can't queue the job
 		h.lockMgr.Release(ctx, req.SiteID, token)
-		http.Error(w, fmt.Sprintf("Failed to queue job: %v", err), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to queue job: %v", err))
 		return
 	}
 
@@ -109,7 +112,7 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	job.Status = types.JobStatusRunning
 	job.UpdatedAt = time.Now().UTC()
 	if err := h.queue.UpdateJob(ctx, job); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to update job: %v", err), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to update job: %v", err))
 		return
 	}
 
@@ -125,12 +128,15 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		// Release lock
 		h.lockMgr.Release(ctx, req.SiteID, token)
 
-		http.Error(w, fmt.Sprintf("Failed to spawn worker: %v", err), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to spawn worker: %v", err))
 		return
 	}
 
 	job.WorkerID = workerID
-	h.queue.UpdateJob(ctx, job)
+	if err := h.queue.UpdateJob(ctx, job); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to update job: %v", err))
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -142,13 +148,13 @@ func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {
 	jobID := vars["job_id"]
 
 	if jobID == "" {
-		http.Error(w, "job_id is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid_request", "job_id is required")
 		return
 	}
 
 	job, err := h.queue.GetJob(r.Context(), jobID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get job: %v", err), http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "job_not_found", "Job not found")
 		return
 	}
 
@@ -157,112 +163,96 @@ func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UpdateJobStatus(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	jobID := vars["job_id"]
-
-	if jobID == "" {
-		http.Error(w, "job_id is required", http.StatusBadRequest)
-		return
-	}
-
-	var update types.JobStatusUpdate
-	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	ctx := r.Context()
-
-	// Get current job
-	job, err := h.queue.GetJob(ctx, jobID)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Job not found: %v", err), http.StatusNotFound)
-		return
-	}
-
-	// Update job
-	job.Status = update.Status
-	job.Result = update.Result
-	job.ErrorMessage = update.ErrorMessage
-	job.UpdatedAt = time.Now().UTC()
-
-	if err := h.queue.UpdateJob(ctx, job); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to update job: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Release lock if job is completed or failed
-	if update.Status == types.JobStatusCompleted || update.Status == types.JobStatusFailed {
-		if job.LockToken != "" {
-			if err := h.lockMgr.Release(ctx, job.SiteID, job.LockToken); err != nil {
-				fmt.Printf("Warning: Failed to release lock for site %s: %v\n", job.SiteID, err)
-			}
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(job)
+	h.applyCallback(w, r, false)
 }
 
 func (h *Handler) JobResult(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	jobID := vars["job_id"]
+	h.applyCallback(w, r, true)
+}
 
-	if jobID == "" {
-		http.Error(w, "job_id is required", http.StatusBadRequest)
+func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminalOnly bool) {
+	var update types.JobStatusUpdate
+	if err := decodeRequest(r, &update); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", fmt.Sprintf("Invalid request body: %v", err))
 		return
 	}
-
-	var result struct {
-		JobID         string `json:"job_id"`
-		Status        string `json:"status"`
-		TargetVersion string `json:"target_version"`
-		Result        string `json:"result"`
-		ErrorMessage  string `json:"error_message,omitempty"`
-		ManifestPath  string `json:"manifest_path,omitempty"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&result); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
+	if blank(update.JobID) || blank(update.SiteID) || blank(update.OwnerID) || blank(update.SourceVersion) || blank(update.TargetVersion) {
+		writeError(w, http.StatusBadRequest, "invalid_request", "job_id, site_id, owner_id, source_version and target_version must be nonblank")
 		return
 	}
-
+	switch update.Status {
+	case types.JobStatusRunning:
+		if terminalOnly {
+			writeError(w, http.StatusBadRequest, "invalid_request", "result status must be completed or failed")
+			return
+		}
+	case types.JobStatusCompleted, types.JobStatusFailed:
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_request", "status must be running, completed or failed")
+		return
+	}
+	if (update.Status == types.JobStatusFailed && blank(update.ErrorMessage)) ||
+		(update.Status != types.JobStatusFailed && update.ErrorMessage != "") ||
+		(update.Status != types.JobStatusCompleted && update.ManifestPath != "") {
+		writeError(w, http.StatusBadRequest, "invalid_request", "error_message is required only for failed callbacks; manifest_path is allowed only for completed callbacks")
+		return
+	}
+	jobID := mux.Vars(r)["job_id"]
+	if update.JobID != jobID {
+		writeError(w, http.StatusConflict, "job_conflict", "Callback job_id does not match the route")
+		return
+	}
 	ctx := r.Context()
-
-	// Get current job
 	job, err := h.queue.GetJob(ctx, jobID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Job not found: %v", err), http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "job_not_found", "Job not found")
 		return
 	}
-
-	// Update job with worker result
-	if result.Status == "completed" {
-		job.Status = types.JobStatusCompleted
-		job.Result = result.Result
-	} else {
-		job.Status = types.JobStatusFailed
-		job.ErrorMessage = result.ErrorMessage
-	}
-	job.UpdatedAt = time.Now().UTC()
-
-	if err := h.queue.UpdateJob(ctx, job); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to update job: %v", err), http.StatusInternalServerError)
+	// Identity validation is not callback authentication or fencing.
+	if update.JobID != job.JobID || update.SiteID != job.SiteID || update.OwnerID != job.OwnerID ||
+		update.SourceVersion != job.SourceVersion || update.TargetVersion != job.TargetVersion {
+		writeError(w, http.StatusConflict, "job_conflict", "Callback identity or versions do not match the stored job")
 		return
 	}
-
-	// Release lock
-	if job.LockToken != "" {
-		if err := h.lockMgr.Release(ctx, job.SiteID, job.LockToken); err != nil {
-			fmt.Printf("Warning: Failed to release lock for site %s: %v\n", job.SiteID, err)
+	updated := *job
+	updated.Status = update.Status
+	updated.Result = update.Result
+	updated.ErrorMessage = update.ErrorMessage
+	updated.ManifestPath = update.ManifestPath
+	updated.UpdatedAt = time.Now().UTC()
+	if err := h.queue.UpdateJob(ctx, &updated); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to update job: %v", err))
+		return
+	}
+	if update.Status == types.JobStatusCompleted || update.Status == types.JobStatusFailed {
+		if updated.LockToken != "" {
+			if err := h.lockMgr.Release(ctx, updated.SiteID, updated.LockToken); err != nil {
+				fmt.Printf("Warning: Failed to release lock for site %s: %v\n", updated.SiteID, err)
+			}
 		}
 	}
-
-	fmt.Printf("Job %s completed by worker: status=%s, version=%s\n", jobID, result.Status, result.TargetVersion)
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Job result received",
-		"status":  result.Status,
-	})
+	json.NewEncoder(w).Encode(&updated)
+}
+
+func blank(value string) bool { return strings.TrimSpace(value) == "" }
+
+// decodeRequest rejects unknown fields and multiple JSON values.
+func decodeRequest(r *http.Request, target any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return fmt.Errorf("body must contain exactly one JSON object")
+	}
+	return nil
+}
+
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(types.APIError{Error: code, Message: message})
 }

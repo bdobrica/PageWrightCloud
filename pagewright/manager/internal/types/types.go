@@ -16,9 +16,10 @@ const (
 type Job struct {
 	JobID         string    `json:"job_id"`
 	SiteID        string    `json:"site_id"`
+	OwnerID       string    `json:"owner_id"`
 	Prompt        string    `json:"prompt"`
-	SourceVersion string    `json:"source_version,omitempty"`
-	TargetVersion string    `json:"target_version,omitempty"`
+	SourceVersion string    `json:"source_version"`
+	TargetVersion string    `json:"target_version"`
 	Status        JobStatus `json:"status"`
 	LockToken     string    `json:"lock_token,omitempty"`
 	FencingToken  int64     `json:"fencing_token,omitempty"`
@@ -27,19 +28,36 @@ type Job struct {
 	WorkerID      string    `json:"worker_id,omitempty"`
 	Result        string    `json:"result,omitempty"`
 	ErrorMessage  string    `json:"error_message,omitempty"`
+	ManifestPath  string    `json:"manifest_path,omitempty"`
 }
 
 // JobRequest represents an incoming job request
 type JobRequest struct {
 	SiteID        string `json:"site_id"`
+	OwnerID       string `json:"owner_id"`
 	Prompt        string `json:"prompt"`
-	SourceVersion string `json:"source_version,omitempty"`
+	SourceVersion string `json:"source_version"`
 	TargetVersion string `json:"target_version,omitempty"`
 }
 
 // JobStatusUpdate represents a status update from a worker
 type JobStatusUpdate struct {
-	Status       JobStatus `json:"status"`
-	Result       string    `json:"result,omitempty"`
-	ErrorMessage string    `json:"error_message,omitempty"`
+	JobID         string    `json:"job_id"`
+	SiteID        string    `json:"site_id"`
+	OwnerID       string    `json:"owner_id"`
+	SourceVersion string    `json:"source_version"`
+	TargetVersion string    `json:"target_version"`
+	Status        JobStatus `json:"status"`
+	Result        string    `json:"result,omitempty"`
+	ErrorMessage  string    `json:"error_message,omitempty"`
+	ManifestPath  string    `json:"manifest_path,omitempty"`
+}
+
+// JobResult uses the same identity and outcome fields as a status callback.
+type JobResult = JobStatusUpdate
+
+// APIError is the error envelope returned by manager job endpoints.
+type APIError struct {
+	Error   string `json:"error"`
+	Message string `json:"message"`
 }

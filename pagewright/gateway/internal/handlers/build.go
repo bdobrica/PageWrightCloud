@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/clients"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
@@ -38,17 +41,27 @@ type conversationContext struct {
 
 // Build handles build requests with OpenAI clarification loop
 func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
-	user, _ := middleware.GetUserFromContext(r)
+	user, ok := middleware.GetUserFromContext(r)
+	if !ok || user == nil {
+		respondError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
 	var req types.BuildRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if err := decoder.Decode(new(interface{})); err != io.EOF {
+		respondError(w, http.StatusBadRequest, "expected one JSON request")
+		return
+	}
 
-	if req.Message == "" {
+	if strings.TrimSpace(req.Message) == "" {
 		respondError(w, http.StatusBadRequest, "message is required")
 		return
 	}
@@ -135,26 +148,28 @@ func (h *BuildHandler) enqueueJob(w http.ResponseWriter, site *types.Site, origi
 
 	// Enqueue job in manager
 	jobReq := clients.ManagerJobRequest{
-		SiteID:          site.ID,
-		BaseBuildID:     baseBuildID,
-		RequestedAction: "edit",
-		UserText:        instructions,
-		Metadata: map[string]string{
-			"original_message": originalMessage,
-			"fqdn":             site.FQDN,
-		},
+		SiteID:        site.ID,
+		OwnerID:       site.UserID, // Derived from the authenticated, owner-checked site.
+		SourceVersion: baseBuildID,
+		Prompt:        instructions,
 	}
 
 	jobResp, err := h.managerClient.EnqueueJob(jobReq)
 	if err != nil {
+		var managerErr *clients.ManagerError
+		if errors.As(err, &managerErr) && managerErr.StatusCode == http.StatusConflict {
+			respondError(w, http.StatusConflict, "site already has an active job")
+			return
+		}
 		respondError(w, http.StatusInternalServerError, "failed to enqueue job")
 		return
 	}
 
-	// Create version record in database
+	// Legacy persistence is replaced by durable pre-dispatch mapping in M1.2.
+	// Do not treat this row's build_id as the manager's canonical target_version.
 	h.db.CreateVersion(site.ID, jobResp.JobID, "pending")
 
 	respondJSON(w, types.BuildResponse{
-		JobID: &jobResp.JobID,
+		JobAccepted: &jobResp.JobAccepted,
 	})
 }

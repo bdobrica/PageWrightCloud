@@ -1,5 +1,5 @@
 *.tar.gz
-runner
+/runner
 coverage.txt
 /work
 *.tmp

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
-import type { JobStatusUpdate } from '../types/api';
+import type { JobSnapshot } from '../types/api';
+import { parseJobSnapshot } from '../api/contracts';
 
-export const useWebSocket = (onMessage: (update: JobStatusUpdate) => void) => {
+export const useWebSocket = (onMessage: (update: JobSnapshot) => void) => {
   const [isConnected, setIsConnected] = useState(false);
   const onMessageRef = useRef(onMessage);
 
@@ -22,7 +23,7 @@ export const useWebSocket = (onMessage: (update: JobStatusUpdate) => void) => {
       ws.onmessage = (event) => {
         if (disposed) return;
         try {
-          onMessageRef.current(JSON.parse(event.data) as JobStatusUpdate);
+          onMessageRef.current(parseJobSnapshot(JSON.parse(event.data)));
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
         }

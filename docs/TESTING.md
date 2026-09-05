@@ -6,8 +6,8 @@ See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from 
 | --- | --- | --- |
 | Go packages | `make test-all` | Six Go modules; no running infrastructure required |
 | Compiler fixture | `make test-compiler-smoke` | Starter theme produces three pages and required assets in a temporary directory |
-| UI | `cd pagewright/ui && npm ci && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, zero-warning lint, production build |
-| Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager and storage HTTP tests in an isolated Compose project |
+| UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, zero-warning lint, production build |
+| Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP tests and worker callback contract round-trips in an isolated Compose project |
 | Images | `docker compose --env-file /dev/null --profile worker build` | Selected service images, including the optional mock worker |
 | Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, auth, site metadata and storage; repeat after container recreation with volumes retained |
 
@@ -18,6 +18,10 @@ The integration and startup checks use disposable, uniquely named projects and r
 [MVP baseline](../.github/workflows/ci.yml) runs four independent jobs on pushes, pull requests and manual dispatch: Go/compiler/workflow validation, UI, isolated integration, and image/startup/recreation checks. Workflow configuration follows the upstream [checkout v4](https://github.com/actions/checkout/tree/v4), [setup-go v5](https://github.com/actions/setup-go/tree/v5), and [setup-node v4](https://github.com/actions/setup-node/tree/v4) documentation. YAML and workflow expressions are checked with [actionlint v1.7.7](https://github.com/rhysd/actionlint/releases/tag/v1.7.7).
 
 These checks have local verification evidence in [PLAN.md](../PLAN.md). A hosted CI result requires pushing the branch; local validation is not a claim that GitHub Actions has run.
+
+The [job wire contract](JOB_CONTRACT.md) describes M1.1's gateway/manager/worker/UI
+schemas and HTTP acceptance tests. The instruction provider is faked in contract
+tests; no paid provider or worker executor is invoked.
 
 ## Known skipped tests
 

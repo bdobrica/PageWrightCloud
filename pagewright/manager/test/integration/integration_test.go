@@ -72,6 +72,7 @@ func TestIntegrationCreateAndGetJob(t *testing.T) {
 	// Create job
 	jobReq := types.JobRequest{
 		SiteID:        siteID,
+		OwnerID:       "test-owner",
 		Prompt:        "Update the homepage title",
 		SourceVersion: "v1",
 		TargetVersion: "v2",
@@ -93,6 +94,7 @@ func TestIntegrationCreateAndGetJob(t *testing.T) {
 
 	assert.NotEmpty(t, job.JobID)
 	assert.Equal(t, siteID, job.SiteID)
+	assert.Equal(t, "test-owner", job.OwnerID)
 	assert.Equal(t, "Update the homepage title", job.Prompt)
 	assert.Equal(t, "v1", job.SourceVersion)
 	assert.Equal(t, "v2", job.TargetVersion)
@@ -122,8 +124,10 @@ func TestIntegrationUpdateJobStatus(t *testing.T) {
 
 	// Create job
 	jobReq := types.JobRequest{
-		SiteID: siteID,
-		Prompt: "Add contact page",
+		SiteID:        siteID,
+		OwnerID:       "test-owner",
+		SourceVersion: "v1",
+		Prompt:        "Add contact page",
 	}
 
 	jsonData, err := json.Marshal(jobReq)
@@ -134,13 +138,19 @@ func TestIntegrationUpdateJobStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	var job types.Job
-	json.NewDecoder(resp.Body).Decode(&job)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&job))
 	resp.Body.Close()
 
 	// Update job status
 	statusUpdate := types.JobStatusUpdate{
-		Status: types.JobStatusCompleted,
-		Result: "Contact page added successfully",
+		JobID:         job.JobID,
+		SiteID:        job.SiteID,
+		OwnerID:       job.OwnerID,
+		SourceVersion: job.SourceVersion,
+		TargetVersion: job.TargetVersion,
+		Status:        types.JobStatusCompleted,
+		Result:        "Contact page added successfully",
 	}
 
 	jsonData, err = json.Marshal(statusUpdate)
@@ -167,8 +177,10 @@ func TestIntegrationLockPreventsMultipleJobs(t *testing.T) {
 
 	// Create first job
 	jobReq := types.JobRequest{
-		SiteID: siteID,
-		Prompt: "First job",
+		SiteID:        siteID,
+		OwnerID:       "test-owner",
+		SourceVersion: "v1",
+		Prompt:        "First job",
 	}
 
 	jsonData, err := json.Marshal(jobReq)
@@ -193,15 +205,17 @@ func TestIntegrationLockPreventsMultipleJobs(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 }
 
-func TestIntegrationJobWithoutSourceVersion(t *testing.T) {
+func TestIntegrationJobWithoutTargetVersion(t *testing.T) {
 	waitForService(t)
 
 	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
 
-	// Create job without source version
+	// Target version may be omitted; source identity is required.
 	jobReq := types.JobRequest{
-		SiteID: siteID,
-		Prompt: "Create new page",
+		SiteID:        siteID,
+		OwnerID:       "test-owner",
+		SourceVersion: "v1",
+		Prompt:        "Create new page",
 	}
 
 	jsonData, err := json.Marshal(jobReq)

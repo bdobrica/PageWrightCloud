@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"time"
+
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 )
 
 type ManagerClient struct {
@@ -38,12 +42,18 @@ func (c *ManagerClient) EnqueueJob(req ManagerJobRequest) (*ManagerJobResponse, 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("failed to enqueue job: status %d", resp.StatusCode)
+		return nil, managerHTTPError(resp)
 	}
 
 	var result ManagerJobResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode job response: %w", err)
+	}
+	if err := result.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid manager job response: %w", err)
+	}
+	if result.SiteID != req.SiteID || result.OwnerID != req.OwnerID || result.SourceVersion != req.SourceVersion || result.Prompt != req.Prompt || (req.TargetVersion != "" && result.TargetVersion != req.TargetVersion) {
+		return nil, fmt.Errorf("manager response job association mismatch")
 	}
 
 	return &result, nil
@@ -51,7 +61,10 @@ func (c *ManagerClient) EnqueueJob(req ManagerJobRequest) (*ManagerJobResponse, 
 
 // GetJobStatus retrieves the status of a job
 func (c *ManagerClient) GetJobStatus(jobID string) (*ManagerJobStatus, error) {
-	url := fmt.Sprintf("%s/jobs/%s", c.baseURL, jobID)
+	if jobID == "" {
+		return nil, fmt.Errorf("job_id is required")
+	}
+	url := fmt.Sprintf("%s/jobs/%s", c.baseURL, url.PathEscape(jobID))
 
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
@@ -60,35 +73,43 @@ func (c *ManagerClient) GetJobStatus(jobID string) (*ManagerJobStatus, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get job status: status %d", resp.StatusCode)
+		return nil, managerHTTPError(resp)
 	}
 
 	var status ManagerJobStatus
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
 		return nil, fmt.Errorf("failed to decode job status: %w", err)
 	}
+	if err := status.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid manager job status: %w", err)
+	}
+	if status.JobID != jobID {
+		return nil, fmt.Errorf("manager response job_id mismatch")
+	}
 
 	return &status, nil
 }
 
-type ManagerJobRequest struct {
-	SiteID          string            `json:"site_id"`
-	BaseBuildID     string            `json:"base_build_id"`
-	RequestedAction string            `json:"requested_action"`
-	UserText        string            `json:"user_text"`
-	Metadata        map[string]string `json:"metadata,omitempty"`
+// Aliases keep the gateway's wire definitions in one place.
+type ManagerJobRequest = types.ManagerJobRequest
+type ManagerJobResponse = types.Job
+type ManagerJobStatus = types.Job
+
+type ManagerError struct {
+	StatusCode int
+	Code       string
+	Message    string
 }
 
-type ManagerJobResponse struct {
-	JobID  string `json:"job_id"`
-	Status string `json:"status"`
+func (e *ManagerError) Error() string {
+	return fmt.Sprintf("manager status %d (%s): %s", e.StatusCode, e.Code, e.Message)
 }
 
-type ManagerJobStatus struct {
-	JobID     string    `json:"job_id"`
-	Status    string    `json:"status"`
-	BuildID   string    `json:"build_id,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+func managerHTTPError(resp *http.Response) error {
+	result := &ManagerError{StatusCode: resp.StatusCode, Code: "invalid_response", Message: http.StatusText(resp.StatusCode)}
+	var envelope types.ErrorResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&envelope); err == nil && envelope.Error != "" {
+		result.Code, result.Message = envelope.Error, envelope.Message
+	}
+	return result
 }
