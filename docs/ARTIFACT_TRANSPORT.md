@@ -35,7 +35,8 @@ checksum failures, including errors after the tar end marker.
 downloads and unpacks it, and saves the original compressed bytes in a temporary
 test-run directory. Gateway and serving then fetch that same stored object and
 compare exact bytes, not just equivalent decompressed content. Checks cover the
-complete fixture file set, including UTF-8 text, nested assets and binary bytes.
+complete editable fixture and the deployed public subset, including UTF-8 text,
+nested assets and binary bytes.
 Serving uses its real artifact deployment/extraction manager, without nginx
 activation. Gateway additionally tests its authenticated download handler and an
 interrupted upstream response. Local HTTP unit tests exercise invalid headers,
@@ -52,7 +53,7 @@ The existing `/sites/{site_id}/logs` endpoint stores event records, not the
 worker's private per-version log payload. Gateway deletion is disabled (`501`);
 storage has no DELETE endpoint (`405`).
 
-Archive layout/bootstrap and hostile-input limits remain M1.7/M4. Extraction is
-not transactional: a failed extraction can leave files in its target directory.
-This milestone does not establish internal-service authorization, archive size limits,
-safe publication, nginx activation or an end-to-end AI build.
+M1.7 adds [archive layout validation](ARCHIVE_LAYOUT.md), extraction limits and
+isolated staging: rejected extraction does not leave partial destination files.
+Only public files enter the serving cache. This does not establish internal-service
+authorization, safe HTML generation, nginx activation or an end-to-end AI build.

@@ -1,7 +1,8 @@
 {
   "files": [
-    {"path": "content/site.json", "text": "{\"title\":\"Transport fixture\"}\n"},
-    {"path": "content/index.md", "text": "# Transport fixture\n\nPreserve UTF-8: café.\n"},
+    {"path": "manifest.json", "text": "{\"schema_version\":1,\"kind\":\"compiled\",\"theme_id\":\"starter\"}"},
+    {"path": "content/site.json", "text": "{\"site_name\":\"Transport fixture\"}\n"},
+    {"path": "content/home/index.md", "text": "# Transport fixture\n\nPreserve UTF-8: café.\n"},
     {"path": "public/index.html", "text": "<!doctype html><link rel=\"stylesheet\" href=\"assets/site.css\"><h1>Transport fixture</h1>\n"},
     {"path": "public/assets/site.css", "text": "body { color: #123456; }\n"},
     {"path": "public/assets/logo.bin", "base64": "AAECf4D/Cg=="}

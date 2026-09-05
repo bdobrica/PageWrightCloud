@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+cmp /workspace/pagewright/worker/internal/artifact/layout.go /workspace/pagewright/serving/internal/artifact/layout.go
 artifact_tmp=$(mktemp -d /tmp/pagewright-transport.XXXXXX)
 trap 'rm -rf -- "$artifact_tmp"' EXIT
 trap 'exit 130' INT

@@ -204,6 +204,10 @@ func createTestArtifact(t *testing.T, baseDir string) string {
 	require.NoError(t, err)
 
 	// Create index.html
+	require.NoError(t, os.MkdirAll(filepath.Join(contentDir, "content", "home"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(contentDir, "content", "site.json"), []byte(`{"site_name":"Test"}`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(contentDir, "content", "home", "index.md"), []byte("# Test"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(contentDir, "manifest.json"), []byte(`{"schema_version":1,"kind":"compiled","theme_id":"starter"}`), 0644))
 	indexPath := filepath.Join(publicDir, "index.html")
 	err = os.WriteFile(indexPath, []byte("<html>test</html>"), 0644)
 	require.NoError(t, err)

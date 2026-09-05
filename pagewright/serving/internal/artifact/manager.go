@@ -1,8 +1,7 @@
 package artifact
 
 import (
-	"archive/tar"
-	"compress/gzip"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
@@ -37,23 +36,79 @@ func (m *Manager) GetArtifactPath(fqdn, version string) string {
 
 // DeployArtifact unpacks an artifact to the version directory
 func (m *Manager) DeployArtifact(fqdn, version, archivePath string) error {
-	destDir := m.GetArtifactPath(fqdn, version)
-
-	// Create destination directory
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create artifact directory: %w", err)
+	if !safeIdentifier(fqdn) || !safeIdentifier(version) {
+		return fmt.Errorf("invalid site or version")
 	}
-
-	// Unpack archive
-	if err := m.unpack(archivePath, destDir); err != nil {
-		return fmt.Errorf("failed to unpack artifact: %w", err)
+	dest := m.GetArtifactPath(fqdn, version)
+	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+		return err
 	}
-
+	stage, err := os.MkdirTemp(filepath.Dir(dest), ".deploy-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	if err := m.unpack(archivePath, stage); err != nil {
+		return err
+	}
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	hash := sha256.New()
+	_, copyErr := io.Copy(hash, f)
+	f.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	digest := fmt.Sprintf("%x", hash.Sum(nil))
+	if _, err := os.Lstat(dest); err == nil {
+		prior, err := os.ReadFile(filepath.Join(dest, ".archive-sha256"))
+		if err == nil && string(prior) == digest {
+			return nil
+		}
+		return fmt.Errorf("version already exists with different or unverified content")
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(stage, ".archive-sha256"), []byte(digest), 0644); err != nil {
+		return err
+	}
+	if err := os.Chmod(stage, 0755); err != nil {
+		return err
+	}
+	if err := os.Rename(stage, dest); err != nil {
+		// A concurrent identical deployment may have published while we validated.
+		prior, readErr := os.ReadFile(filepath.Join(dest, ".archive-sha256"))
+		if readErr == nil && string(prior) == digest {
+			return nil
+		}
+		return err
+	}
 	return nil
+}
+
+func safeIdentifier(value string) bool {
+	if value == "" || len(value) > 255 {
+		return false
+	}
+	first := value[0]
+	if !(first >= 'a' && first <= 'z' || first >= 'A' && first <= 'Z' || first >= '0' && first <= '9') {
+		return false
+	}
+	for _, r := range value {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 // ActivateVersion creates/updates symlink for public or preview
 func (m *Manager) ActivateVersion(fqdn, version string, isPreview bool) error {
+	if !safeIdentifier(fqdn) || !safeIdentifier(version) {
+		return fmt.Errorf("invalid site or version")
+	}
 	sitePath := m.GetSitePath(fqdn)
 	artifactPath := m.GetArtifactPath(fqdn, version)
 
@@ -112,7 +167,7 @@ func (m *Manager) CleanupOldVersions(fqdn string) error {
 
 	var versions []versionInfo
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".deploy-") {
 			continue
 		}
 
@@ -173,68 +228,8 @@ func (m *Manager) RemoveSite(fqdn string) error {
 }
 
 func (m *Manager) unpack(archivePath, destDir string) error {
-	file, err := os.Open(archivePath)
-	if err != nil {
-		return fmt.Errorf("failed to open archive: %w", err)
-	}
-	defer file.Close()
-
-	gzr, err := gzip.NewReader(file)
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gzr.Close()
-
-	tr := tar.NewReader(gzr)
-
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read tar header: %w", err)
-		}
-
-		target := filepath.Join(destDir, header.Name)
-
-		// Prevent path traversal
-		if !strings.HasPrefix(target, filepath.Clean(destDir)+string(os.PathSeparator)) {
-			return fmt.Errorf("invalid file path: %s", header.Name)
-		}
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0755); err != nil {
-				return fmt.Errorf("failed to create directory: %w", err)
-			}
-
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return fmt.Errorf("failed to create parent directory: %w", err)
-			}
-
-			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
-			if err != nil {
-				return fmt.Errorf("failed to create file: %w", err)
-			}
-
-			if _, err := io.Copy(outFile, tr); err != nil {
-				outFile.Close()
-				return fmt.Errorf("failed to copy file content: %w", err)
-			}
-			if err := outFile.Close(); err != nil {
-				return fmt.Errorf("failed to close extracted file: %w", err)
-			}
-		}
-	}
-
-	// tar EOF may precede the gzip checksum/trailer. Read through the gzip EOF
-	// before accepting the deployment as a complete, uncorrupted archive.
-	if _, err := io.Copy(io.Discard, gzr); err != nil {
-		return fmt.Errorf("failed to validate gzip trailer: %w", err)
-	}
-	return nil
+	_, err := readArchive(archivePath, destDir, true)
+	return err
 }
 
 func (m *Manager) extractDomain(fqdn string) string {

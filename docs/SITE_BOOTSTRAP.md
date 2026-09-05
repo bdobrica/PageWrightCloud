@@ -22,10 +22,11 @@ The gateway binary embeds versioned starter source:
 
 - `content/site.json`: valid `site_name`, author and language configuration.
 - `content/home/index.md`: discoverable home page for the bundled starter theme.
+- `manifest.json`: safe source-layout metadata (revision 2; see [archive layout](ARCHIVE_LAYOUT.md)).
 
 The archive is deterministic (fixed tar metadata and gzip header, stable file
-ordering). The manifest identifies site, `build_id: "initial"`, creation time,
-`template_id: "starter"`, `bootstrap_revision: 1` and `kind: "source"`.
+ordering). The private storage manifest identifies site, `build_id: "initial"`, creation time,
+`template_id: "starter"`, `bootstrap_revision: 2` and `kind: "source"`.
 `compiled` and `checks_passed` are explicitly false. Source is not fabricated
 compiled output: no `public/`, credentials, execution instructions or theme code
 are included. Trusted theme code remains bundled separately for the compiler.
@@ -68,7 +69,8 @@ semantics; the supported creation workflow is the authenticated HTTP endpoint.
 Storage commit and database readiness are not one distributed transaction. A
 manifest can be committed while DB confirmation remains pending; retry reconciles
 this safely. Cancellation/site deletion may leave unreferenced immutable storage
-objects. Retention, tenant/internal-service hardening, complete archive validation,
+objects. M1.7 adds structural archive validation and compatibility for persisted
+revision-1 source archives. Retention, tenant/internal-service hardening,
 browser build/publish behavior and real AI execution remain later milestones.
 
 ## Verification

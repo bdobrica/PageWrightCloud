@@ -123,24 +123,33 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 	}
 
 	// Step 7: Create manifest
-	fileCount, _ := artifact.GetFileCount(siteDir)
-	totalSize, _ := artifact.GetTotalSize(siteDir)
+	layout, err := artifact.Inspect(outputArtifact)
+	if err != nil {
+		return fmt.Errorf("failed to inspect packed artifact: %w", err)
+	}
+	entrypoints := []string{}
+	if layout.Kind == "compiled" {
+		entrypoints = []string{"index.html"}
+	}
 
 	manifest := types.Manifest{
-		SiteID:         job.SiteID,
-		BuildID:        job.TargetVersion,
-		BaseBuildID:    job.SourceVersion,
-		FencingToken:   job.FencingToken,
-		Prompt:         job.Prompt,
-		CreatedAt:      time.Now().UTC(),
-		FileCount:      fileCount,
-		TotalSize:      totalSize,
-		Entrypoints:    []string{"index.html"},
-		Screenshots:    []string{}, // Stubbed for now
-		ChecksPassed:   true,       // Stubbed for now
-		ConsoleErrors:  0,          // Stubbed for now
-		FilesChanged:   filesChanged,
-		ChangesSummary: summary,
+		ArchiveSchemaVersion: layout.SchemaVersion,
+		Kind:                 layout.Kind,
+		ThemeID:              layout.ThemeID,
+		SiteID:               job.SiteID,
+		BuildID:              job.TargetVersion,
+		BaseBuildID:          job.SourceVersion,
+		FencingToken:         job.FencingToken,
+		Prompt:               job.Prompt,
+		CreatedAt:            time.Now().UTC(),
+		FileCount:            layout.FileCount,
+		TotalSize:            layout.TotalSize,
+		Entrypoints:          entrypoints,
+		Screenshots:          []string{}, // Stubbed for now
+		ChecksPassed:         false,      // Compiler/output checks are not integrated yet.
+		ConsoleErrors:        0,          // Stubbed for now
+		FilesChanged:         filesChanged,
+		ChangesSummary:       summary,
 	}
 
 	// Step 8: Upload artifact and manifest

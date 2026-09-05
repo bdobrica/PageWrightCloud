@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
@@ -60,9 +61,15 @@ func TestStorageArtifactRoundTripAndDeployment(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := manager.GetArtifactPath(fqdn, version)
-	expected := make(map[string]bool)
+	expected := map[string]bool{".archive-sha256": true}
 	expectedDirs := map[string]bool{".": true}
 	for _, file := range fixture.Files {
+		if !strings.HasPrefix(file.Path, "public/") {
+			if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(file.Path))); !os.IsNotExist(err) {
+				t.Fatalf("private file was deployed: %s", file.Path)
+			}
+			continue
+		}
 		if !fs.ValidPath(file.Path) || (file.Text == nil) == (file.Base64 == nil) || expected[file.Path] {
 			t.Fatalf("invalid fixture entry: %s", file.Path)
 		}

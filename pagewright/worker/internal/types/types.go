@@ -27,20 +27,23 @@ type Job struct {
 
 // Manifest describes the output artifact
 type Manifest struct {
-	SiteID         string    `json:"site_id"`
-	BuildID        string    `json:"build_id"`
-	BaseBuildID    string    `json:"base_build_id"`
-	FencingToken   int64     `json:"fencing_token"`
-	Prompt         string    `json:"prompt"`
-	CreatedAt      time.Time `json:"created_at"`
-	FileCount      int       `json:"file_count"`
-	TotalSize      int64     `json:"total_size"`
-	Entrypoints    []string  `json:"entrypoints"`
-	Screenshots    []string  `json:"screenshots"`
-	ChecksPassed   bool      `json:"checks_passed"`
-	ConsoleErrors  int       `json:"console_errors"`
-	FilesChanged   []string  `json:"files_changed"`
-	ChangesSummary string    `json:"changes_summary"`
+	ArchiveSchemaVersion int       `json:"archive_schema_version"`
+	Kind                 string    `json:"kind"`
+	ThemeID              string    `json:"theme_id"`
+	SiteID               string    `json:"site_id"`
+	BuildID              string    `json:"build_id"`
+	BaseBuildID          string    `json:"base_build_id"`
+	FencingToken         int64     `json:"fencing_token"`
+	Prompt               string    `json:"prompt"`
+	CreatedAt            time.Time `json:"created_at"`
+	FileCount            int       `json:"file_count"`
+	TotalSize            int64     `json:"total_size"`
+	Entrypoints          []string  `json:"entrypoints"`
+	Screenshots          []string  `json:"screenshots"`
+	ChecksPassed         bool      `json:"checks_passed"`
+	ConsoleErrors        int       `json:"console_errors"`
+	FilesChanged         []string  `json:"files_changed"`
+	ChangesSummary       string    `json:"changes_summary"`
 }
 
 // WorkerStatus represents current execution state

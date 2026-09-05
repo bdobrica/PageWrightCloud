@@ -22,10 +22,13 @@ func TestPackAndUnpack(t *testing.T) {
 
 	// Create test files in source
 	testFiles := map[string]string{
-		"content/index.md":       "# Hello World",
+		"content/site.json":      `{"site_name":"Test"}`,
+		"content/home/index.md":  "# Hello World",
 		"theme/styles.css":       "body { margin: 0; }",
 		"public/index.html":      "<html></html>",
 		".codex/instructions.md": "# Instructions",
+		".env":                   "API_TOKEN=private",
+		"execution.log":          "private log",
 	}
 
 	for path, content := range testFiles {
@@ -51,15 +54,73 @@ func TestPackAndUnpack(t *testing.T) {
 	// Verify files
 	for path, expectedContent := range testFiles {
 		fullPath := filepath.Join(destDir, path)
+		if path == "theme/styles.css" || path == ".codex/instructions.md" || path == ".env" || path == "execution.log" {
+			_, err := os.Stat(fullPath)
+			require.True(t, os.IsNotExist(err))
+			continue
+		}
 		content, err := os.ReadFile(fullPath)
 		require.NoError(t, err)
 		assert.Equal(t, expectedContent, string(content))
 	}
+	// Repack a later edit without losing the existing editable source.
+	require.NoError(t, os.WriteFile(filepath.Join(destDir, "content", "home", "index.md"), []byte("# Second edit"), 0644))
+	second := filepath.Join(t.TempDir(), "second.tar.gz")
+	require.NoError(t, Pack(destDir, second))
+	next := filepath.Join(t.TempDir(), "next")
+	require.NoError(t, Unpack(second, next))
+	data, err := os.ReadFile(filepath.Join(next, "content", "home", "index.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "# Second edit", string(data))
+	data, err = os.ReadFile(filepath.Join(next, "content", "site.json"))
+	require.NoError(t, err)
+	assert.Equal(t, testFiles["content/site.json"], string(data))
+}
+
+func TestPackRejectsUnsafeOutputWithoutReplacingArchive(t *testing.T) {
+	for _, scenario := range []string{"secret", "symlink", "missing-home"} {
+		t.Run(scenario, func(t *testing.T) {
+			src := t.TempDir()
+			seedSource(t, src)
+			archive := filepath.Join(t.TempDir(), "existing.tar.gz")
+			require.NoError(t, Pack(src, archive))
+			original, err := os.ReadFile(archive)
+			require.NoError(t, err)
+			switch scenario {
+			case "secret":
+				require.NoError(t, os.WriteFile(filepath.Join(src, "content", ".env"), []byte("token"), 0644))
+			case "symlink":
+				require.NoError(t, os.Symlink("/etc/passwd", filepath.Join(src, "content", "linked")))
+			case "missing-home":
+				require.NoError(t, os.Remove(filepath.Join(src, "content", "home", "index.md")))
+			}
+			require.Error(t, Pack(src, archive))
+			current, err := os.ReadFile(archive)
+			require.NoError(t, err)
+			assert.Equal(t, original, current)
+		})
+	}
+}
+
+func TestUnpackFailureLeavesWorkspaceUntouched(t *testing.T) {
+	entries := append(validEntries(), testEntry{name: "public/.env", data: "secret"})
+	archive := writeTestArchive(t, entries)
+	dest := t.TempDir()
+	require.Error(t, Unpack(archive, dest))
+	files, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	require.Empty(t, files)
+	good := writeTestArchive(t, validEntries())
+	require.NoError(t, os.WriteFile(filepath.Join(dest, "existing"), []byte("keep"), 0644))
+	require.Error(t, Unpack(good, dest))
+	data, err := os.ReadFile(filepath.Join(dest, "existing"))
+	require.NoError(t, err)
+	assert.Equal(t, "keep", string(data))
 }
 
 func TestUnpackRejectsDamagedGzipTrailer(t *testing.T) {
 	src := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(src, "index.html"), []byte("fixture"), 0600))
+	seedSource(t, src)
 	archive := filepath.Join(t.TempDir(), "archive.tar.gz")
 	require.NoError(t, Pack(src, archive))
 	original, err := os.ReadFile(archive)
@@ -91,7 +152,9 @@ func (w *footerFailureWriter) Write(p []byte) (int, error) {
 
 func TestPackReportsFooterWriteFailure(t *testing.T) {
 	// Empty tar output is buffered in gzip until Close; only its header succeeds.
-	err := packToWriter(t.TempDir(), &footerFailureWriter{})
+	src := t.TempDir()
+	seedSource(t, src)
+	err := packToWriter(src, &footerFailureWriter{})
 	require.ErrorContains(t, err, "simulated footer write failure")
 }
 
@@ -148,4 +211,11 @@ func TestGetTotalSize(t *testing.T) {
 	size, err := GetTotalSize(dir)
 	require.NoError(t, err)
 	assert.Equal(t, int64(15), size)
+}
+
+func seedSource(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "content", "home"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "content", "site.json"), []byte(`{"site_name":"Test"}`), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "content", "home", "index.md"), []byte("# Test"), 0644))
 }

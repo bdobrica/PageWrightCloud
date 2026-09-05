@@ -76,6 +76,16 @@ func TestArtifactTransportIntegration(t *testing.T) {
 		}
 	}
 	archive := filepath.Join(t.TempDir(), "fixture.tar.gz")
+	// Real execution workspaces contain private runtime files; none may travel.
+	for name, body := range map[string]string{".env": "API_TOKEN=private-canary", "execution.log": "private-log-canary", ".codex/instructions.md": "private-instructions-canary"} {
+		path := filepath.Join(source, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := artifact.Pack(source, archive); err != nil {
 		t.Fatal(err)
 	}

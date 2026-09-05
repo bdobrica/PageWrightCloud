@@ -47,7 +47,7 @@ func TestDeterministicStarterSource(t *testing.T) {
 	if _, err := io.Copy(io.Discard, gz); err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 2 || len(files["content/home/index.md"]) == 0 {
+	if len(files) != 3 || len(files["content/home/index.md"]) == 0 || string(files["manifest.json"]) != `{"schema_version":1,"kind":"source","theme_id":"starter"}` {
 		t.Fatalf("unexpected file set: %v", files)
 	}
 	var config struct {
@@ -59,5 +59,15 @@ func TestDeterministicStarterSource(t *testing.T) {
 	}
 	if bytes.Contains(a, []byte(".codex")) {
 		t.Fatal("unexpected instructions")
+	}
+	var metadata struct {
+		Revision     int    `json:"bootstrap_revision"`
+		FileCount    int    `json:"file_count"`
+		Kind         string `json:"kind"`
+		ChecksPassed bool   `json:"checks_passed"`
+		Compiled     bool   `json:"compiled"`
+	}
+	if json.Unmarshal(m, &metadata) != nil || metadata.Revision != 2 || metadata.FileCount != len(files) || metadata.Kind != "source" || metadata.ChecksPassed || metadata.Compiled {
+		t.Fatalf("invalid bootstrap metadata: %s", m)
 	}
 }

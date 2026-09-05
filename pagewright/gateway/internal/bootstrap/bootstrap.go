@@ -43,6 +43,13 @@ func Generate(siteID string, created time.Time) ([]byte, []byte, []byte, error) 
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	layout := []byte(`{"schema_version":1,"kind":"source","theme_id":"starter"}`)
+	if err := tw.WriteHeader(&tar.Header{Name: "manifest.json", Mode: 0644, Size: int64(len(layout)), Typeflag: tar.TypeReg}); err != nil {
+		return nil, nil, nil, err
+	}
+	if _, err := tw.Write(layout); err != nil {
+		return nil, nil, nil, err
+	}
 	if err := tw.Close(); err != nil {
 		return nil, nil, nil, err
 	}
@@ -51,8 +58,8 @@ func Generate(siteID string, created time.Time) ([]byte, []byte, []byte, error) 
 	}
 	manifest, err := json.Marshal(map[string]interface{}{
 		"site_id": siteID, "build_id": Version, "created_at": created.UTC(),
-		"template_id": "starter", "bootstrap_revision": 1, "kind": "source",
-		"checks_passed": false, "compiled": false, "file_count": 2,
+		"template_id": "starter", "bootstrap_revision": 2, "kind": "source",
+		"checks_passed": false, "compiled": false, "file_count": 3,
 	})
-	return archive.Bytes(), manifest, []byte(`{"content":"Initialized bundled starter source (revision 1); not compiled or published.\n"}`), err
+	return archive.Bytes(), manifest, []byte(`{"content":"Initialized bundled starter source (revision 2); not compiled or published.\n"}`), err
 }

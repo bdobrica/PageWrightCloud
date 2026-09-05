@@ -13,6 +13,14 @@ func TestDeployRejectsDamagedGzipTrailer(t *testing.T) {
 	var archive bytes.Buffer
 	gz := gzip.NewWriter(&archive)
 	tw := tar.NewWriter(gz)
+	for name, data := range map[string]string{"manifest.json": `{"schema_version":1,"kind":"compiled","theme_id":"starter"}`, "content/site.json": `{"site_name":"Test"}`, "content/home/index.md": "# Test"} {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0644, Size: int64(len(data))}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := tw.WriteHeader(&tar.Header{Name: "public/index.html", Mode: 0600, Size: 5}); err != nil {
 		t.Fatal(err)
 	}

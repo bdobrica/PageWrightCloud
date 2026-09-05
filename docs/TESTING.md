@@ -51,6 +51,13 @@ compiler compatibility, durable reservation/reconnect, partial-write/lost-respon
 recovery, concurrent creation and pending-build rejection. Startup/recreation
 now creates the initial source through gateway rather than metadata alone.
 
+[M1.7 archive checks](ARCHIVE_LAYOUT.md) cover source/public separation, unsafe
+paths and links, private runtime-file canaries, archive/decompression limits,
+legacy source-only compatibility, staged failure preservation and concurrent
+deployment retries. Worker and serving enforce identical policy files (checked
+by integration). Source survives a second edit; private paths return 404 from
+the public HTTP root. These checks do not certify compiler or nginx behavior.
+
 ## Known skipped tests
 
 Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.
