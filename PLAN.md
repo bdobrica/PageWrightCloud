@@ -18,7 +18,7 @@ There is useful implementation across all services, but the application is still
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
 | Execution | [Docker spawner](pagewright/manager/internal/spawner/docker/docker.go) and Kubernetes spawner only log. [Worker Dockerfile](pagewright/worker/Dockerfile) installs a mock command. | An accepted job cannot execute the intended AI workflow. There are also two worker implementations/images; select `pagewright/worker` as the MVP runner. |
-| First site | [CreateSite](pagewright/gateway/internal/handlers/sites.go) inserts a DB row only. [Build](pagewright/gateway/internal/handlers/build.go) falls back to `initial`; the worker always downloads a source artifact. UI selects `template-1`, while the supplied theme is `starter`. | Bootstrap a valid, versioned source and map the supported template explicitly. |
+| First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. | New sites have source, not compiled or hosted output. Legacy sites are not automatically repaired; full archive validation and compilation remain M1.7/M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` is hard-coded. [Serving](pagewright/serving/internal/artifact/manager.go) requires an archive containing `public/`. | Integrate `pagewrightc`, generate `public/index.html`, and derive validation results from actual checks. |
 | Version state | M1.2 commits the job mapping and version using `target_version` before dispatch, with atomic outcome/status writes. [Version listing](pagewright/gateway/internal/handlers/versions.go) still returns storage records that differ from UI types. | Submission mapping fixed; reconcile later completion and normalize version listing in M1.9/M3.1. |
@@ -265,13 +265,47 @@ artifact/private metadata before and after recreation. Synthetic test data/stack
 were removed, not application volumes. Five known skips remain; no paid AI,
 push or hosted CI run occurred.
 
-M1.6 is next: bootstrap valid initial source from bundled `starter` with safe retry
-and visible failure handling. M1.5 targets trusted Linux local storage/named volumes,
+M1.5 targets trusted Linux local storage/named volumes,
 not unverified network filesystem semantics or hostile filesystem mutation.
 Process death may leave hidden temporary names; no unsafe online sweep is added.
 Errors after publication remain uncertain and require byte-identical retry.
 Hardware power-loss behavior, worker fencing, callback reconciliation, archive
 safety and full AI publication are still outside this acceptance result.
+
+M1.6 completed (2026-09-05) in `a43d0ac`. Migration 008 adds explicit
+legacy/pending/ready site initialization and durable bootstrap byte reservations.
+Authenticated creation normalizes/validates FQDN and maps `starter` (plus the old
+`template-1` alias) to the bundled starter seed. Site and archive/manifest/log bytes
+are reserved in one transaction before storage HTTP. Artifact → log → manifest
+writes use those same bytes on retries; only then are the database initial version
+and ready state committed together. Initial sites are disabled with no live/preview
+assignment. Pending build/enable calls are rejected before downstream work.
+
+Same-owner/domain retries and concurrent requests return the same site and initial
+version; different owners/templates conflict. UI now selects starter and exposes
+pending sites with Resume Setup, preserving the domain in the creation form.
+Retryable failures return `503`; immutable data conflicts return `409` with repair
+guidance. Existing sites remain legacy, not falsely certified initialized. The
+seed includes valid site configuration and home Markdown; no public output,
+instructions, credentials or trusted theme code is embedded in the source archive.
+See [bootstrap semantics and compatibility](docs/SITE_BOOTSTRAP.md).
+
+Verification passed: six-module package baseline and final gateway race tests;
+two five-module isolated integration runs; migration 007→008, legacy preservation,
+reservation rollback and DB reconnect; partial artifact/log/manifest failures,
+lost manifest acknowledgement, failed DB confirmation, concurrency and ownership
+tests; deterministic archive/config tests; starter compiler fixture including this
+seed; UI contract checks, zero-warning lint and build; affected gateway/UI image
+builds and two startup/recreation runs. Initial source and metadata persist through
+container recreation and creation replay. Test stacks/data were cleaned up without
+resetting application volumes. Five known skips remain; no paid AI, push or hosted
+CI execution occurred.
+
+M1.7 is next: define/enforce the archive layout and isolate private execution data
+from generated public output while retaining editable source. M1.6 initial metadata
+truthfully says source-only, not compiled/checks-passed; it does not implement the
+real worker compiler path, latest-draft selection, legacy repair, domain ownership,
+cross-service atomicity, orphan cleanup or publishing. Full M1 exit remains unverified.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
