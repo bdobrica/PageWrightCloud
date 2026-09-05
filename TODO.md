@@ -38,7 +38,7 @@ configured and validated; its first hosted run remains pending a push (not reque
 
 Depends on M0. Exit: a deterministic build traverses actual gateway/manager/storage/serving interfaces and produces hosted HTML without manual file seeding.
 
-- [ ] M1.1 Define canonical job request/result/status schemas: `prompt`, `source_version`, `target_version`, `job_id`, errors and owner/site association. Align gateway, manager, worker and UI with HTTP contract tests.
+- [x] M1.1 Define canonical job request/result/status schemas: `prompt`, `source_version`, `target_version`, `job_id`, errors and owner/site association. Align gateway, manager, worker and UI with HTTP contract tests. Implementation: `ef544f9`; [canonical contract](docs/JOB_CONTRACT.md), owner-derived requests, validated identity/status callbacks, structured manager errors and UI runtime parsers. Go package/race tests, isolated gateway/manager and worker callback round-trips (including clarification/ownership/conflict), 11 UI contract tests, zero-warning lint/build, affected image builds and actionlint passed. Worker runner source is now tracked after correcting its ignore rule. Durable mapping remains M1.2; no real AI/publish flow claimed.
 - [ ] M1.2 Persist the job-to-target-version mapping before dispatch; stop using job IDs as artifact IDs. Handle failed enqueue/version DB writes and duplicate submissions explicitly.
 - [ ] M1.3 Align all three storage clients with server routes; stream raw gzip bytes or implement one explicit multipart decoder. Verify uploaded/downloaded bytes and archive extraction match.
 - [ ] M1.4 Implement and test manifest and private log persistence using agreed endpoints. Make complete versions visible only after required artifact/metadata writes succeed.

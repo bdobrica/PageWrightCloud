@@ -16,13 +16,13 @@ There is useful implementation across all services, but the application is still
 
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
-| Job submission | [Gateway client](pagewright/gateway/internal/clients/manager.go) sends `user_text` and `base_build_id`; [manager](pagewright/manager/internal/api/handler.go) requires `prompt` and uses `source_version` / `target_version`. | A normal build request is rejected for missing `prompt`. Agree one job contract and version identity. |
+| Job submission | M1.1 aligns [gateway](pagewright/gateway/internal/clients/manager.go), [manager](pagewright/manager/internal/api/handler.go), worker and UI around the [canonical job contract](docs/JOB_CONTRACT.md), including owner/site/source/target identity. | Wire mismatch fixed and HTTP-tested; durable job/version mapping before dispatch remains M1.2. |
 | Execution | [Docker spawner](pagewright/manager/internal/spawner/docker/docker.go) and Kubernetes spawner only log. [Worker Dockerfile](pagewright/worker/Dockerfile) installs a mock command. | An accepted job cannot execute the intended AI workflow. There are also two worker implementations/images; select `pagewright/worker` as the MVP runner. |
 | First site | [CreateSite](pagewright/gateway/internal/handlers/sites.go) inserts a DB row only. [Build](pagewright/gateway/internal/handlers/build.go) falls back to `initial`; the worker always downloads a source artifact. UI selects `template-1`, while the supplied theme is `starter`. | Bootstrap a valid, versioned source and map the supported template explicitly. |
 | Artifact transport | [Storage routes](pagewright/storage/internal/api/handler.go) use `/sites/{site_id}/artifacts/{build_id}`; gateway, worker and serving clients use `/artifacts/{site_id}/{version}`. Worker sends multipart bytes while storage writes the raw body. | Downloads fail; fixing paths alone still leaves malformed archives. Manifest/log endpoints expected by the worker and deletion expected by the gateway are missing. |
 | Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` is hard-coded. [Serving](pagewright/serving/internal/artifact/manager.go) requires an archive containing `public/`. | Integrate `pagewrightc`, generate `public/index.html`, and derive validation results from actual checks. |
 | Version state | Gateway creates a version using the job ID, independently of manager's target version. [Version listing](pagewright/gateway/internal/handlers/versions.go) returns storage records that differ from UI types. | Use one artifact/version ID, persist the job mapping, reconcile completion, and normalize the UI response. |
-| Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. UI expects `success`, manager emits `completed`. | Implement authenticated job retrieval first; polling can complete the MVP. Repair and authorize WebSockets before enabling them. |
+| Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | [Gateway serving client](pagewright/gateway/internal/clients/serving.go) sends `version_id`; [serving types](pagewright/serving/internal/types/types.go) require `version`. Preview UI only opens a URL and does not activate a preview. | Repair the payload, preview action, returned URLs, and preview assets/navigation. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
 | Hosting | [Compose](docker-compose.yaml) separates serving and nginx, but serving executes local `nginx -s reload`. Preview activation does not create nginx config. | Make nginx configuration/reload part of a supported topology; first preview must work before first publish. |
@@ -118,10 +118,40 @@ lint/production build passed again.
 
 **M0 handoff:** all seven implementation items are committed and locally verified.
 Hosted CI execution is the only unobserved part of the exit criterion; the branch
-has not been pushed. Next implementation item is M1.1 (canonical job contracts).
+has not been pushed. At M0 handoff the next item was M1.1; see its progress below.
 The application is not yet an end-to-end MVP, and no paid AI request was made.
 
 ### M1 — Contracts, bootstrap and artifact round trip (3–5 days)
+
+M1.1 completed (2026-09-05) in `ef544f9`. The [job contract](docs/JOB_CONTRACT.md)
+defines required identities, prompt/source/target fields, canonical statuses,
+terminal results and manager error envelopes. Gateway derives `owner_id` from
+the authenticated site's owner and returns the manager's accepted identity;
+manager rejects malformed/obsolete payloads and mismatched callbacks without
+mutating the job or releasing its lock. Worker launch validation and actual
+callback payloads align, and UI API/socket paths validate the same schemas.
+The worker's unanchored ignore rule had hidden `cmd/runner/`; it is corrected
+and the entrypoint and tests are now tracked. Selected build sources were audited
+for additional ignored entrypoints; none were found.
+
+Verification: the six-module package baseline and gateway/manager/worker race
+tests passed. The four-module isolated integration harness passed twice, with
+the final run covering authenticated gateway → PostgreSQL/manager acceptance,
+owner rejection, clarification/follow-up, lock conflict and failure retrieval,
+plus actual worker callbacks for completed/failed outcomes. Only provider HTTP
+responses are faked; no paid provider or executor ran. Eleven UI contract tests,
+zero-warning lint/build, affected gateway/manager/worker/UI images, actionlint,
+Compose configuration and documentation link checks passed. Independent review
+identified worker snapshot and UI timestamp validation drift; both were fixed
+and regression-tested before committing. CI includes UI contract tests and the
+expanded integration harness; hosted execution still awaits a push.
+
+M1.2 is next: persist job-to-target-version mapping before dispatch and replace
+the existing post-dispatch version row using `job_id`. M1.1 does not fix that
+write, the `initial` bootstrap placeholder, artifact endpoints, real spawning,
+callback authentication/fencing/idempotency, polling or publishing. Existing
+Redis snapshots without required associations are not automatically migrated;
+rebuild the participating services together. The full M1 exit remains unverified.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
