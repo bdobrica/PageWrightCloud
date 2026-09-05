@@ -67,6 +67,13 @@ The install audit reported 19 dependency advisories (2 low, 3 moderate, 14 high)
 dependency remediation remains required before the remote pilot. The CSS warning
 is tracked in M0.2. These build checks do not verify AI execution.
 
+M0.2 completed in `b32037f`: typed API errors, validated synchronous saved-session
+restoration, separated context exports, stable socket callbacks/cleanup and alias
+loading, and the stray CSS brace are fixed. Local and clean-container lint with
+zero allowed warnings and production builds passed. Browser authentication and
+job delivery remain later milestone work; review also identified the chat route
+parameter mismatch, now tracked in M1.9.
+
 Resolve the UI lint/CSS baseline; document tool versions supported by the lockfiles and images. Establish explicit commands for unit tests, integration prerequisites, UI checks, image builds and migrations. Exercise startup from fresh, disposable volumes and restart with existing data. Consolidate migration ownership: gateway startup currently embeds migrations separately from the SQL files, and the DB helper's `RunMigrations` is a stub.
 
 **Exit:** a fresh checkout can build the UI and all selected service images, initialize the DB once, restart safely, and run documented checks. CI starts running these checks.

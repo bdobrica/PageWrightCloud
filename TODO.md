@@ -21,7 +21,7 @@ This replaces the March security-first two-week schedule with a dependency-order
 Exit: a fresh checkout builds, initializes and restarts predictably; baseline checks run in CI.
 
 - [x] M0.1 Document compatible Go/Node/Docker prerequisites from module files, lockfiles and Docker images; verify clean UI dependency installation and all selected image builds. Implementation: `8f404df`; clean local/container `npm ci` and UI build, all seven selected images passed.
-- [ ] M0.2 Fix UI lint errors in auth state initialization, socket reconnection, typed error handling and component exports; resolve the hook dependency warning and CSS build warning.
+- [x] M0.2 Fix UI lint errors in auth state initialization, socket reconnection, typed error handling and component exports; resolve the hook dependency warning and CSS build warning. Implementation: `b32037f`; local and container lint (`--max-warnings=0`) and build passed without warnings.
 - [ ] M0.3 Standardize unit/integration commands and prerequisites. Include manager integration tests in the root target; provision a dedicated test DB, Redis and the actual services needed by HTTP integration tests.
 - [ ] M0.4 Use one migration source with transactional version tracking; reconcile embedded gateway migrations, SQL files and the stub DB helper. Test empty DB startup and restart/upgrade of an existing DB.
 - [ ] M0.5 Simplify the single-host Compose setup to named-volume filesystem storage; remove the unnecessary privileged NFS service from this path. Separate host-port overrides from stable internal ports/healthchecks.
@@ -40,7 +40,7 @@ Depends on M0. Exit: a deterministic build traverses actual gateway/manager/stor
 - [ ] M1.6 Bootstrap each new site with valid `content/site.json` and home content; explicitly map the UI template to bundled `starter`. Surface initialization failures and make retries safe.
 - [ ] M1.7 Define and validate the archive layout (`content/`, `public/`, manifest); keep execution instructions/logs/secrets out of public output and preserve source for future edits.
 - [ ] M1.8 Add compiler fixtures for starter rendering, home discovery, MDX/component errors, navigation, assets and malformed configuration. Test traversal, escaping and symlink boundaries.
-- [ ] M1.9 Fix serving payloads (`version` versus `version_id`) and normalize gateway version responses to UI fields, statuses and timestamps.
+- [ ] M1.9 Fix serving payloads (`version` versus `version_id`) and normalize gateway version responses to UI fields, statuses and timestamps. Align the chat route's `siteId` parameter with the page's `fqdn` lookup.
 - [ ] M1.10 Add a deterministic executor fixture used only for tests; round-trip a compiled artifact through the real service routes.
 
 ## M2 — Real builds and recoverable jobs
