@@ -19,7 +19,7 @@ There is useful implementation across all services, but the application is still
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
 | Execution | [Docker spawner](pagewright/manager/internal/spawner/docker/docker.go) and Kubernetes spawner only log. [Worker Dockerfile](pagewright/worker/Dockerfile) installs a mock command. | An accepted job cannot execute the intended AI workflow. There are also two worker implementations/images; select `pagewright/worker` as the MVP runner. |
 | First site | [CreateSite](pagewright/gateway/internal/handlers/sites.go) inserts a DB row only. [Build](pagewright/gateway/internal/handlers/build.go) falls back to `initial`; the worker always downloads a source artifact. UI selects `template-1`, while the supplied theme is `starter`. | Bootstrap a valid, versioned source and map the supported template explicitly. |
-| Artifact transport | M1.3 (`0fa1044`) aligns worker/gateway/serving with [storage routes](pagewright/storage/internal/api/handler.go) and raw `application/gzip` transport. Shared real-storage tests verify exact compressed bytes and extracted files. | Manifest/private log endpoints remain M1.4; immutable commits and deletion remain M1.5. Storage is still opaque, not an archive-validation or publishing gate. |
+| Artifact transport | M1.3 (`0fa1044`) aligns worker/gateway/serving with [storage routes](pagewright/storage/internal/api/handler.go) and raw `application/gzip` transport. M1.4 (`73d3635`) persists private metadata and lists versions only after a manifest-last commit. | Immutable commits and deletion remain M1.5. Storage is still opaque, not an archive-validation, authorization or publishing gate. |
 | Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` is hard-coded. [Serving](pagewright/serving/internal/artifact/manager.go) requires an archive containing `public/`. | Integrate `pagewrightc`, generate `public/index.html`, and derive validation results from actual checks. |
 | Version state | M1.2 commits the job mapping and version using `target_version` before dispatch, with atomic outcome/status writes. [Version listing](pagewright/gateway/internal/handlers/versions.go) still returns storage records that differ from UI types. | Submission mapping fixed; reconcile later completion and normalize version listing in M1.9/M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
@@ -205,10 +205,42 @@ it was aligned and regression-tested in the final integration run. Synthetic tes
 projects/data were removed; application volumes were untouched. Five known test
 skips remain unchanged; hosted CI still awaits a push.
 
-M1.4 is next: manifest/private execution-log persistence and complete-version
-visibility. M1.3 does not repair existing malformed artifacts or prove immutable
+M1.3 does not repair existing malformed artifacts or prove immutable
 writes, archive safety, nginx activation or an AI build/publish workflow. Those
 remaining gates keep the overall M1 exit unverified.
+
+M1.4 completed (2026-09-05) in `73d3635`. Canonical per-version `/logs` and
+`/manifest` POST/GET endpoints preserve JSON metadata outside archives with
+restricted file permissions and no-store responses. The manifest is the final
+commit record and requires the artifact and private log first. Metadata writes
+check write/sync/close before rename; artifact close failures also propagate.
+The worker uploads artifact → log → manifest and attempts a completed manager
+callback only after all three succeed. Its reported manifest path is canonical.
+Storage listings contain one completed entry per valid manifest, newest first,
+without prompt/output content. Legacy event records no longer create entries;
+existing files are preserved and raw artifact retrieval remains available.
+See [metadata contract and compatibility boundaries](docs/VERSION_METADATA.md).
+
+Verification passed: six-module package baseline; storage/worker race tests,
+including final targeted reruns; two five-module isolated integration runs;
+worker/storage image builds; baseline startup/recreation and an expanded smoke
+run verifying manifest/private-log persistence across actual container recreation.
+Tests cover log/manifest write failures, incomplete commit rejection, empty logs,
+retry without duplicate entries, backend restart, hidden missing/corrupt commits,
+ordering, privacy in listings, payload limits and callback failure gates. The
+shared worker fixture commits real metadata before gateway/serving consume it,
+while exact archive bytes and extracted files remain unchanged. Synthetic test
+projects/data were removed; no application volumes were reset. Five known skips
+remain; no paid AI request, push or hosted CI execution occurred.
+
+M1.5 is next: immutable writes, multi-writer/atomic commit semantics and protected
+deletion (or disabled deletion UI/API). M1.4's presence-based commit is not a
+content-addressed or fenced snapshot, a distributed transaction, or a publication
+gate. Lost upload/callback responses can leave storage and manager disagreeing;
+reconciliation remains M2. Private metadata is separated from public output, but
+internal storage authentication/redaction remain M4. Early failed-run log capture,
+truthful compiler checks and complete archive validation also remain unfinished.
+The full M1 exit is still unverified.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
