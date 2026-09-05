@@ -4,7 +4,10 @@ Updated: 2026-09-05. Strategy, code evidence, scope and acceptance scenarios: [P
 
 This replaces the March security-first two-week schedule with a dependency-ordered MVP backlog. Existing components are acknowledged below; a checked component does not imply an integrated feature. All unfinished MVP work is unchecked. Longer-term ideas are retained in the deferred backlog.
 
-## Verified starting point
+## Verified starting point (historical assessment, before M0)
+
+The warnings/failures below record the initial assessment, not the current state.
+See completed M0 items for fixes and verification evidence.
 
 - [x] Inspect the UI, gateway, manager, worker, storage, serving, compiler and root deployment wiring.
 - [x] Confirm auth/site/version handlers, dashboard/chat/profile/reset pages and Docker configuration exist.
@@ -20,13 +23,16 @@ This replaces the March security-first two-week schedule with a dependency-order
 
 Exit: a fresh checkout builds, initializes and restarts predictably; baseline checks run in CI.
 
+Status: all seven implementation items are complete and locally verified. CI is
+configured and validated; its first hosted run remains pending a push (not requested).
+
 - [x] M0.1 Document compatible Go/Node/Docker prerequisites from module files, lockfiles and Docker images; verify clean UI dependency installation and all selected image builds. Implementation: `8f404df`; clean local/container `npm ci` and UI build, all seven selected images passed.
 - [x] M0.2 Fix UI lint errors in auth state initialization, socket reconnection, typed error handling and component exports; resolve the hook dependency warning and CSS build warning. Implementation: `b32037f`; local and container lint (`--max-warnings=0`) and build passed without warnings.
 - [x] M0.3 Standardize unit/integration commands and prerequisites. Include manager integration tests in the root target; provision a dedicated test DB, Redis and the actual services needed by HTTP integration tests. Implementation: `828d8cf`; six-module package checks and isolated race-enabled gateway/manager/storage suites passed, including five formerly skipped CLI database tests.
 - [x] M0.4 Use one migration source with transactional version tracking; reconcile embedded gateway migrations, SQL files and the stub DB helper. Test empty DB startup and restart/upgrade of an existing DB. Implementation: `946554c`; empty/restart, tracked/manual legacy upgrade, rollback/retry, invalid-data preservation, concurrent starts and future-version rejection passed against PostgreSQL; gateway image and integration suites passed.
 - [x] M0.5 Simplify the single-host Compose setup to named-volume filesystem storage; remove the unnecessary privileged NFS service from this path. Separate host-port overrides from stable internal ports/healthchecks. Implementation: `eb6e0ec`; fresh-stack and container-recreation smoke checks passed with random host ports, persisted auth/site/artifact data, UI assets and nginx validation. Fixed the discovered IPv6-localhost themes health failure.
 - [x] M0.6 Add CI for Go package tests, UI build/lint and compiler fixture build. Record skipped tests explicitly; add integration/browser checks as M1–M3 land. Implementation: `1cc5cd9`; four CI jobs include isolated integration and startup/recreation checks. Compiler fixture, actionlint and local baseline checks passed; five remaining skips inventoried in `docs/TESTING.md`. Hosted CI awaits a push.
-- [ ] M0.7 Update README startup/status claims and distinguish seeded hosting diagnostics from the full MVP smoke test.
+- [x] M0.7 Update README startup/status claims and distinguish seeded hosting diagnostics from the full MVP smoke test. Implementation: `fca46ca`; commands/ports and data-preservation guidance reviewed against Compose/Make, root and overlay config validation passed, local documentation links and Make dry-runs passed. README explicitly describes M0 as a baseline, not a working AI MVP.
 
 ## M1 — Contracts, initial source and artifacts
 

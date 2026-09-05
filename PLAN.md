@@ -32,9 +32,10 @@ There is useful implementation across all services, but the application is still
 
 The compiler is a useful trusted build component, but its presence and the worker's instruction file do not themselves enforce an execution security boundary. The worker currently runs a command with its inherited environment and has no integrated trusted-output validation.
 
-## Verification baseline
+## Initial assessment baseline (before M0 implementation)
 
-Executed during this assessment:
+Historical results from the assessment follow. M0 progress below records subsequent
+fixes and passing verification; these initial failures are not the current status.
 
 - `go test ./...` in gateway, manager, storage, worker, serving and compiler, using `GOCACHE=/tmp/pagewright-review-go-cache GOPROXY=off`: all passed. Compiler reports no test files; several worker and serving tests explicitly skip cases. These runs do not include integration-tagged tests or the race detector.
 - Compiler sample: `go run ./cmd/pagewrightc build --theme ../themes/starter --content ./test-site/content --out /tmp/pagewright-review-compiler-output` from `pagewright/compiler`: passed, producing home, about and contact pages and assets.
@@ -107,6 +108,18 @@ Scope: resolve the UI lint/CSS baseline, align toolchains, standardize checks,
 make startup reproducible, consolidate migrations, and correct startup/status docs.
 
 **Exit:** a fresh checkout can build the UI and all selected service images, initialize the DB once, restart safely, and run documented checks. CI starts running these checks.
+
+M0.7 completed in `fca46ca`: README now documents the actual root-stack startup,
+ports, preserved volumes, migration precautions and local-only security limits.
+It separates seeded hosting diagnostics, startup smoke checks and the future MVP
+journey. Independent review, local documentation links, Make dry-runs and both
+Compose configurations passed. Final Go package tests and zero-warning UI
+lint/production build passed again.
+
+**M0 handoff:** all seven implementation items are committed and locally verified.
+Hosted CI execution is the only unobserved part of the exit criterion; the branch
+has not been pushed. Next implementation item is M1.1 (canonical job contracts).
+The application is not yet an end-to-end MVP, and no paid AI request was made.
 
 ### M1 — Contracts, bootstrap and artifact round trip (3–5 days)
 
