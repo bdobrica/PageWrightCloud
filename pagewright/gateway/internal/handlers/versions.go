@@ -144,41 +144,10 @@ func (h *VersionsHandler) DeployVersion(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// DeleteVersion deletes a version
+// DeleteVersion is deliberately disabled until coordinated active-version
+// protection exists. Do not call storage or delete database rows.
 func (h *VersionsHandler) DeleteVersion(w http.ResponseWriter, r *http.Request) {
-	user, _ := middleware.GetUserFromContext(r)
-	vars := mux.Vars(r)
-	fqdn := vars["fqdn"]
-	versionID := vars["version_id"]
-
-	site, err := h.db.GetSiteByFQDN(fqdn)
-	if err != nil || site == nil {
-		respondError(w, http.StatusNotFound, "site not found")
-		return
-	}
-
-	if site.UserID != user.UserID {
-		respondError(w, http.StatusForbidden, "access denied")
-		return
-	}
-
-	// Check if version is currently live or preview
-	if (site.LiveVersionID != nil && *site.LiveVersionID == versionID) ||
-		(site.PreviewVersionID != nil && *site.PreviewVersionID == versionID) {
-		respondError(w, http.StatusBadRequest, "cannot delete currently deployed version")
-		return
-	}
-
-	// Delete from storage
-	if err := h.storageClient.DeleteVersion(site.ID, versionID); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to delete version")
-		return
-	}
-
-	// Delete from database
-	h.db.DeleteVersion(site.ID, versionID)
-
-	w.WriteHeader(http.StatusNoContent)
+	respondError(w, http.StatusNotImplemented, "version deletion is disabled in this MVP")
 }
 
 // DownloadVersion downloads a version artifact

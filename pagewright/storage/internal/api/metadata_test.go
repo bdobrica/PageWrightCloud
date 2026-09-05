@@ -54,7 +54,7 @@ func TestMetadataCommitAndRestart(t *testing.T) {
 	// A private-log write failure must not allow the final manifest.
 	logPath := filepath.Join(root, "sites", "site", "metadata", "version", "execution.json")
 	require.NoError(t, os.MkdirAll(logPath, 0700))
-	request("POST", base+"/logs", "application/json", log, 500)
+	request("POST", base+"/logs", "application/json", log, 409)
 	request("POST", base+"/manifest", "application/json", manifest, 409)
 	assertHidden()
 	require.NoError(t, os.Remove(logPath))
@@ -64,13 +64,17 @@ func TestMetadataCommitAndRestart(t *testing.T) {
 	// A failed final rename leaves no committed version; retry is safe.
 	manifestPath := filepath.Join(root, "sites", "site", "metadata", "version", "manifest.json")
 	require.NoError(t, os.Mkdir(manifestPath, 0700))
-	request("POST", base+"/manifest", "application/json", manifest, 500)
+	request("POST", base+"/manifest", "application/json", manifest, 409)
 	versions, err := backend.ListVersions("site")
 	require.NoError(t, err)
 	require.Empty(t, versions)
 	require.NoError(t, os.Remove(manifestPath))
 	request("POST", base+"/manifest", "application/json", manifest, 201)
 	request("POST", base+"/manifest", "application/json", manifest, 201)
+	request("POST", base+"/manifest", "application/json", append(append([]byte{}, manifest...), ' '), 409)
+	request("POST", base+"/logs", "application/json", []byte(`{"content":"replacement"}`), 409)
+	request("PUT", base, "application/gzip", []byte("replacement"), 409)
+	require.Equal(t, []byte("opaque archive"), request("GET", base, "", nil, 200))
 	require.Equal(t, manifest, request("GET", base+"/manifest", "", nil, 200))
 	listing := request("GET", "/sites/site/versions", "", nil, 200)
 	var result struct {

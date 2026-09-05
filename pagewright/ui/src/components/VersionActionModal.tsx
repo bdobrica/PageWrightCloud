@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { Version } from '../types/api';
 import { formatTimestamp } from '../utils/format';
 import './Modal.css';
@@ -9,7 +9,6 @@ interface VersionActionModalProps {
   onClose: () => void;
   onPreview: () => void;
   onPromote: () => void;
-  onDelete: () => void;
 }
 
 export const VersionActionModal: React.FC<VersionActionModalProps> = ({
@@ -17,23 +16,7 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
   onClose,
   onPreview,
   onPromote,
-  onDelete,
 }) => {
-  const [deleting, setDeleting] = useState(false);
-
-  const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this version? This action cannot be undone.')) {
-      setDeleting(true);
-      try {
-        await onDelete();
-        onClose();
-      } catch (error) {
-        console.error('Failed to delete version:', error);
-        setDeleting(false);
-      }
-    }
-  };
-
   const handlePromote = async () => {
     if (window.confirm('Promote this version to live? This will replace the current live version.')) {
       try {
@@ -65,13 +48,7 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
             <button className="pure-button pure-button-primary" onClick={handlePromote}>
               Promote to Live
             </button>
-            <button
-              className="pure-button button-error"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? 'Deleting...' : 'Delete Version'}
-            </button>
+            <p>Version deletion is unavailable in this MVP.</p>
           </div>
         </div>
       </div>

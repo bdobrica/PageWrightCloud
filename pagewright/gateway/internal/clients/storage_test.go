@@ -85,21 +85,16 @@ func TestStorageInvalidIDs(t *testing.T) {
 		if _, err := client.ListVersions(id); err == nil || !strings.Contains(err.Error(), "invalid storage") {
 			t.Errorf("list %q: %v", id, err)
 		}
-		if err := client.DeleteVersion("site", id); err == nil || !strings.Contains(err.Error(), "invalid storage") {
-			t.Errorf("delete %q: %v", id, err)
-		}
 	}
 }
 
-func TestStorageListAndUnsupportedDelete(t *testing.T) {
+func TestStorageListVersions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" && r.URL.Path == "/sites/site/versions" {
 			fmt.Fprint(w, `{"versions":[{"build_id":"version"}]}`)
 			return
 		}
-		if r.Method != "DELETE" || r.URL.Path != "/sites/site/artifacts/version" {
-			t.Errorf("unexpected request %s %s", r.Method, r.URL)
-		}
+		t.Errorf("unexpected request %s %s", r.Method, r.URL)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}))
 	defer server.Close()
@@ -107,8 +102,5 @@ func TestStorageListAndUnsupportedDelete(t *testing.T) {
 	versions, err := client.ListVersions("site")
 	if err != nil || len(versions) != 1 || versions[0].BuildID != "version" {
 		t.Fatalf("versions: %v %v", versions, err)
-	}
-	if err := client.DeleteVersion("site", "version"); err == nil {
-		t.Fatal("unsupported deletion reported success")
 	}
 }

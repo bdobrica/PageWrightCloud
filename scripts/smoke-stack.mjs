@@ -53,6 +53,16 @@ if (stage === 'fresh') {
   assert.equal((await (await request(storage, versionsPath)).json()).count, 0);
   await request(storage, artifactPath + '/manifest', json(manifest), 201);
 }
+// The same checks run before and after recreation: retries are idempotent,
+// replacements conflict, and neither API exposes destructive version deletion.
+await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync(marker) }, 201);
+await request(storage, artifactPath + '/logs', json(privateLog), 201);
+await request(storage, artifactPath + '/manifest', json(manifest), 201);
+await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync('replacement') }, 409);
+await request(storage, artifactPath + '/logs', json({ content: 'replacement' }), 409);
+await request(storage, artifactPath + '/manifest', json({ ...manifest, prompt: 'replacement' }), 409);
+await request(storage, artifactPath, { method: 'DELETE' }, 405);
+await request(gateway, '/sites/smoke.example.test/versions/smoke-v1', { method: 'DELETE', headers: { Authorization: `Bearer ${auth.token}` } }, 501);
 const artifact = await request(storage, artifactPath);
 assert.equal(gunzipSync(Buffer.from(await artifact.arrayBuffer())).toString(), marker);
 for (const [suffix, expected] of [['logs', privateLog], ['manifest', manifest]]) {

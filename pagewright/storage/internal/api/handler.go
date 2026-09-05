@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -72,6 +73,10 @@ func (h *Handler) StoreArtifact(w http.ResponseWriter, r *http.Request) {
 	// Store the gzip file bytes verbatim, not a multipart envelope. Archive
 	// structure/size/security validation is a separate acceptance gate.
 	if err := h.backend.StoreArtifact(siteID, buildID, r.Body); err != nil {
+		if errors.Is(err, storage.ErrConflict) {
+			http.Error(w, "immutable version conflict", http.StatusConflict)
+			return
+		}
 		http.Error(w, fmt.Sprintf("Failed to store artifact: %v", err), http.StatusInternalServerError)
 		return
 	}

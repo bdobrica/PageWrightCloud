@@ -137,10 +137,6 @@ class ApiClient {
     await this.client.post(`/sites/${fqdn}/versions/${versionId}/deploy`, data);
   }
 
-  async deleteVersion(fqdn: string, versionId: string): Promise<void> {
-    await this.client.delete(`/sites/${fqdn}/versions/${versionId}`);
-  }
-
   async downloadVersion(fqdn: string, versionId: string): Promise<Blob> {
     const response = await this.client.get(`/sites/${fqdn}/versions/${versionId}/download`, {
       responseType: 'blob',

@@ -108,10 +108,12 @@ Directory structure:
 Writes use a temporary-file pattern:
 1. Write to temporary file
 2. fsync() to ensure disk persistence
-3. Rename to final location (atomic operation)
+3. Publish without replacing an existing file; sync containing directories
 
-Metadata checks write/sync/close before rename. This is not an immutable
-multi-file transaction or a guarantee of power-loss durability; see M1.5.
+Files use unique temporary files and no-replace hard-link publication, with
+checked write/sync/close and directory sync. Exact-byte retries succeed;
+different bytes conflict. See [immutable versions](../../docs/IMMUTABLE_VERSIONS.md)
+for concurrency and filesystem limits. Version deletion is disabled.
 
 ### Pluggable Backend Interface
 

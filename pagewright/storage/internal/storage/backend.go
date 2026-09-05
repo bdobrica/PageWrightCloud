@@ -8,6 +8,7 @@ import (
 )
 
 var ErrIncomplete = errors.New("artifact and private log must be persisted before manifest")
+var ErrConflict = errors.New("version object already exists with different bytes")
 
 // VersionMetadata is separate from event logs and from the downloadable archive.
 type VersionMetadata interface {

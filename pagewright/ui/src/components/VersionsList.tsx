@@ -48,14 +48,6 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => 
     }
   };
 
-  const handleDelete = async () => {
-    if (selectedVersion) {
-      await apiClient.deleteVersion(fqdn, selectedVersion.build_id);
-      setVersions((prev) => prev.filter((v) => v.build_id !== selectedVersion.build_id));
-      setSelectedVersion(null);
-    }
-  };
-
   return (
     <>
       <div className="versions-list">
@@ -86,7 +78,6 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => 
           onClose={() => setSelectedVersion(null)}
           onPreview={handlePreview}
           onPromote={handlePromote}
-          onDelete={handleDelete}
         />
       )}
     </>

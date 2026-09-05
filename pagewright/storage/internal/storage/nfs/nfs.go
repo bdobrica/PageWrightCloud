@@ -1,6 +1,7 @@
 package nfs
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,10 @@ type NFSBackend struct {
 }
 
 func NewNFSBackend(basePath string) (*NFSBackend, error) {
+	basePath, err := filepath.Abs(basePath)
+	if err != nil {
+		return nil, err
+	}
 	// Verify base path exists or create it
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create base path: %w", err)
@@ -27,16 +32,22 @@ func NewNFSBackend(basePath string) (*NFSBackend, error) {
 }
 
 func (n *NFSBackend) StoreArtifact(siteID, buildID string, reader io.Reader) error {
+	if !metadataID.MatchString(siteID) || !metadataID.MatchString(buildID) {
+		return fmt.Errorf("invalid artifact identity")
+	}
 	artifactDir := filepath.Join(n.basePath, "sites", siteID, "artifacts")
 	if err := os.MkdirAll(artifactDir, 0755); err != nil {
 		return fmt.Errorf("failed to create artifact directory: %w", err)
 	}
 
 	artifactPath := filepath.Join(artifactDir, fmt.Sprintf("%s.tar.gz", buildID))
-	return atomicWrite(artifactPath, reader)
+	return immutableWrite(n.basePath, artifactPath, reader)
 }
 
 func (n *NFSBackend) FetchArtifact(siteID, buildID string) (io.ReadCloser, error) {
+	if !metadataID.MatchString(siteID) || !metadataID.MatchString(buildID) {
+		return nil, fmt.Errorf("invalid artifact identity")
+	}
 	artifactPath := filepath.Join(n.basePath, "sites", siteID, "artifacts", fmt.Sprintf("%s.tar.gz", buildID))
 
 	file, err := os.Open(artifactPath)
@@ -51,6 +62,9 @@ func (n *NFSBackend) FetchArtifact(siteID, buildID string) (io.ReadCloser, error
 }
 
 func (n *NFSBackend) WriteLogEntry(siteID string, entry *storage.LogEntry) error {
+	if entry == nil || !metadataID.MatchString(siteID) || !metadataID.MatchString(entry.BuildID) {
+		return fmt.Errorf("invalid event identity")
+	}
 	logDir := filepath.Join(n.basePath, "sites", siteID, "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
@@ -67,10 +81,13 @@ func (n *NFSBackend) WriteLogEntry(siteID string, entry *storage.LogEntry) error
 	}
 
 	// Use atomic write for log entry
-	return atomicWriteBytes(logPath, data)
+	return immutableWrite(n.basePath, logPath, bytes.NewReader(data))
 }
 
 func (n *NFSBackend) ListVersions(siteID string) ([]*storage.Version, error) {
+	if !metadataID.MatchString(siteID) {
+		return nil, fmt.Errorf("invalid site identity")
+	}
 	metadataDir := filepath.Join(n.basePath, "sites", siteID, "metadata")
 
 	// Check if directory exists
@@ -114,77 +131,4 @@ func (n *NFSBackend) ListVersions(siteID string) ([]*storage.Version, error) {
 	})
 
 	return versions, nil
-}
-
-// atomicWrite writes data from reader to path atomically
-func atomicWrite(path string, reader io.Reader) error {
-	tmpPath := path + ".tmp"
-
-	// Create temporary file
-	tmpFile, err := os.Create(tmpPath)
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-
-	// Copy data
-	_, err = io.Copy(tmpFile, reader)
-	if err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to write data: %w", err)
-	}
-
-	// Sync to disk
-	if err := tmpFile.Sync(); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to sync file: %w", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to close file: %w", err)
-	}
-
-	// Atomic rename
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to rename file: %w", err)
-	}
-
-	return nil
-}
-
-// atomicWriteBytes writes byte data to path atomically
-func atomicWriteBytes(path string, data []byte) error {
-	tmpPath := path + ".tmp"
-
-	// Write to temporary file
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-
-	// Open for sync
-	tmpFile, err := os.Open(tmpPath)
-	if err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to open temp file: %w", err)
-	}
-
-	// Sync to disk
-	if err := tmpFile.Sync(); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to sync file: %w", err)
-	}
-
-	tmpFile.Close()
-
-	// Atomic rename
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to rename file: %w", err)
-	}
-
-	return nil
 }

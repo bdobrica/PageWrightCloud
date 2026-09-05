@@ -41,6 +41,11 @@ backend restart and worker callback gating. Integration uses the actual worker
 metadata client and checks committed-version visibility through gateway.
 Startup smoke also checks private metadata after container recreation.
 
+[M1.5 immutability checks](IMMUTABLE_VERSIONS.md) add concurrent instance/process
+writes, retries, conflict preservation, failed-stream cleanup and disabled
+deletion. Startup/recreation smoke verifies all immutable object types and both
+deletion responses. UI contracts guard the removed deletion action.
+
 ## Known skipped tests
 
 Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.

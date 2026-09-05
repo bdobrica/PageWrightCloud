@@ -47,10 +47,10 @@ Storage is deliberately an opaque byte store: `application/gzip` is a transport
 contract, not server-side archive validation. Existing malformed objects are not
 repaired. A successful upload does not imply a complete, publishable version.
 M1.4 adds [manifest/private-log persistence and commit visibility](VERSION_METADATA.md);
-immutability, concurrent replacement and deletion semantics remain M1.5.
+M1.5 adds [immutable writes and disabled deletion](IMMUTABLE_VERSIONS.md).
 The existing `/sites/{site_id}/logs` endpoint stores event records, not the
-worker's private per-version log payload. Gateway deletion now addresses the
-canonical artifact path but still fails when storage returns `405`.
+worker's private per-version log payload. Gateway deletion is disabled (`501`);
+storage has no DELETE endpoint (`405`).
 
 Archive layout/bootstrap and hostile-input limits remain M1.7/M4. Extraction is
 not transactional: a failed extraction can leave files in its target directory.

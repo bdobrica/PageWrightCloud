@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { parseBuildResponse, parseJobSnapshot } from '../src/api/contracts.ts';
 import { createSubmissionIdentity, isRejectedSubmission } from '../src/api/submission.ts';
+
+test('MVP version deletion has no UI action or API client method', () => {
+  for (const file of ['../src/components/VersionActionModal.tsx', '../src/components/VersionsList.tsx', '../src/api/client.ts']) {
+    const source = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /onDelete|handleDelete|deleteVersion|Delete Version/);
+  }
+});
 
 const accepted = {
   job_id: 'job-1', site_id: 'site-1', owner_id: 'owner-1',

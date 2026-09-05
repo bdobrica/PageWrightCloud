@@ -1,6 +1,7 @@
 # Version metadata and completion (M1.4)
 
-Storage treats the manifest as the final commit record. The worker performs:
+Storage treats the manifest as the final commit record. M1.5 adds
+[write-once publication and byte-identical retries](IMMUTABLE_VERSIONS.md). The worker performs:
 
 `artifact PUT → private log POST → manifest POST → manager completed callback`
 
@@ -9,7 +10,7 @@ log. No successful callback is attempted after an artifact/log/manifest failure.
 A lost manifest response may leave a committed storage version while the worker
 reports failure; a lost callback may leave manager status uncertain. Storage
 retries do not create duplicate listing entries. Cross-service reconciliation
-and immutable retry identity remain M2/M1.5, not a distributed transaction.
+remains M2; storage now enforces retry byte identity, not a distributed transaction.
 
 ## Internal HTTP contract
 
@@ -41,7 +42,7 @@ layout (M1.7).
 Sidecars live outside the archive at
 `/nfs/sites/{site_id}/metadata/{build_id}/{execution,manifest}.json`. New metadata
 directories use `0700`, files `0600`. Writes use unique temporary files and checked
-write/sync/close before rename. Artifact close errors are also propagated.
+write/sync/close before no-replace publication. Artifact close errors are also propagated.
 `manifest.json` is written only after an artifact and private log file exist.
 
 `GET /sites/{site_id}/versions` returns one entry per valid committed manifest,
@@ -66,10 +67,9 @@ storage port to untrusted networks; this is **not tenant authorization or secret
 redaction**. No public gateway metadata route is added. Existing secrets already
 inside an archive are not removed by this change (M1.7/M4).
 
-Concurrent overwrite, immutable version identity, deletion protection and
-crash-durable directory fsync remain M1.5. A manifest is not a content-addressed
-snapshot: later replacements are not fenced yet. Orphan partial uploads remain
-stored but unlisted. Manager callbacks still trust workers; no nginx publication
+M1.5 prevents replacement, syncs publication directories and disables version
+deletion. Orphan partial uploads remain stored but unlisted; job fencing and
+callback reconciliation remain separate. Manager callbacks still trust workers; no nginx publication
 or real AI execution is proved here. Logging of runs that fail before reaching
 the persistence phase and redaction/retention policies remain follow-up work.
 Post-write integrity checks on artifact/log contents are not performed by storage.

@@ -25,7 +25,7 @@ func (n *NFSBackend) StorePrivateLog(site, version string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	return writeMetadata(path, data)
+	return immutableWrite(n.basePath, path, bytes.NewReader(data))
 }
 
 func (n *NFSBackend) FetchPrivateLog(site, version string) ([]byte, error) {
@@ -78,7 +78,15 @@ func (n *NFSBackend) CommitManifest(site, version string, data json.RawMessage) 
 	if err := n.prerequisites(site, version); err != nil {
 		return err
 	}
-	return writeMetadata(path, data)
+	// A concurrent upload may have linked its completed inode but not yet
+	// flushed its directory. Flush prerequisites before publishing the commit.
+	if err := syncDirectory(filepath.Join(n.basePath, "sites", site, "artifacts")); err != nil {
+		return err
+	}
+	if err := syncDirectory(filepath.Dir(path)); err != nil {
+		return err
+	}
+	return immutableWrite(n.basePath, path, bytes.NewReader(data))
 }
 
 func (n *NFSBackend) FetchManifest(site, version string) (json.RawMessage, error) {
@@ -97,29 +105,4 @@ func (n *NFSBackend) FetchManifest(site, version string) (json.RawMessage, error
 		return nil, err
 	}
 	return data, nil
-}
-
-// Separate private files, never packed into public/. Publish by rename only
-// after checked write/sync/close; crash-durable directory fsync and immutable
-// multi-writer version semantics remain M1.5.
-func writeMetadata(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(path), ".metadata-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	defer f.Close()
-	if _, err := bytes.NewReader(data).WriteTo(f); err != nil {
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
-	return os.Rename(f.Name(), path)
 }

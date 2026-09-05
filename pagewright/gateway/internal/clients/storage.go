@@ -103,33 +103,6 @@ func (c *StorageClient) ListVersions(siteID string) ([]StorageVersion, error) {
 	return result.Versions, nil
 }
 
-// DeleteVersion deletes a version from storage
-func (c *StorageClient) DeleteVersion(siteID, versionID string) error {
-	// Route aligned, but storage DELETE semantics remain M1.5. Never treat a
-	// missing/unsupported endpoint as successful deletion.
-	url, err := c.artifactURL(siteID, versionID)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create delete request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to delete version: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("failed to delete version: status %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
 type StorageVersion struct {
 	BuildID   string    `json:"build_id"`
 	Timestamp time.Time `json:"timestamp"`

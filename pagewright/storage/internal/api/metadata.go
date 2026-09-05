@@ -89,7 +89,7 @@ func (h *Handler) VersionMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		status := 500
-		if errors.Is(err, storage.ErrIncomplete) {
+		if errors.Is(err, storage.ErrIncomplete) || errors.Is(err, storage.ErrConflict) {
 			status = 409
 		}
 		http.Error(w, "metadata write failed", status)
