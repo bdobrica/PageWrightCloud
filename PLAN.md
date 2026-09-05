@@ -18,9 +18,10 @@ There is useful implementation across all services, but the application is still
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
 | Execution | [Docker spawner](pagewright/manager/internal/spawner/docker/docker.go) and Kubernetes spawner only log. [Worker Dockerfile](pagewright/worker/Dockerfile) installs a mock command. | An accepted job cannot execute the intended AI workflow. There are also two worker implementations/images; select `pagewright/worker` as the MVP runner. |
-| First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. | New sites have source, not compiled or hosted output. Legacy sites are not automatically repaired; full archive validation and compilation remain M1.7/M2. |
+| First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
-| Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` is hard-coded. [Serving](pagewright/serving/internal/artifact/manager.go) requires an archive containing `public/`. | Integrate `pagewrightc`, generate `public/index.html`, and derive validation results from actual checks. |
+| Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
+| Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` now remains false. [Serving](pagewright/serving/internal/artifact/manager.go) validates compiled archive structure. | Integrate `pagewrightc`, generate fresh `public/index.html`, and derive validation results from actual checks. |
 | Version state | M1.2 commits the job mapping and version using `target_version` before dispatch, with atomic outcome/status writes. [Version listing](pagewright/gateway/internal/handlers/versions.go) still returns storage records that differ from UI types. | Submission mapping fixed; reconcile later completion and normalize version listing in M1.9/M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | [Gateway serving client](pagewright/gateway/internal/clients/serving.go) sends `version_id`; [serving types](pagewright/serving/internal/types/types.go) require `version`. Preview UI only opens a URL and does not activate a preview. | Repair the payload, preview action, returned URLs, and preview assets/navigation. |
@@ -48,7 +49,7 @@ No full browser journey or service integration run was performed. The existing `
 ## Implementation decisions
 
 1. **Keep identifiers explicit.** `job_id` identifies an execution; `target_version` identifies its immutable artifact. Persist their association with site and owner before dispatch. Use `pending → running → completed | failed` consistently, with bounded retries and idempotent terminal updates. Reject stale worker results using job identity and fencing/attempt information.
-2. **Keep editable source with each version.** Adopt an archive containing `content/`, generated `public/`, and a manifest recording source version, theme version, compiler version and checks. Execution logs are private metadata. Publish only `public/`; never expose source, prompts, instruction files or secrets through nginx. Render from a trusted bundled theme outside the AI-writable directory. Preserve the same artifact when promoting preview to live.
+2. **Keep editable source with each version.** Use an archive containing `content/`, generated `public/` when available, and safe layout metadata. Keep source-version provenance, theme/compiler versions and check results in the private build manifest; trusted compiler/check integration remains M2. Execution logs are private metadata. Publish only `public/`; never expose source, prompts, instruction files or secrets through nginx. Render from a trusted bundled theme outside the AI-writable directory. Preserve the same artifact when promoting preview to live.
 3. **Define the editing base.** Default the next edit to the latest completed draft, then the live version, then the bootstrapped source. Surface the selected base in the UI. A failed job must not become the next base; this avoids losing consecutive unpublished edits.
 4. **Start with reliable polling.** Gateway exposes owner-checked job status and persisted history; UI polls while a build is active and recovers after refresh. Disable the broken socket path in the MVP until it supports browser authentication, owner filtering, stable reconnection and the same event schema. WebSockets are optional, durable state is required.
 5. **Use one local deployment path.** Prefer a named volume for the existing filesystem storage backend on a single host; the privileged NFS server is unnecessary for this topology. Give the selected worker image an explicit tag that matches manager configuration. Define the Docker network, credentials and resource limits used by spawned jobs. The manager's Docker authority must remain inaccessible to worker processes.
@@ -301,11 +302,46 @@ container recreation and creation replay. Test stacks/data were cleaned up witho
 resetting application volumes. Five known skips remain; no paid AI, push or hosted
 CI execution occurred.
 
-M1.7 is next: define/enforce the archive layout and isolate private execution data
-from generated public output while retaining editable source. M1.6 initial metadata
+At M1.6 handoff, M1.7 was next; its completed work is recorded below. M1.6 initial metadata
 truthfully says source-only, not compiled/checks-passed; it does not implement the
 real worker compiler path, latest-draft selection, legacy repair, domain ownership,
 cross-service atomicity, orphan cleanup or publishing. Full M1 exit remains unverified.
+
+M1.7 completed (2026-09-06) in `1d9b5bf`. The
+[archive contract](docs/ARCHIVE_LAYOUT.md) defines editable `content/`, optional
+generated `public/`, and a strict versioned layout manifest, distinct from private
+build metadata/logs. Packing includes only those trees and generated metadata;
+root execution instructions, logs, credentials and theme code do not travel.
+Unsafe paths, links/special entries, duplicates, extended tar metadata, known
+private filenames, public source files and inconsistent layouts are rejected.
+Compressed/expanded/per-file/entry limits and gzip trailer checks bound extraction.
+
+Worker extraction stages into an absent/empty workspace and retains source for
+subsequent edits. Serving validates all entries but extracts only public files;
+staged failures leave existing versions/live links intact. SHA-256 markers outside
+the public root support same-byte retries and reject conflicting/unverified cache
+replacement. Concurrent retries are covered; retention skips in-progress stages.
+Bootstrap revision 2 includes source-layout metadata. Persisted revision-1 initial
+archives remain worker-compatible, without rewriting immutable reservation bytes.
+Worker private metadata counts actual archive files and no longer claims stubbed
+checks passed.
+
+Verification passed: final six-module package baseline; worker/serving archive and
+worker runner race tests; two five-module isolated integration runs; starter and
+bootstrap compiler fixtures; gateway/worker/serving image builds; fresh startup and
+volume-preserving recreation. Tests cover second-edit source preservation, private
+runtime canaries, public-root HTTP 404s, source-only deployment rejection, hostile
+paths/links, checksum damage, all size/entry limits, failed writes/extraction,
+concurrent deployment retries and staging cleanup protection. Policy-file parity,
+shell syntax and staged whitespace checks passed. Disposable test stacks/data
+were removed; application volumes were untouched. Five known skips remain.
+
+M1.8 is next: compiler rendering and adversarial fixture coverage. This milestone
+does not scan arbitrary content for disguised secrets, prove compiler execution
+or output freshness, repair historical archives/caches, make symlink activation
+atomic, or establish internal-service authorization. Trusted compilation,
+credential isolation and publication remain M2/M3/M4. No paid AI, push or hosted
+CI run occurred; the complete M1 exit remains unverified.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
