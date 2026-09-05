@@ -60,6 +60,13 @@ Estimates are planning ranges for one developer familiarizing themselves with th
 
 ### M0 — Reproducible baseline (1–2 days)
 
+Progress (2026-09-05): M0.1 completed in `8f404df`. Go builders use 1.24.10,
+UI builder / `.nvmrc` use Node 24.11.1; local and container clean installs and
+all seven image builds passed. See [development instructions](docs/DEVELOPMENT.md).
+The install audit reported 19 dependency advisories (2 low, 3 moderate, 14 high);
+dependency remediation remains required before the remote pilot. The CSS warning
+is tracked in M0.2. These build checks do not verify AI execution.
+
 Resolve the UI lint/CSS baseline; document tool versions supported by the lockfiles and images. Establish explicit commands for unit tests, integration prerequisites, UI checks, image builds and migrations. Exercise startup from fresh, disposable volumes and restart with existing data. Consolidate migration ownership: gateway startup currently embeds migrations separately from the SQL files, and the DB helper's `RunMigrations` is a stub.
 
 **Exit:** a fresh checkout can build the UI and all selected service images, initialize the DB once, restart safely, and run documented checks. CI starts running these checks.

@@ -20,7 +20,7 @@ This replaces the March security-first two-week schedule with a dependency-order
 
 Exit: a fresh checkout builds, initializes and restarts predictably; baseline checks run in CI.
 
-- [ ] M0.1 Document compatible Go/Node/Docker prerequisites from module files, lockfiles and Docker images; verify clean UI dependency installation and all selected image builds.
+- [x] M0.1 Document compatible Go/Node/Docker prerequisites from module files, lockfiles and Docker images; verify clean UI dependency installation and all selected image builds. Implementation: `8f404df`; clean local/container `npm ci` and UI build, all seven selected images passed.
 - [ ] M0.2 Fix UI lint errors in auth state initialization, socket reconnection, typed error handling and component exports; resolve the hook dependency warning and CSS build warning.
 - [ ] M0.3 Standardize unit/integration commands and prerequisites. Include manager integration tests in the root target; provision a dedicated test DB, Redis and the actual services needed by HTTP integration tests.
 - [ ] M0.4 Use one migration source with transactional version tracking; reconcile embedded gateway migrations, SQL files and the stub DB helper. Test empty DB startup and restart/upgrade of an existing DB.
