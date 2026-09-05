@@ -1,4 +1,4 @@
-# Job wire contract — M1.1
+# Job wire contract — M1.1 / M1.2
 
 This is the canonical contract for the selected gateway, manager, worker and UI.
 Go types remain local to their independently built service modules; real HTTP
@@ -9,7 +9,7 @@ module/build dependency. UI parsers validate responses at runtime.
 
 | Field | Meaning / authority |
 | --- | --- |
-| `job_id` | Execution identity; currently allocated by the manager. Never an artifact ID. |
+| `job_id` | Execution identity; gateway allocates/persists it before dispatch. Manager can allocate it for direct callers that omit it. Never an artifact ID. |
 | `site_id` | Stable site identity, not its FQDN. Gateway resolves it from the URL. |
 | `owner_id` | User identity derived from the authenticated, owner-checked site's `user_id`; the browser cannot supply it. |
 | `prompt` | Worker instructions generated from the user's message/clarification. |
@@ -18,14 +18,18 @@ module/build dependency. UI parsers validate responses at runtime.
 | `status` | Exactly `pending`, `running`, `completed`, or `failed`. No `queued` or `success` aliases. |
 
 The intended lifecycle is pending → running → completed or failed. M1.1 validates
-the vocabulary, callback outcomes and identity consistency, not durable dispatch,
-terminal-state idempotency, fencing or recovery. Those remain M1.2/M2 work.
+vocabulary, callback outcomes and identities; M1.2 adds durable pre-dispatch mapping
+and submission deduplication. Reliable dispatch, callback idempotency, fencing and
+recovery remain M2 work.
 Manager currently marks a job running while calling its placeholder spawner;
 that status alone does not prove a worker ran.
 
 ## Gateway: browser build submission
 
 `POST /sites/{fqdn}/build`, bearer-authenticated, accepts one JSON object:
+
+M1.2 also requires a nonzero UUID `Idempotency-Key` header. Retain it for retries;
+see [durable submissions](BUILD_SUBMISSIONS.md) for replay and uncertainty semantics.
 
 ```json
 {"message":"Change the homepage title","conversation_id":"optional-existing-conversation"}
@@ -54,10 +58,12 @@ HTTP 200 is one of two mutually exclusive shapes:
 }
 ```
 
-The accepted shape contains all six fields; it excludes prompt, internal lease
-tokens and clarification fields. A manager lock conflict becomes HTTP 409.
-Existing gateway errors retain `{ "error": "HTTP status text", "message": "details" }`;
-this task does not change unrelated public API error codes.
+The accepted shape contains all six fields; a failed accepted snapshot also
+requires nonblank `error_message` (absent/empty otherwise). It excludes prompt,
+internal lease tokens and clarification fields. A lock conflict becomes HTTP 409.
+Unrelated gateway errors retain `{ "error": "HTTP status text", "message": "details" }`.
+Submission errors also carry `submission_state`, `job_id` and `target_version`;
+HTTP 503 can mean uncertainty, not definite rejection.
 
 ## Manager: creation and job snapshots
 
@@ -73,13 +79,18 @@ this task does not change unrelated public API error codes.
 }
 ```
 
-The first four fields are required, nonblank strings. Omitted or empty
-`target_version` asks the manager to allocate a UUID; a nonempty supplied target
-must be nonblank. The manager allocates `job_id` separately. It does not currently
-accept caller-supplied job IDs or provide deduplication. Legacy `user_text`,
+The first four fields are required, nonblank strings. If `job_id` is omitted,
+manager allocates it and an omitted/empty `target_version`. With an explicit
+`job_id`, it must be a canonical nonzero UUID and requires a nonblank target
+distinct from it (including UUID aliases). Identical explicit-ID submissions
+replay with HTTP 200; changed input returns 409. Gateway always sends both IDs
+from its committed mapping. Legacy `user_text`,
 `base_build_id`, `requested_action` and `metadata` are rejected, not silently ignored.
 
-HTTP 201 creation, HTTP 200 `GET /jobs/{job_id}`, and successful callbacks return
+For legacy direct callers, empty/null `job_id` is treated as omission; the gateway
+never uses that allocation path. Explicit nonempty IDs must satisfy the UUID rules.
+
+HTTP 201 creation, HTTP 200 submission replay/`GET /jobs/{job_id}`, and successful callbacks return
 the same snapshot:
 
 ```json
@@ -102,7 +113,10 @@ All fields through `updated_at` are required; timestamps use RFC3339, including
 optional fractional seconds. Optional string fields are `result` (a human-readable
 summary, not an encoded JSON object), `error_message` and `manifest_path`.
 `error_message` must be nonblank for failed snapshots and empty/absent otherwise.
-`manifest_path` is allowed only for completed outcomes. Empty optional strings
+`manifest_path` is allowed only for completed outcomes. `error_code` optionally
+records manager submission rejection (`job_busy` or `spawn_failed`); callbacks
+clear it. Matching rejected submissions repeat the saved HTTP 409/502 error.
+Empty optional strings
 serialize as absent. The manifest value is an opaque locator; accepting it does
 not verify storage availability or settle M1.4's manifest endpoint.
 
@@ -152,10 +166,11 @@ Manager job-handler errors have JSON content type and this shape:
 | HTTP | `error` | Meaning |
 | --- | --- | --- |
 | 400 | `invalid_request` | Malformed/unknown/trailing JSON, missing fields, invalid status/outcome |
-| 404 | `job_not_found` | Job lookup failed (backend does not yet distinguish missing from unavailable) |
+| 404 | `job_not_found` | No recorded job; backend failure is distinct and returns 500 |
 | 409 | `job_busy` | Site lock acquisition failed |
-| 409 | `job_conflict` | Callback route/identity/version mismatch |
-| 500 | `internal_error` | Queue, update or spawn failure |
+| 409 | `job_conflict` | Callback mismatch or conflicting reuse of a submission ID |
+| 502 | `spawn_failed` | Persisted failure to start a worker |
+| 500 | `internal_error` | Backend reservation, lookup or update failure |
 
 Gateway's manager client preserves HTTP status/code/message in a typed error and
 checks that successful responses match the requested identity. Unknown endpoint
@@ -184,8 +199,8 @@ Do not delete development data automatically or assume existing jobs were upgrad
 Run `make test-all`, `make test-integration`, and UI contract tests/lint/build as
 described in [TESTING.md](TESTING.md). CI includes the new checks.
 
-M1.2 still must persist a job-to-target-version mapping before dispatch and fix
-the gateway's legacy version-row write using `job_id`. M1.6 replaces the current
+M1.2 persists the job-to-target-version mapping and version before dispatch;
+see [submission state/retry rules](BUILD_SUBMISSIONS.md). M1.6 replaces the current
 `initial` source placeholder with a real bootstrap artifact; M2.5 changes base
 selection beyond the current live version. M3 adds owner-checked retrieval,
 polling and browser recovery. This contract does not make the full pipeline work.

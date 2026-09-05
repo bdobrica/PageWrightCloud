@@ -56,6 +56,7 @@ export interface AcceptedBuildResponse {
   source_version: string;
   target_version: string;
   status: JobStatus;
+  error_message?: string;
 }
 
 export interface JobSnapshot extends AcceptedBuildResponse {

@@ -23,6 +23,12 @@ The [job wire contract](JOB_CONTRACT.md) describes M1.1's gateway/manager/worker
 schemas and HTTP acceptance tests. The instruction provider is faked in contract
 tests; no paid provider or worker executor is invoked.
 
+[M1.2 submission tests](BUILD_SUBMISSIONS.md) add PostgreSQL reservation/outcome
+atomicity, concurrent duplicate HTTP requests, failed/lost delivery, restart
+replay, real Redis deduplication scripts, and UI retry identity. The integration
+harness provides `TEST_REDIS_ADDR` for the isolated Redis tests; they do not flush
+an existing application's Redis data.
+
 ## Known skipped tests
 
 Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.

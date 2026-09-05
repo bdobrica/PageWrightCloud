@@ -30,7 +30,7 @@ func TestManagerClientHTTPContract(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&wire); err != nil {
 				t.Error(err)
 			}
-			want := map[string]string{"site_id": job.SiteID, "owner_id": job.OwnerID, "prompt": job.Prompt, "source_version": job.SourceVersion, "target_version": job.TargetVersion}
+			want := map[string]string{"job_id": job.JobID, "site_id": job.SiteID, "owner_id": job.OwnerID, "prompt": job.Prompt, "source_version": job.SourceVersion, "target_version": job.TargetVersion}
 			if !reflect.DeepEqual(wire, want) {
 				t.Errorf("wire request = %#v, want %#v", wire, want)
 			}
@@ -42,7 +42,7 @@ func TestManagerClientHTTPContract(t *testing.T) {
 	}))
 	defer server.Close()
 	client := NewManagerClient(server.URL)
-	created, err := client.EnqueueJob(ManagerJobRequest{SiteID: job.SiteID, OwnerID: job.OwnerID, Prompt: job.Prompt, SourceVersion: job.SourceVersion, TargetVersion: job.TargetVersion})
+	created, err := client.EnqueueJob(ManagerJobRequest{JobID: job.JobID, SiteID: job.SiteID, OwnerID: job.OwnerID, Prompt: job.Prompt, SourceVersion: job.SourceVersion, TargetVersion: job.TargetVersion})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +73,7 @@ func TestManagerClientRejectsInvalidSnapshot(t *testing.T) {
 		{"running with error", func(j *types.Job) { j.ErrorMessage = "broken" }},
 		{"running with manifest", func(j *types.Job) { j.ManifestPath = "manifest" }},
 		{"wrong owner", func(j *types.Job) { j.OwnerID = "someone-else" }},
+		{"wrong execution", func(j *types.Job) { j.JobID = "another-job" }},
 		{"wrong site", func(j *types.Job) { j.SiteID = "somewhere-else" }},
 		{"wrong source", func(j *types.Job) { j.SourceVersion = "different-source" }},
 		{"wrong target", func(j *types.Job) { j.TargetVersion = "different-target" }},
@@ -80,7 +81,7 @@ func TestManagerClientRejectsInvalidSnapshot(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			job := contractJob()
-			request := ManagerJobRequest{SiteID: job.SiteID, OwnerID: job.OwnerID, SourceVersion: job.SourceVersion, TargetVersion: job.TargetVersion, Prompt: job.Prompt}
+			request := ManagerJobRequest{JobID: job.JobID, SiteID: job.SiteID, OwnerID: job.OwnerID, SourceVersion: job.SourceVersion, TargetVersion: job.TargetVersion, Prompt: job.Prompt}
 			tc.change(&job)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode(job) }))
 			defer server.Close()
@@ -117,5 +118,23 @@ func TestManagerClientRejectsWrongRetrievedJob(t *testing.T) {
 	defer server.Close()
 	if _, err := NewManagerClient(server.URL).GetJobStatus("another-job"); err == nil {
 		t.Fatal("wrong job accepted")
+	}
+}
+
+func TestManagerClientDoesNotRedispatchRedirects(t *testing.T) {
+	var redirected bool
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		redirected = true
+		json.NewEncoder(w).Encode(contractJob())
+	}))
+	defer target.Close()
+	manager := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+	}))
+	defer manager.Close()
+	_, err := NewManagerClient(manager.URL).EnqueueJob(ManagerJobRequest{})
+	var result *ManagerError
+	if !errors.As(err, &result) || result.StatusCode != http.StatusTemporaryRedirect || redirected {
+		t.Fatalf("redirect followed or hidden: %v followed=%v", err, redirected)
 	}
 }

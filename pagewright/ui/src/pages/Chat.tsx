@@ -6,6 +6,7 @@ import { VersionsList } from '../components/VersionsList';
 import { ChatMessage } from '../components/ChatMessage';
 import { FileAttachment } from '../components/FileAttachment';
 import { apiClient } from '../api/client';
+import { createSubmissionIdentity, isRejectedSubmission } from '../api/submission';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { JobSnapshot } from '../types/api';
 import './Chat.css';
@@ -26,6 +27,7 @@ export const Chat: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [versionRefresh, setVersionRefresh] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const submission = useRef(createSubmissionIdentity());
 
   const handleJobUpdate = (update: JobSnapshot) => {
     if (update.status === 'completed') {
@@ -60,6 +62,8 @@ export const Chat: React.FC = () => {
 
   const handleSend = async () => {
     if (!inputText.trim() && files.length === 0) return;
+    const requestKey = submission.current.begin({ fqdn: fqdn!, message: inputText, conversation_id: conversationId, files });
+    if (!requestKey) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -76,7 +80,9 @@ export const Chat: React.FC = () => {
         message: inputText,
         conversation_id: conversationId,
         files,
+        requestKey,
       });
+      submission.current.finish('success');
 
       if ('question' in response) {
         // Agent needs clarification
@@ -91,13 +97,18 @@ export const Chat: React.FC = () => {
           },
         ]);
       } else {
-        // Job enqueued
+        // An idempotent replay may already contain a terminal job status.
         setConversationId(undefined);
+        if (response.status === 'completed') setVersionRefresh(prev => prev + 1);
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now().toString() + '-j',
-            text: 'Building your site... This may take a moment.',
+            text: response.status === 'failed'
+              ? `✗ Build failed: ${response.error_message}`
+              : response.status === 'completed'
+                ? `✓ Build completed! Version ${response.target_version} is ready.`
+                : 'Building your site... This may take a moment.',
             sender: 'agent',
             timestamp: new Date(),
           },
@@ -107,6 +118,7 @@ export const Chat: React.FC = () => {
       setInputText('');
       setFiles([]);
     } catch (err: unknown) {
+      submission.current.finish(isRejectedSubmission(err) ? 'rejected' : 'uncertain');
       setMessages((prev) => [
         ...prev,
         {

@@ -8,36 +8,78 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 )
 
 type memoryQueue struct {
-	jobs       map[string]types.Job
-	writes     int
-	failUpdate bool
+	mu           sync.Mutex
+	jobs         map[string]types.Job
+	writes       int
+	failUpdate   bool
+	failCreate   bool
+	failGet      bool
+	failWorkerID bool
 }
 
-func (q *memoryQueue) Push(_ context.Context, j *types.Job) error {
+func (q *memoryQueue) CreateJob(_ context.Context, j *types.Job) (*types.Job, bool, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.failCreate {
+		return nil, false, errors.New("unavailable")
+	}
+	if existing, ok := q.jobs[j.JobID]; ok {
+		return &existing, false, nil
+	}
 	q.jobs[j.JobID] = *j
 	q.writes++
-	return nil
+	copy := *j
+	return &copy, true, nil
 }
 func (q *memoryQueue) Pop(context.Context) (*types.Job, error) { return nil, errors.New("unused") }
 func (q *memoryQueue) GetJob(_ context.Context, id string) (*types.Job, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.failGet {
+		return nil, errors.New("unavailable")
+	}
 	j, ok := q.jobs[id]
 	if !ok {
-		return nil, errors.New("not found")
+		return nil, queue.ErrJobNotFound
 	}
 	return &j, nil
 }
 func (q *memoryQueue) UpdateJob(ctx context.Context, j *types.Job) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	if q.failUpdate {
 		return errors.New("unavailable")
 	}
-	return q.Push(ctx, j)
+	if _, ok := q.jobs[j.JobID]; !ok {
+		return queue.ErrJobNotFound
+	}
+	q.jobs[j.JobID] = *j
+	q.writes++
+	return nil
+}
+func (q *memoryQueue) SetWorkerID(_ context.Context, id, workerID string) (*types.Job, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.failWorkerID {
+		return nil, errors.New("unavailable")
+	}
+	j, ok := q.jobs[id]
+	if !ok {
+		return nil, queue.ErrJobNotFound
+	}
+	j.WorkerID = workerID
+	q.jobs[id] = j
+	q.writes++
+	return &j, nil
 }
 func (q *memoryQueue) Close() error { return nil }
 
@@ -57,10 +99,20 @@ func (l *fakeLock) Renew(context.Context, string, string, time.Duration) error {
 func (l *fakeLock) Release(context.Context, string, string) error              { l.released++; return nil }
 func (l *fakeLock) Close() error                                               { return nil }
 
-type fakeSpawner struct{ jobs []types.Job }
+type fakeSpawner struct {
+	jobs    []types.Job
+	fail    bool
+	onSpawn func(*types.Job)
+}
 
 func (s *fakeSpawner) Spawn(_ context.Context, j *types.Job, _ string) (string, error) {
 	s.jobs = append(s.jobs, *j)
+	if s.onSpawn != nil {
+		s.onSpawn(j)
+	}
+	if s.fail {
+		return "", errors.New("spawn unavailable")
+	}
 	return "worker", nil
 }
 func (s *fakeSpawner) Close() error { return nil }

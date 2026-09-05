@@ -22,6 +22,9 @@ func NewManagerClient(baseURL string) *ManagerClient {
 		baseURL: baseURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			// A redirect could deliver POST before a later dial failure, making
+			// that error unsafe to classify as definitely not submitted.
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
 }
@@ -52,7 +55,7 @@ func (c *ManagerClient) EnqueueJob(req ManagerJobRequest) (*ManagerJobResponse, 
 	if err := result.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid manager job response: %w", err)
 	}
-	if result.SiteID != req.SiteID || result.OwnerID != req.OwnerID || result.SourceVersion != req.SourceVersion || result.Prompt != req.Prompt || (req.TargetVersion != "" && result.TargetVersion != req.TargetVersion) {
+	if (req.JobID != "" && result.JobID != req.JobID) || result.SiteID != req.SiteID || result.OwnerID != req.OwnerID || result.SourceVersion != req.SourceVersion || result.Prompt != req.Prompt || (req.TargetVersion != "" && result.TargetVersion != req.TargetVersion) {
 		return nil, fmt.Errorf("manager response job association mismatch")
 	}
 

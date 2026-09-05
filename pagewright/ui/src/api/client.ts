@@ -149,7 +149,7 @@ class ApiClient {
   }
 
   // Build endpoint
-  async build(fqdn: string, data: BuildRequest & { files?: File[] }): Promise<BuildResponse> {
+  async build(fqdn: string, data: BuildRequest & { files?: File[]; requestKey: string }): Promise<BuildResponse> {
     // Legacy attachment path is still unsupported by Gateway; tracked in M3.9.
     if (data.files && data.files.length > 0) {
       const formData = new FormData();
@@ -164,13 +164,16 @@ class ApiClient {
       const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
+          'Idempotency-Key': data.requestKey,
         },
       });
       return parseBuildResponse(response.data);
     }
 
     const payload: BuildRequest = { message: data.message, conversation_id: data.conversation_id };
-    const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, payload);
+    const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, payload, {
+      headers: { 'Idempotency-Key': data.requestKey },
+    });
     return parseBuildResponse(response.data);
   }
 }

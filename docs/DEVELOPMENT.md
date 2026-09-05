@@ -73,6 +73,10 @@ File-based/manual schemas without version tracking are also covered by tests.
 Rollback after application upgrades should use a backup and the matching binary;
 the startup runner does not automatically execute historical `.down.sql` files.
 
+Migration 007 adds durable build submissions and preserves existing version rows
+without inventing missing job mappings. See [submission/retry semantics](BUILD_SUBMISSIONS.md)
+before integrating API callers: builds now require an `Idempotency-Key` header.
+
 ## Single-host storage and startup smoke test
 
 Root Compose uses the existing filesystem backend directly on a named volume.

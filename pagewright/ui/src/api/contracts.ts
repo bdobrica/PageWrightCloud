@@ -42,7 +42,7 @@ function timestampField(value: Record<string, unknown>, key: string): string {
 }
 
 function acceptedBuild(value: Record<string, unknown>): AcceptedBuildResponse {
-  return {
+  const accepted: AcceptedBuildResponse = {
     job_id: stringField(value, 'job_id'),
     site_id: stringField(value, 'site_id'),
     owner_id: stringField(value, 'owner_id'),
@@ -50,6 +50,12 @@ function acceptedBuild(value: Record<string, unknown>): AcceptedBuildResponse {
     target_version: stringField(value, 'target_version'),
     status: statusField(value.status),
   };
+  if ('error_message' in value) accepted.error_message = stringField(value, 'error_message', true);
+  if (accepted.status === 'failed') accepted.error_message = stringField(value, 'error_message');
+  if (accepted.status !== 'failed' && accepted.error_message) {
+    throw new Error('error_message is only valid for failed jobs');
+  }
+  return accepted;
 }
 
 export function parseBuildResponse(input: unknown): BuildResponse {
@@ -74,12 +80,8 @@ export function parseJobSnapshot(input: unknown): JobSnapshot {
     created_at: timestampField(value, 'created_at'),
     updated_at: timestampField(value, 'updated_at'),
   };
-  for (const key of ['result', 'error_message', 'manifest_path'] as const) {
+  for (const key of ['result', 'manifest_path'] as const) {
     if (key in value) job[key] = stringField(value, key, true);
-  }
-  if (job.status === 'failed') job.error_message = stringField(value, 'error_message');
-  if (job.status !== 'failed' && job.error_message) {
-    throw new Error('error_message is only valid for failed jobs');
   }
   if (job.status !== 'completed' && job.manifest_path) {
     throw new Error('manifest_path is only valid for completed jobs');

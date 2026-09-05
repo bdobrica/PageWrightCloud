@@ -18,6 +18,7 @@ const (
 )
 
 type ManagerJobRequest struct {
+	JobID         string `json:"job_id,omitempty"`
 	SiteID        string `json:"site_id"`
 	OwnerID       string `json:"owner_id"`
 	Prompt        string `json:"prompt"`
@@ -32,13 +33,14 @@ type JobAccepted struct {
 	SourceVersion string    `json:"source_version"`
 	TargetVersion string    `json:"target_version"`
 	Status        JobStatus `json:"status"`
+	ErrorMessage  string    `json:"error_message,omitempty"`
 }
 
 type Job struct {
 	JobAccepted
 	Prompt       string    `json:"prompt"`
 	Result       string    `json:"result,omitempty"`
-	ErrorMessage string    `json:"error_message,omitempty"`
+	ErrorCode    string    `json:"error_code,omitempty"`
 	ManifestPath string    `json:"manifest_path,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`

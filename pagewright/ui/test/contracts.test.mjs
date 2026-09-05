@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseBuildResponse, parseJobSnapshot } from '../src/api/contracts.ts';
+import { createSubmissionIdentity, isRejectedSubmission } from '../src/api/submission.ts';
 
 const accepted = {
   job_id: 'job-1', site_id: 'site-1', owner_id: 'owner-1',
@@ -30,7 +31,9 @@ test('accepts every canonical job status and terminal result fields', () => {
       ...(status === 'failed' ? { error_message: 'Compile failed' } : {}),
     };
     assert.deepEqual(parseJobSnapshot(value), value);
-    assert.equal(parseBuildResponse({ ...accepted, status }).status, status);
+    assert.equal(parseBuildResponse({ ...accepted, status,
+      ...(status === 'failed' ? { error_message: 'Compile failed' } : {}),
+    }).status, status);
   }
 });
 
@@ -115,4 +118,57 @@ test('clarification cannot contain any accepted job identity fields', () => {
     assert.throws(() => parseBuildResponse({ ...clarification, [key]: value }), /cannot mix/);
   }
   assert.deepEqual(parseBuildResponse({ ...clarification, future_field: true }), clarification);
+});
+
+test('failed accepted responses preserve errors and reject mismatched error metadata', () => {
+  assert.equal(parseBuildResponse({ ...accepted, status: 'failed', error_message: 'Worker failed' }).error_message, 'Worker failed');
+  assert.throws(() => parseBuildResponse({ ...accepted, status: 'failed' }), /error_message/);
+  assert.throws(() => parseBuildResponse({ ...accepted, error_message: 'Worker failed' }), /error_message/);
+});
+
+const payload = { fqdn: 'site.example.test', message: 'Update title', conversation_id: 'conversation-1',
+  files: [{ name: 'photo.png', size: 12, lastModified: 123 }] };
+function identity() {
+  let counter = 0;
+  return createSubmissionIdentity(() => `key-${++counter}`);
+}
+
+test('ambiguous retries reuse identity and synchronous duplicate sends are blocked', () => {
+  const retry = identity();
+  const key = retry.begin(payload);
+  assert.equal(retry.begin(payload), null);
+  assert.equal(retry.begin({ ...payload, message: 'Another title' }), null);
+  retry.finish('uncertain');
+  assert.equal(retry.begin({ ...payload }), key);
+});
+
+test('every changed payload field rotates identity after an uncertain attempt', () => {
+  for (const changed of [
+    { ...payload, fqdn: 'other.example.test' }, { ...payload, message: 'New title' },
+    { ...payload, conversation_id: 'conversation-2' }, { ...payload, files: [] },
+    ...[{ name: 'other.png' }, { size: 13 }, { lastModified: 124 }].map(change =>
+      ({ ...payload, files: [{ ...payload.files[0], ...change }] })),
+  ]) {
+    const retry = identity();
+    const first = retry.begin(payload);
+    retry.finish('uncertain');
+    assert.notEqual(retry.begin(changed), first);
+  }
+});
+
+test('successful responses and definite rejection reset retry identity', () => {
+  for (const outcome of ['success', 'rejected']) {
+    const retry = identity();
+    const first = retry.begin(payload);
+    retry.finish(outcome);
+    assert.notEqual(retry.begin(payload), first);
+  }
+});
+
+test('only explicit server rejection clears an unsuccessful submission', () => {
+  assert.equal(isRejectedSubmission({ response: { status: 503, data: { submission_state: 'rejected' } } }), true);
+  for (const error of [new Error('Network failed'), undefined,
+    { response: { status: 503, data: { submission_state: 'dispatching' } } },
+    { response: { status: 400, data: { message: 'Unclassified failure' } } },
+  ]) assert.equal(isRejectedSubmission(error), false);
 });

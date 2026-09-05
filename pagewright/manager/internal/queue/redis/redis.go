@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
+
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/redis/go-redis/v9"
 )
@@ -16,7 +18,9 @@ const (
 )
 
 type RedisBackend struct {
-	client *redis.Client
+	client       *redis.Client
+	queueKey     string
+	jobKeyPrefix string
 }
 
 func NewRedisBackend(addr, password string, db int) (*RedisBackend, error) {
@@ -35,33 +39,71 @@ func NewRedisBackend(addr, password string, db int) (*RedisBackend, error) {
 	}
 
 	return &RedisBackend{
-		client: client,
+		client:       client,
+		queueKey:     queueKey,
+		jobKeyPrefix: jobKeyPrefix,
 	}, nil
 }
 
-func (r *RedisBackend) Push(ctx context.Context, job *types.Job) error {
-	// Store job data
-	jobKey := jobKeyPrefix + job.JobID
-	jobData, err := json.Marshal(job)
+// Lua runs reservation and queue append atomically. Check the queue type before
+// writing because Redis scripts do not roll back preceding commands on error.
+var createJob = redis.NewScript(`
+local existing = redis.call('GET', KEYS[1])
+if existing then return {existing, 0} end
+local queueType = redis.call('TYPE', KEYS[2]).ok
+if queueType ~= 'none' and queueType ~= 'list' then
+ return redis.error_reply('queue must be a list')
+end
+redis.call('SET', KEYS[1], ARGV[1])
+redis.call('RPUSH', KEYS[2], ARGV[2])
+return {ARGV[1], 1}
+`)
+
+func (r *RedisBackend) CreateJob(ctx context.Context, job *types.Job) (*types.Job, bool, error) {
+	data, err := json.Marshal(job)
 	if err != nil {
-		return fmt.Errorf("failed to marshal job: %w", err)
+		return nil, false, fmt.Errorf("marshal job: %w", err)
 	}
-
-	// Store job in hash and push to queue
-	pipe := r.client.Pipeline()
-	pipe.Set(ctx, jobKey, jobData, 24*time.Hour) // TTL of 24 hours
-	pipe.RPush(ctx, queueKey, job.JobID)
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("failed to push job: %w", err)
+	result, err := createJob.Run(ctx, r.client, []string{r.jobKeyPrefix + job.JobID, r.queueKey}, string(data), job.JobID).Slice()
+	if err != nil {
+		return nil, false, fmt.Errorf("reserve job: %w", err)
 	}
+	var stored types.Job
+	if err := json.Unmarshal([]byte(result[0].(string)), &stored); err != nil {
+		return nil, false, fmt.Errorf("decode reserved job: %w", err)
+	}
+	return &stored, result[1].(int64) == 1, nil
+}
 
-	return nil
+// Merge only worker_id so a callback finishing during Spawn cannot be reverted.
+var setWorkerID = redis.NewScript(`
+local existing = redis.call('GET', KEYS[1])
+if not existing then return false end
+local job = cjson.decode(existing)
+job.worker_id = ARGV[1]
+local data = cjson.encode(job)
+redis.call('SET', KEYS[1], data, 'XX', 'KEEPTTL')
+return data
+`)
+
+func (r *RedisBackend) SetWorkerID(ctx context.Context, jobID, workerID string) (*types.Job, error) {
+	data, err := setWorkerID.Run(ctx, r.client, []string{r.jobKeyPrefix + jobID}, workerID).Text()
+	if err == redis.Nil {
+		return nil, queue.ErrJobNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("set worker ID: %w", err)
+	}
+	var job types.Job
+	if err := json.Unmarshal([]byte(data), &job); err != nil {
+		return nil, fmt.Errorf("decode job: %w", err)
+	}
+	return &job, nil
 }
 
 func (r *RedisBackend) Pop(ctx context.Context) (*types.Job, error) {
 	// Block for up to 5 seconds waiting for a job
-	result, err := r.client.BLPop(ctx, 5*time.Second, queueKey).Result()
+	result, err := r.client.BLPop(ctx, 5*time.Second, r.queueKey).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil // No job available
@@ -78,11 +120,11 @@ func (r *RedisBackend) Pop(ctx context.Context) (*types.Job, error) {
 }
 
 func (r *RedisBackend) GetJob(ctx context.Context, jobID string) (*types.Job, error) {
-	jobKey := jobKeyPrefix + jobID
+	jobKey := r.jobKeyPrefix + jobID
 	jobData, err := r.client.Get(ctx, jobKey).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return nil, fmt.Errorf("job not found: %s", jobID)
+			return nil, fmt.Errorf("%w: %s", queue.ErrJobNotFound, jobID)
 		}
 		return nil, fmt.Errorf("failed to get job: %w", err)
 	}
@@ -96,13 +138,16 @@ func (r *RedisBackend) GetJob(ctx context.Context, jobID string) (*types.Job, er
 }
 
 func (r *RedisBackend) UpdateJob(ctx context.Context, job *types.Job) error {
-	jobKey := jobKeyPrefix + job.JobID
+	jobKey := r.jobKeyPrefix + job.JobID
 	jobData, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("failed to marshal job: %w", err)
 	}
 
-	if err := r.client.Set(ctx, jobKey, jobData, 24*time.Hour).Err(); err != nil {
+	if err := r.client.SetArgs(ctx, jobKey, jobData, redis.SetArgs{Mode: "XX", KeepTTL: true}).Err(); err != nil {
+		if err == redis.Nil {
+			return queue.ErrJobNotFound
+		}
 		return fmt.Errorf("failed to update job: %w", err)
 	}
 

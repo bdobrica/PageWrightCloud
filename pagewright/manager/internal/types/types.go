@@ -28,11 +28,13 @@ type Job struct {
 	WorkerID      string    `json:"worker_id,omitempty"`
 	Result        string    `json:"result,omitempty"`
 	ErrorMessage  string    `json:"error_message,omitempty"`
+	ErrorCode     string    `json:"error_code,omitempty"`
 	ManifestPath  string    `json:"manifest_path,omitempty"`
 }
 
 // JobRequest represents an incoming job request
 type JobRequest struct {
+	JobID         string `json:"job_id,omitempty"`
 	SiteID        string `json:"site_id"`
 	OwnerID       string `json:"owner_id"`
 	Prompt        string `json:"prompt"`

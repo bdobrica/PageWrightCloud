@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -70,76 +71,101 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate job ID and target version if not provided
-	jobID := uuid.New().String()
+	if req.JobID != "" {
+		jobUUID, err := uuid.Parse(req.JobID)
+		targetUUID, targetErr := uuid.Parse(req.TargetVersion)
+		if err != nil || jobUUID == uuid.Nil || req.JobID != jobUUID.String() || blank(req.TargetVersion) || (targetErr == nil && targetUUID == jobUUID) {
+			writeError(w, http.StatusBadRequest, "invalid_request", "explicit job_id must be a canonical nonzero UUID with a nonblank, distinct target_version")
+			return
+		}
+	} else {
+		req.JobID = uuid.NewString()
+	}
 	if req.TargetVersion == "" {
-		req.TargetVersion = uuid.New().String()
+		req.TargetVersion = uuid.NewString()
 	}
-
-	// Create job
 	job := &types.Job{
-		JobID:         jobID,
-		SiteID:        req.SiteID,
-		OwnerID:       req.OwnerID,
-		Prompt:        req.Prompt,
-		SourceVersion: req.SourceVersion,
-		TargetVersion: req.TargetVersion,
-		Status:        types.JobStatusPending,
-		CreatedAt:     time.Now().UTC(),
-		UpdatedAt:     time.Now().UTC(),
+		JobID: req.JobID, SiteID: req.SiteID, OwnerID: req.OwnerID, Prompt: req.Prompt,
+		SourceVersion: req.SourceVersion, TargetVersion: req.TargetVersion,
+		Status: types.JobStatusPending, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 	}
-
-	// Try to acquire lock
 	ctx := r.Context()
+	stored, created, err := h.queue.CreateJob(ctx, job)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to reserve job")
+		return
+	}
+	if !created {
+		if stored.JobID != req.JobID || stored.SiteID != req.SiteID || stored.OwnerID != req.OwnerID || stored.Prompt != req.Prompt || stored.SourceVersion != req.SourceVersion || stored.TargetVersion != req.TargetVersion {
+			writeError(w, http.StatusConflict, "job_conflict", "job_id is already reserved for a different request")
+			return
+		}
+		if writeSubmissionError(w, stored) {
+			return
+		}
+		writeJob(w, http.StatusOK, stored)
+		return
+	}
+	// Reservation is durable before any lock or spawn. Retries never claim it again,
+	// including if a following operation fails or the HTTP response is lost.
 	token, fencingToken, err := h.lockMgr.Acquire(ctx, req.SiteID, h.lockTTL)
 	if err != nil {
-		writeError(w, http.StatusConflict, "job_busy", fmt.Sprintf("Failed to acquire lock: %v", err))
+		job.Status = types.JobStatusFailed
+		job.ErrorCode = "job_busy"
+		job.ErrorMessage = "Site lock acquisition failed"
+		job.UpdatedAt = time.Now().UTC()
+		if err := h.queue.UpdateJob(ctx, job); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist submission rejection")
+			return
+		}
+		writeSubmissionError(w, job)
 		return
 	}
-
-	job.LockToken = token
-	job.FencingToken = fencingToken
-
-	// Push job to queue
-	if err := h.queue.Push(ctx, job); err != nil {
-		// Release lock if we can't queue the job
-		h.lockMgr.Release(ctx, req.SiteID, token)
-		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to queue job: %v", err))
-		return
-	}
-
-	// Update job status to running and spawn worker
-	job.Status = types.JobStatusRunning
-	job.UpdatedAt = time.Now().UTC()
+	job.LockToken, job.FencingToken = token, fencingToken
+	job.Status, job.UpdatedAt = types.JobStatusRunning, time.Now().UTC()
 	if err := h.queue.UpdateJob(ctx, job); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to update job: %v", err))
+		h.lockMgr.Release(ctx, req.SiteID, token)
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist running job")
 		return
 	}
-
-	// Spawn worker
 	workerID, err := h.spawner.Spawn(ctx, job, h.managerURL)
 	if err != nil {
-		// Update job as failed
-		job.Status = types.JobStatusFailed
+		job.Status, job.ErrorCode = types.JobStatusFailed, "spawn_failed"
 		job.ErrorMessage = fmt.Sprintf("Failed to spawn worker: %v", err)
 		job.UpdatedAt = time.Now().UTC()
-		h.queue.UpdateJob(ctx, job)
-
-		// Release lock
+		persistErr := h.queue.UpdateJob(ctx, job)
 		h.lockMgr.Release(ctx, req.SiteID, token)
-
-		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to spawn worker: %v", err))
+		if persistErr != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist spawn failure")
+			return
+		}
+		writeSubmissionError(w, job)
 		return
 	}
-
-	job.WorkerID = workerID
-	if err := h.queue.UpdateJob(ctx, job); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to update job: %v", err))
+	// Merge only metadata, not a stale running snapshot over a terminal callback.
+	latest, err := h.queue.SetWorkerID(ctx, job.JobID, workerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist worker identity")
 		return
 	}
+	writeJob(w, http.StatusCreated, latest)
+}
 
+func writeSubmissionError(w http.ResponseWriter, job *types.Job) bool {
+	switch job.ErrorCode {
+	case "job_busy":
+		writeError(w, http.StatusConflict, job.ErrorCode, job.ErrorMessage)
+	case "spawn_failed":
+		writeError(w, http.StatusBadGateway, job.ErrorCode, job.ErrorMessage)
+	default:
+		return false
+	}
+	return true
+}
+
+func writeJob(w http.ResponseWriter, status int, job *types.Job) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(job)
 }
 
@@ -154,7 +180,7 @@ func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {
 
 	job, err := h.queue.GetJob(r.Context(), jobID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "job_not_found", "Job not found")
+		writeLookupError(w, err)
 		return
 	}
 
@@ -205,7 +231,7 @@ func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminal
 	ctx := r.Context()
 	job, err := h.queue.GetJob(ctx, jobID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "job_not_found", "Job not found")
+		writeLookupError(w, err)
 		return
 	}
 	// Identity validation is not callback authentication or fencing.
@@ -218,6 +244,7 @@ func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminal
 	updated.Status = update.Status
 	updated.Result = update.Result
 	updated.ErrorMessage = update.ErrorMessage
+	updated.ErrorCode = ""
 	updated.ManifestPath = update.ManifestPath
 	updated.UpdatedAt = time.Now().UTC()
 	if err := h.queue.UpdateJob(ctx, &updated); err != nil {
@@ -255,4 +282,12 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(types.APIError{Error: code, Message: message})
+}
+
+func writeLookupError(w http.ResponseWriter, err error) {
+	if errors.Is(err, queue.ErrJobNotFound) {
+		writeError(w, http.StatusNotFound, "job_not_found", "Job not found")
+	} else {
+		writeError(w, http.StatusInternalServerError, "internal_error", "Job lookup failed")
+	}
 }

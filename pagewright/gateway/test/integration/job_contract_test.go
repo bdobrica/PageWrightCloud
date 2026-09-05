@@ -77,6 +77,7 @@ func TestGatewayManagerJobContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", uuid.NewString())
 		if bearer != "" {
 			req.Header.Set("Authorization", "Bearer "+bearer)
 		}

@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/clients"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
@@ -16,12 +19,25 @@ import (
 )
 
 type BuildHandler struct {
-	db            *database.DB
-	llmClient     *clients.LLMClient
+	db            buildStore
+	llmClient     instructionProvider
 	managerClient *clients.ManagerClient
 }
 
-func NewBuildHandler(db *database.DB, llmClient *clients.LLMClient, managerClient *clients.ManagerClient) *BuildHandler {
+type buildStore interface {
+	GetSiteByFQDN(string) (*types.Site, error)
+	FindBuildSubmission(context.Context, string, string, string) (*database.BuildSubmission, error)
+	ReserveBuildSubmission(context.Context, *database.BuildSubmission) (*database.BuildSubmission, bool, error)
+	ClaimBuildDispatch(context.Context, string) (bool, error)
+	RecordBuildOutcome(context.Context, string, string, string, string, string, int) error
+}
+
+type instructionProvider interface {
+	EvaluateRequest(string) (*clients.EvaluationResponse, error)
+	GenerateJobInstructions(string, string) (string, error)
+}
+
+func NewBuildHandler(db buildStore, llmClient instructionProvider, managerClient *clients.ManagerClient) *BuildHandler {
 	return &BuildHandler{
 		db:            db,
 		llmClient:     llmClient,
@@ -32,6 +48,7 @@ func NewBuildHandler(db *database.DB, llmClient *clients.LLMClient, managerClien
 // conversationStore is a simple in-memory store for conversation context
 // In production, use Redis or similar
 var conversationStore = make(map[string]conversationContext)
+var conversationMu sync.Mutex
 
 type conversationContext struct {
 	UserID          string
@@ -76,10 +93,33 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusForbidden, "access denied")
 		return
 	}
+	key, err := uuid.Parse(r.Header.Get("Idempotency-Key"))
+	if err != nil || key == uuid.Nil {
+		respondError(w, http.StatusBadRequest, "Idempotency-Key must be a nonzero UUID")
+		return
+	}
+	requestKey := key.String()
+	body, _ := json.Marshal(req)
+	requestHash := fmt.Sprintf("%x", sha256.Sum256(body))
+	// Look up before the provider or conversation cache, so retries survive a
+	// gateway restart and do not regenerate a committed prompt or version ID.
+	existing, err := h.db.FindBuildSubmission(r.Context(), user.UserID, site.ID, requestKey)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to look up build submission")
+		return
+	}
+	if existing != nil {
+		if existing.RequestHash != requestHash {
+			respondError(w, http.StatusConflict, "Idempotency-Key was already used with different input")
+			return
+		}
+		h.dispatchBuild(w, r, existing)
+		return
+	}
 
 	// Check if this is a clarification response
 	if req.ConversationID != nil {
-		h.handleClarification(w, r, site, req)
+		h.handleClarification(w, r, site, req, requestKey, requestHash)
 		return
 	}
 
@@ -93,11 +133,13 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 	if !evaluation.IsClear {
 		// Need clarification - generate conversation ID
 		conversationID := uuid.New().String()
+		conversationMu.Lock()
 		conversationStore[conversationID] = conversationContext{
 			UserID:          user.UserID,
 			SiteID:          site.ID,
 			OriginalMessage: req.Message,
 		}
+		conversationMu.Unlock()
 
 		respondJSON(w, types.BuildResponse{
 			Question:       &evaluation.Question,
@@ -107,12 +149,14 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Request is clear - generate instructions and enqueue job
-	h.enqueueJob(w, site, req.Message, "")
+	h.enqueueJob(w, r, site, req.Message, "", requestKey, requestHash)
 }
 
-func (h *BuildHandler) handleClarification(w http.ResponseWriter, r *http.Request, site *types.Site, req types.BuildRequest) {
+func (h *BuildHandler) handleClarification(w http.ResponseWriter, r *http.Request, site *types.Site, req types.BuildRequest, requestKey, requestHash string) {
 	// Get conversation context
+	conversationMu.Lock()
 	ctx, exists := conversationStore[*req.ConversationID]
+	conversationMu.Unlock()
 	if !exists {
 		respondError(w, http.StatusBadRequest, "invalid conversation_id")
 		return
@@ -125,14 +169,13 @@ func (h *BuildHandler) handleClarification(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Clean up conversation
-	delete(conversationStore, *req.ConversationID)
-
 	// Generate instructions with clarification and enqueue job
-	h.enqueueJob(w, site, ctx.OriginalMessage, req.Message)
+	// Keep the context on failure. Durable submissions are checked first on retry;
+	// lifecycle/expiry for this pre-submission cache remains later browser work.
+	h.enqueueJob(w, r, site, ctx.OriginalMessage, req.Message, requestKey, requestHash)
 }
 
-func (h *BuildHandler) enqueueJob(w http.ResponseWriter, site *types.Site, originalMessage, clarification string) {
+func (h *BuildHandler) enqueueJob(w http.ResponseWriter, r *http.Request, site *types.Site, originalMessage, clarification, requestKey, requestHash string) {
 	// Generate job instructions using LLM
 	instructions, err := h.llmClient.GenerateJobInstructions(originalMessage, clarification)
 	if err != nil {
@@ -146,30 +189,21 @@ func (h *BuildHandler) enqueueJob(w http.ResponseWriter, site *types.Site, origi
 		baseBuildID = *site.LiveVersionID
 	}
 
-	// Enqueue job in manager
-	jobReq := clients.ManagerJobRequest{
+	// Persist independent execution/artifact IDs and the version row together,
+	// before any request can reach the manager.
+	submission, _, err := h.db.ReserveBuildSubmission(r.Context(), &database.BuildSubmission{
+		JobID:         uuid.NewString(),
+		TargetVersion: uuid.NewString(),
 		SiteID:        site.ID,
 		OwnerID:       site.UserID, // Derived from the authenticated, owner-checked site.
 		SourceVersion: baseBuildID,
 		Prompt:        instructions,
-	}
-
-	jobResp, err := h.managerClient.EnqueueJob(jobReq)
+		RequestKey:    requestKey,
+		RequestHash:   requestHash,
+	})
 	if err != nil {
-		var managerErr *clients.ManagerError
-		if errors.As(err, &managerErr) && managerErr.StatusCode == http.StatusConflict {
-			respondError(w, http.StatusConflict, "site already has an active job")
-			return
-		}
-		respondError(w, http.StatusInternalServerError, "failed to enqueue job")
+		h.reservationError(w, err)
 		return
 	}
-
-	// Legacy persistence is replaced by durable pre-dispatch mapping in M1.2.
-	// Do not treat this row's build_id as the manager's canonical target_version.
-	h.db.CreateVersion(site.ID, jobResp.JobID, "pending")
-
-	respondJSON(w, types.BuildResponse{
-		JobAccepted: &jobResp.JobAccepted,
-	})
+	h.dispatchBuild(w, r, submission)
 }
