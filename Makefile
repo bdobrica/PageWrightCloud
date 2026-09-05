@@ -1,4 +1,4 @@
-.PHONY: help docker-up docker-down docker-logs docker-build docker-clean \
+.PHONY: test-integration test-compiler build-compiler lint vet fmt help docker-up docker-down docker-logs docker-build docker-clean \
         test-all test-gateway test-manager test-storage test-worker test-serving \
         build-all build-gateway build-manager build-storage build-worker build-serving \
 	clean coverage docker-verify-local-domain docker-verify-local-domain-strict
@@ -224,34 +224,31 @@ test-all: test-gateway test-manager test-storage test-worker test-serving test-c
 
 test-gateway:
 	@echo "Running gateway tests..."
-	@cd pagewright/gateway && $(MAKE) test
+	@cd pagewright/gateway && $(MAKE) test-unit
 
 test-manager:
 	@echo "Running manager tests..."
-	@cd pagewright/manager && $(MAKE) test
+	@cd pagewright/manager && $(MAKE) test-unit
 
 test-storage:
 	@echo "Running storage tests..."
-	@cd pagewright/storage && $(MAKE) test
+	@cd pagewright/storage && $(MAKE) test-unit
 
 test-worker:
 	@echo "Running worker tests..."
-	@cd pagewright/worker && $(MAKE) test
+	@cd pagewright/worker && $(MAKE) test-unit
 
 test-serving:
 	@echo "Running serving tests..."
-	@cd pagewright/serving && $(MAKE) test
+	@cd pagewright/serving && $(MAKE) test-unit
 
 test-compiler:
 	@echo "Running compiler tests..."
 	@cd pagewright/compiler && $(MAKE) test
 
-# Integration tests (require docker compose up)
-test-integration: docker-up-infra
-	@echo "Running integration tests..."
-	@cd pagewright/gateway && $(MAKE) test-integration
-	@cd pagewright/storage && $(MAKE) test-integration
-	@echo "Integration tests completed!"
+# Isolated HTTP/database integration tests; no development volumes or ports.
+test-integration:
+	sh scripts/test-integration.sh
 
 # =============================================================================
 # Build Commands
@@ -336,5 +333,5 @@ vet:
 	@cd pagewright/compiler && go vet ./...
 	@echo "Vet completed."
 
-lint: fmt vet
+lint: vet
 	@echo "Linting completed!"

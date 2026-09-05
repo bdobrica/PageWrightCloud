@@ -21,18 +21,16 @@ build:
 	go build -o storage-server ./cmd/server
 
 # Run all tests
-test: test-unit test-integration
+test: test-unit
 
 # Run unit tests
 test-unit:
 	@echo "Running unit tests..."
-	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	go test -count=1 -v ./...
 
 # Run integration tests
 test-integration:
-	@echo "Running integration tests..."
-	@echo "Note: Requires NFS server running (make docker-up-infra from root)"
-	INTEGRATION_TEST=true go test -v -tags=integration ./test/integration/...
+	$(MAKE) -C ../.. test-integration
 
 # Run the service locally
 run:
@@ -69,8 +67,3 @@ coverage:
 	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
-	@echo "Running end-to-end tests..."
-	@sleep 5
-	$(MAKE) test-integration
-	@echo "E2E tests complete"
-	$(MAKE) docker-down

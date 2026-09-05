@@ -17,10 +17,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	baseURL = "http://localhost:8081"
-	timeout = 30 * time.Second
-)
+const timeout = 30 * time.Second
+
+var baseURL string
+
+func TestMain(m *testing.M) {
+	baseURL = os.Getenv("TEST_MANAGER_URL")
+	if baseURL == "" {
+		fmt.Fprintln(os.Stderr, "TEST_MANAGER_URL is required; use the dedicated integration test stack")
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
 
 func waitForService(t *testing.T) {
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -42,10 +50,6 @@ func waitForService(t *testing.T) {
 }
 
 func TestIntegrationHealthCheck(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
 	resp, err := http.Get(baseURL + "/health")
@@ -61,13 +65,9 @@ func TestIntegrationHealthCheck(t *testing.T) {
 }
 
 func TestIntegrationCreateAndGetJob(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
-	siteID := fmt.Sprintf("test-site-%d", time.Now().Unix())
+	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
 
 	// Create job
 	jobReq := types.JobRequest{
@@ -116,10 +116,6 @@ func TestIntegrationCreateAndGetJob(t *testing.T) {
 }
 
 func TestIntegrationUpdateJobStatus(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
 	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
@@ -165,10 +161,6 @@ func TestIntegrationUpdateJobStatus(t *testing.T) {
 }
 
 func TestIntegrationLockPreventsMultipleJobs(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
 	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
@@ -202,10 +194,6 @@ func TestIntegrationLockPreventsMultipleJobs(t *testing.T) {
 }
 
 func TestIntegrationJobWithoutSourceVersion(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
 	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())

@@ -1,20 +1,23 @@
+//go:build integration
+
 package handlers_test
 
 import (
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // TestCreateUserCLI tests the user creation functionality
 func TestCreateUserCLI(t *testing.T) {
 	// Setup test database
 	db := setupTestDB(t)
-	if db == nil {
-		t.Skip("Test database not configured")
-	}
 	defer db.Close()
 
 	email := "testuser@example.com"
@@ -65,9 +68,6 @@ func TestCreateUserCLI(t *testing.T) {
 // TestCreateDuplicateUser tests that creating a duplicate user fails
 func TestCreateDuplicateUser(t *testing.T) {
 	db := setupTestDB(t)
-	if db == nil {
-		t.Skip("Test database not configured")
-	}
 	defer db.Close()
 
 	email := "duplicate@example.com"
@@ -94,9 +94,6 @@ func TestCreateDuplicateUser(t *testing.T) {
 // TestListUsers tests listing all users
 func TestListUsers(t *testing.T) {
 	db := setupTestDB(t)
-	if db == nil {
-		t.Skip("Test database not configured")
-	}
 	defer db.Close()
 
 	// Initially should have no users
@@ -151,9 +148,6 @@ func TestListUsers(t *testing.T) {
 // TestDeleteUser tests user deletion
 func TestDeleteUser(t *testing.T) {
 	db := setupTestDB(t)
-	if db == nil {
-		t.Skip("Test database not configured")
-	}
 	defer db.Close()
 
 	email := "todelete@example.com"
@@ -198,9 +192,6 @@ func TestDeleteUser(t *testing.T) {
 // TestDeleteNonExistentUser tests deleting a user that doesn't exist
 func TestDeleteNonExistentUser(t *testing.T) {
 	db := setupTestDB(t)
-	if db == nil {
-		t.Skip("Test database not configured")
-	}
 	defer db.Close()
 
 	// Try to delete a non-existent user
@@ -210,34 +201,45 @@ func TestDeleteNonExistentUser(t *testing.T) {
 	}
 }
 
-// setupTestDB creates a test database connection
+// setupTestDB isolates each test in a private PostgreSQL schema.
 func setupTestDB(t *testing.T) *database.DB {
-	// Use a test database URL from environment or default to in-memory SQLite
-	dbURL := getTestDatabaseURL()
-
-	db, err := database.NewDB(dbURL)
-	if err != nil {
-		t.Logf("Failed to connect to test database: %v", err)
-		return nil
+	t.Helper()
+	dbURL := os.Getenv("TEST_DATABASE_URL")
+	if dbURL == "" {
+		t.Fatal("TEST_DATABASE_URL is required; use the dedicated integration test stack")
 	}
-
-	// Run migrations
-	err = runTestMigrations(db)
-	if err != nil {
-		t.Logf("Failed to run test migrations: %v", err)
-		return nil
+	parsedURL, err := url.Parse(dbURL)
+	if err != nil || (parsedURL.Scheme != "postgres" && parsedURL.Scheme != "postgresql") {
+		t.Fatal("TEST_DATABASE_URL must be a PostgreSQL URL")
 	}
+	adminDB, err := database.NewDB(dbURL)
+	if err != nil {
+		t.Fatalf("Failed to connect to test database: %v", err)
+	}
+	t.Cleanup(func() { adminDB.Close() })
 
+	schema := "users_cli_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := adminDB.Exec("CREATE SCHEMA " + pq.QuoteIdentifier(schema)); err != nil {
+		t.Fatalf("Failed to create test schema: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := adminDB.Exec("DROP SCHEMA " + pq.QuoteIdentifier(schema) + " CASCADE"); err != nil {
+			t.Errorf("Failed to clean up test schema: %v", err)
+		}
+	})
+	query := parsedURL.Query()
+	query.Set("search_path", schema)
+	parsedURL.RawQuery = query.Encode()
+	db, err := database.NewDB(parsedURL.String())
+	if err != nil {
+		t.Fatalf("Failed to connect to isolated test schema: %v", err)
+	}
+	// Cleanup runs in reverse order: scoped connection, schema, admin connection.
+	t.Cleanup(func() { db.Close() })
+	if err := runTestMigrations(db); err != nil {
+		t.Fatalf("Failed to run test migrations: %v", err)
+	}
 	return db
-}
-
-// getTestDatabaseURL returns the test database URL from environment or a default
-func getTestDatabaseURL() string {
-	// For PostgreSQL testing, you would set PAGEWRIGHT_TEST_DATABASE_URL
-	// For now, we'll use the actual database URL but with a test database suffix
-	// In a real scenario, you'd want to use a separate test database
-	dbURL := getEnvOrDefault("PAGEWRIGHT_TEST_DATABASE_URL", "postgres://pagewright:pagewright@localhost:5432/pagewright_test?sslmode=disable")
-	return dbURL
 }
 
 // runTestMigrations runs database migrations for testing
@@ -270,12 +272,4 @@ func runTestMigrations(db *database.DB) error {
 
 	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id)`)
 	return err
-}
-
-// getEnvOrDefault gets an environment variable or returns a default value
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

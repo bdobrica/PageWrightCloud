@@ -1,0 +1,12 @@
+.git
+.agents
+.codex
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/bin
+**/*.out
+**/coverage*
+**/*.test
+.playwright-mcp

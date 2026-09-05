@@ -30,7 +30,22 @@ so BuildKit is required. The compiler is a local binary at this milestone, not
 a standalone Compose image. The selected worker image still contains a mock
 executor until M2; a successful image build does not establish a working AI build.
 
-Go package checks currently run separately in each of `pagewright/gateway`,
-`manager`, `storage`, `worker`, `serving` and `compiler` using `go test ./...`.
-Integration checks need separate infrastructure; M0.3 supplies the isolated
-harness. M0.2 resolves the recorded UI lint and CSS warnings.
+## Checks
+
+```bash
+make test-all          # All six modules, no external services
+make test-integration  # Isolated PostgreSQL, Redis, manager/storage and Go runner
+cd pagewright/ui
+npm run lint -- --max-warnings=0
+npm run build
+```
+
+`make test` / `make test-unit` in a Go service run untagged package tests.
+`make test-integration` in a service delegates to the root integration harness.
+The harness runs gateway, manager and storage suites with `-race`, fresh state
+and no published ports, then removes only its generated test project and data,
+including on failure. It does not load the application `.env`. Docker image
+layers remain cached. There are no worker/serving/compiler integration suites yet.
+Manager tests currently exercise its mock spawner, HTTP API, Redis and locking;
+they do not claim worker execution coverage. Gateway tests use a private schema.
+Direct tagged tests require explicit test database/service URLs; prefer the harness.

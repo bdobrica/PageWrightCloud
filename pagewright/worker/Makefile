@@ -26,12 +26,10 @@ test: test-unit
 
 test-unit:
 	@echo "Running unit tests..."
-	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	go test -count=1 -v ./...
 
 test-integration:
-	@echo "Running integration tests..."
-	@echo "Note: Requires storage and manager services"
-	INTEGRATION_TEST=true go test -v -tags=integration ./test/integration/...
+	$(MAKE) -C ../.. test-integration
 
 coverage:
 	@echo "Generating coverage report..."

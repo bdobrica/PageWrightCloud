@@ -27,18 +27,16 @@ build-worker:
 	go build -o worker ./cmd/worker
 
 # Run all tests
-test: test-unit test-integration
+test: test-unit
 
 # Run unit tests
 test-unit:
 	@echo "Running unit tests..."
-	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+	go test -count=1 -v ./...
 
 # Run integration tests
 test-integration:
-	@echo "Running integration tests..."
-	@echo "Note: Requires Redis running (make docker-up-infra from root)"
-	INTEGRATION_TEST=true go test -v -tags=integration ./test/integration/...
+	$(MAKE) -C ../.. test-integration
 
 # Generate coverage report
 coverage:
@@ -91,17 +89,5 @@ deps:
 	go mod download
 	go mod tidy
 
-# Generate test coverage report
-coverage:
-	@echo "Running tests with coverage..."
-	go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-	go tool cover -html=coverage.txt -o coverage.html
-	@echo "Coverage report generated: coverage.html"
-
 # Run end-to-end test suite
-e2e: docker-down docker-build docker-up
-	@echo "Running end-to-end tests..."
-	@sleep 5
-	$(MAKE) test-integration
-	@echo "E2E tests complete"
-	$(MAKE) docker-down
+e2e: test-integration

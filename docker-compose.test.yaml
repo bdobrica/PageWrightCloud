@@ -1,0 +1,69 @@
+# Used only by scripts/test-integration.sh; no app .env, ports or persistent data.
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: pagewright_test
+      POSTGRES_USER: pagewright_test
+      POSTGRES_PASSWORD: integration-only
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U pagewright_test -d pagewright_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --save, '', --appendonly, 'no']
+    tmpfs:
+      - /data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  manager:
+    build: ./pagewright/manager
+    environment:
+      PAGEWRIGHT_PORT: '8081'
+      PAGEWRIGHT_REDIS_ADDR: redis:6379
+      PAGEWRIGHT_MANAGER_URL: http://manager:8081
+      PAGEWRIGHT_WORKER_SPAWNER: docker
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://localhost:8081/health']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  storage:
+    build: ./pagewright/storage
+    environment:
+      PAGEWRIGHT_PORT: '8080'
+      PAGEWRIGHT_STORAGE_BACKEND: nfs
+      PAGEWRIGHT_NFS_BASE_PATH: /nfs
+    tmpfs:
+      - /nfs
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://localhost:8080/health']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  tests:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    environment:
+      TEST_DATABASE_URL: postgres://pagewright_test:integration-only@postgres:5432/pagewright_test?sslmode=disable
+      TEST_MANAGER_URL: http://manager:8081
+      TEST_STORAGE_URL: http://storage:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      manager:
+        condition: service_healthy
+      storage:
+        condition: service_healthy
+    command: [sh, /workspace/scripts/integration-suites.sh]

@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,9 +19,10 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/handlers"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 var (
@@ -29,24 +32,49 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	// Setup test database
+	os.Exit(runIntegrationTests(m))
+}
+
+func runIntegrationTests(m *testing.M) (code int) {
 	dbURL := os.Getenv("TEST_DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://pagewright:pagewright@localhost:5432/pagewright_test?sslmode=disable"
+		fmt.Fprintln(os.Stderr, "TEST_DATABASE_URL is required; use the dedicated integration test stack")
+		return 1
+	}
+	parsedURL, err := url.Parse(dbURL)
+	if err != nil || (parsedURL.Scheme != "postgres" && parsedURL.Scheme != "postgresql") {
+		fmt.Fprintln(os.Stderr, "TEST_DATABASE_URL must be a PostgreSQL URL")
+		return 1
 	}
 
 	dbConn, err := sqlx.Connect("postgres", dbURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to connect to test database: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer dbConn.Close()
 
-	testDB, err = database.NewDB(dbURL)
+	// Every connection uses a private schema, including pooled connections.
+	schema := "integration_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := dbConn.Exec("CREATE SCHEMA " + pq.QuoteIdentifier(schema)); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create test schema: %v\n", err)
+		return 1
+	}
+	defer func() {
+		if _, err := dbConn.Exec("DROP SCHEMA " + pq.QuoteIdentifier(schema) + " CASCADE"); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to clean up test schema: %v\n", err)
+			code = 1
+		}
+	}()
+	query := parsedURL.Query()
+	query.Set("search_path", schema)
+	parsedURL.RawQuery = query.Encode()
+	testDB, err = database.NewDB(parsedURL.String())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize database: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	defer testDB.Close()
 
 	// Setup test JWT manager
 	testJWTManager = auth.NewJWTManager("test-secret", 15*time.Minute)
@@ -55,18 +83,12 @@ func TestMain(m *testing.M) {
 	testRouter = setupTestRouter()
 
 	// Run migrations
-	if err := runTestMigrations(dbConn); err != nil {
+	if err := runTestMigrations(testDB.DB); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to run migrations: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
-	// Run tests
-	code := m.Run()
-
-	// Cleanup
-	cleanupTestData(dbConn)
-
-	os.Exit(code)
+	return m.Run()
 }
 
 func setupTestRouter() *mux.Router {
@@ -112,11 +134,6 @@ func runTestMigrations(db *sqlx.DB) error {
 	}
 
 	return nil
-}
-
-func cleanupTestData(db *sqlx.DB) {
-	db.Exec("DROP TABLE IF EXISTS sites CASCADE")
-	db.Exec("DROP TABLE IF EXISTS users CASCADE")
 }
 
 func TestAuthFlow(t *testing.T) {

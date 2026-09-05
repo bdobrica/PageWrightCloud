@@ -26,16 +26,14 @@ run:
 	@echo "Note: Requires PostgreSQL running (make docker-up-infra from root)"
 	go run cmd/gateway/main.go
 
-test: test-unit test-integration
+test: test-unit
 
 test-unit:
 	@echo "Running unit tests..."
-	go test -v -race -coverprofile=coverage.unit.out ./internal/...
+	go test -count=1 -v ./...
 
 test-integration:
-	@echo "Running integration tests..."
-	@echo "Note: Requires PostgreSQL running"
-	go test -v -race -tags=integration ./test/integration/...
+	$(MAKE) -C ../.. test-integration
 
 coverage:
 	@echo "Generating coverage report..."

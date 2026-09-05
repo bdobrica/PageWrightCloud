@@ -17,10 +17,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	baseURL = "http://localhost:8080"
-	timeout = 30 * time.Second
-)
+const timeout = 30 * time.Second
+
+var baseURL string
+
+func TestMain(m *testing.M) {
+	baseURL = os.Getenv("TEST_STORAGE_URL")
+	if baseURL == "" {
+		fmt.Fprintln(os.Stderr, "TEST_STORAGE_URL is required; use the dedicated integration test stack")
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
 
 // waitForService waits for the service to be ready
 func waitForService(t *testing.T) {
@@ -43,10 +51,6 @@ func waitForService(t *testing.T) {
 }
 
 func TestIntegrationHealthCheck(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
 	resp, err := http.Get(baseURL + "/health")
@@ -62,13 +66,9 @@ func TestIntegrationHealthCheck(t *testing.T) {
 }
 
 func TestIntegrationStoreAndFetchArtifact(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
-	siteID := fmt.Sprintf("test-site-%d", time.Now().Unix())
+	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
 	buildID := "build-123"
 	content := []byte("test artifact content for integration test")
 
@@ -97,13 +97,9 @@ func TestIntegrationStoreAndFetchArtifact(t *testing.T) {
 }
 
 func TestIntegrationWriteLogAndListVersions(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
-	siteID := fmt.Sprintf("test-site-%d", time.Now().Unix())
+	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
 
 	// Write multiple log entries
 	logEntries := []map[string]interface{}{
@@ -170,10 +166,6 @@ func TestIntegrationWriteLogAndListVersions(t *testing.T) {
 }
 
 func TestIntegrationFetchNonExistentArtifact(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
 	resp, err := http.Get(fmt.Sprintf("%s/sites/non-existent/artifacts/non-existent", baseURL))
@@ -184,13 +176,9 @@ func TestIntegrationFetchNonExistentArtifact(t *testing.T) {
 }
 
 func TestIntegrationListVersionsForNonExistentSite(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
-	siteID := fmt.Sprintf("non-existent-%d", time.Now().Unix())
+	siteID := fmt.Sprintf("non-existent-%d", time.Now().UnixNano())
 	resp, err := http.Get(fmt.Sprintf("%s/sites/%s/versions", baseURL, siteID))
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -207,13 +195,9 @@ func TestIntegrationListVersionsForNonExistentSite(t *testing.T) {
 }
 
 func TestIntegrationConcurrentWrites(t *testing.T) {
-	if os.Getenv("INTEGRATION_TEST") != "true" {
-		t.Skip("Skipping integration test. Set INTEGRATION_TEST=true to run.")
-	}
-
 	waitForService(t)
 
-	siteID := fmt.Sprintf("test-site-%d", time.Now().Unix())
+	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
 	numWrites := 10
 
 	// Concurrent artifact uploads
