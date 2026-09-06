@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
-	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 )
 
@@ -41,7 +40,6 @@ func (q *memoryQueue) CreateJob(_ context.Context, j *types.Job) (*types.Job, bo
 	copy := *j
 	return &copy, true, nil
 }
-func (q *memoryQueue) Pop(context.Context) (*types.Job, error) { return nil, errors.New("unused") }
 func (q *memoryQueue) GetJob(_ context.Context, id string) (*types.Job, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -100,32 +98,10 @@ func (l *fakeLock) Renew(context.Context, string, string, time.Duration) error {
 func (l *fakeLock) Release(context.Context, string, string) error              { l.released++; return nil }
 func (l *fakeLock) Close() error                                               { return nil }
 
-type fakeSpawner struct {
-	jobs      []types.Job
-	fail      bool
-	uncertain bool
-	onSpawn   func(*types.Job)
-}
-
-func (s *fakeSpawner) Spawn(_ context.Context, j *types.Job, _ string) (string, error) {
-	s.jobs = append(s.jobs, *j)
-	if s.onSpawn != nil {
-		s.onSpawn(j)
-	}
-	if s.fail {
-		return "", spawner.ErrNotStarted
-	}
-	if s.uncertain {
-		return "worker", errors.New("lost Docker response containing private data")
-	}
-	return "worker", nil
-}
-func (s *fakeSpawner) Close() error { return nil }
-
-func fixture() (http.Handler, *memoryQueue, *fakeLock, *fakeSpawner) {
+func fixture() (http.Handler, *memoryQueue, *fakeLock) {
 	q := &memoryQueue{jobs: make(map[string]types.Job)}
-	l, s := &fakeLock{}, &fakeSpawner{}
-	return NewHandler(q, l, s, time.Minute, "http://manager").SetupRoutes(), q, l, s
+	l := &fakeLock{}
+	return NewHandler(q, l).SetupRoutes(), q, l
 }
 func call(t *testing.T, h http.Handler, method, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
@@ -178,7 +154,7 @@ func assertError(t *testing.T, w *httptest.ResponseRecorder, status int, code st
 func TestCreateAndGetContract(t *testing.T) {
 	for _, target := range []string{"v2", ""} {
 		t.Run("target="+target, func(t *testing.T) {
-			h, q, l, s := fixture()
+			h, q, l := fixture()
 			req := request()
 			req.TargetVersion = target
 			w := call(t, h, "POST", "/jobs", req)
@@ -189,10 +165,10 @@ func TestCreateAndGetContract(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &j); err != nil {
 				t.Fatal(err)
 			}
-			if j.JobID == "" || j.SiteID != req.SiteID || j.OwnerID != req.OwnerID || j.Prompt != req.Prompt || j.SourceVersion != req.SourceVersion || j.TargetVersion == "" || (target != "" && j.TargetVersion != target) || j.Status != types.JobStatusRunning || j.WorkerID != "worker" || j.CreatedAt.IsZero() || j.UpdatedAt.IsZero() {
+			if j.JobID == "" || j.SiteID != req.SiteID || j.OwnerID != req.OwnerID || j.Prompt != req.Prompt || j.SourceVersion != req.SourceVersion || j.TargetVersion == "" || (target != "" && j.TargetVersion != target) || j.Status != types.JobStatusPending || j.WorkerID != "" || j.CreatedAt.IsZero() || j.UpdatedAt.IsZero() {
 				t.Fatalf("incorrect snapshot: %+v", j)
 			}
-			if l.acquired != 1 || len(s.jobs) != 1 || s.jobs[0].OwnerID != req.OwnerID || q.jobs[j.JobID] != j {
+			if l.acquired != 0 || q.jobs[j.JobID] != j {
 				t.Fatal("job identity not propagated")
 			}
 			got := call(t, h, "GET", "/jobs/"+j.JobID, nil)
@@ -220,9 +196,9 @@ func TestRejectInvalidRequestsBeforeSideEffects(t *testing.T) {
 	}
 	for _, body := range bodies {
 		t.Run(body, func(t *testing.T) {
-			h, q, l, s := fixture()
+			h, q, l := fixture()
 			assertError(t, call(t, h, "POST", "/jobs", body), 400, "invalid_request")
-			if q.writes != 0 || l.acquired != 0 || len(s.jobs) != 0 {
+			if q.writes != 0 || l.acquired != 0 {
 				t.Fatal("invalid request caused side effects")
 			}
 		})
@@ -236,8 +212,10 @@ func TestCallbackSuccessAndFailureSnapshots(t *testing.T) {
 				continue
 			}
 			t.Run(endpoint+"/"+string(status), func(t *testing.T) {
-				h, q, l, _ := fixture()
+				h, q, l := fixture()
 				j := create(t, h)
+				j.Status, j.LockToken = types.JobStatusRunning, "test-lock"
+				q.jobs[j.JobID] = j
 				update := callback(j)
 				update.Status = status
 				if status != types.JobStatusCompleted {
@@ -300,7 +278,7 @@ func TestCallbackValidationDoesNotMutateJob(t *testing.T) {
 	for _, endpoint := range []string{"status", "result"} {
 		for _, tc := range mutations {
 			t.Run(endpoint+"/"+tc.name, func(t *testing.T) {
-				h, q, l, _ := fixture()
+				h, q, l := fixture()
 				j := create(t, h)
 				beforeWrites := q.writes
 				update := callback(j)
@@ -322,7 +300,7 @@ func TestCallbackStrictJSONAndResultStatus(t *testing.T) {
 	for _, endpoint := range []string{"status", "result"} {
 		for _, suffix := range []string{",\"unknown\":true}", "}{}", "} trailing"} {
 			t.Run(endpoint+"/"+suffix, func(t *testing.T) {
-				h, q, l, _ := fixture()
+				h, q, l := fixture()
 				j := create(t, h)
 				b, _ := json.Marshal(callback(j))
 				body := string(b[:len(b)-1]) + suffix
@@ -334,7 +312,7 @@ func TestCallbackStrictJSONAndResultStatus(t *testing.T) {
 			})
 		}
 	}
-	h, _, _, _ := fixture()
+	h, _, _ := fixture()
 	j := create(t, h)
 	u := callback(j)
 	u.Status = types.JobStatusRunning
@@ -343,17 +321,22 @@ func TestCallbackStrictJSONAndResultStatus(t *testing.T) {
 }
 
 func TestErrorEnvelopes(t *testing.T) {
-	h, q, l, _ := fixture()
+	h, q, l := fixture()
 	assertError(t, call(t, h, "GET", "/jobs/missing", nil), 404, "job_not_found")
 	u := callback(types.Job{JobID: "missing", SiteID: "site", OwnerID: "owner", SourceVersion: "v1", TargetVersion: "v2"})
 	assertError(t, call(t, h, "POST", "/jobs/missing/result", u), 404, "job_not_found")
-	l.busy = true
-	assertError(t, call(t, h, "POST", "/jobs", request()), 409, "job_busy")
-	l.busy = false
 	j := create(t, h)
+	j.Status, j.LockToken = types.JobStatusRunning, "test-lock"
+	q.jobs[j.JobID] = j
 	q.failUpdate = true
 	assertError(t, call(t, h, "POST", "/jobs/"+j.JobID+"/result", callback(j)), 500, "internal_error")
 	if q.jobs[j.JobID] != j || l.released != 0 {
 		t.Fatal("failed persistence mutated job or released lock")
 	}
+}
+
+func TestPendingJobCannotReportExecutionOutcome(t *testing.T) {
+ h,q,l:=fixture();j:=create(t,h);writes:=q.writes
+ assertError(t,call(t,h,"POST","/jobs/"+j.JobID+"/result",callback(j)),409,"job_conflict")
+ if q.writes!=writes || l.released!=0{t.Fatal("pending callback changed reservation")}
 }

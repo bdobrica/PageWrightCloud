@@ -43,6 +43,22 @@ func TestManagerWorkerContractRoundTrip(t *testing.T) {
 			if err := json.NewDecoder(resp.Body).Decode(&job); err != nil {
 				t.Fatal(err)
 			}
+			deadline := time.Now().Add(10 * time.Second)
+			for job.Status == "pending" && time.Now().Before(deadline) {
+				time.Sleep(50 * time.Millisecond)
+				poll, err := client.Get(managerURL + "/jobs/" + job.JobID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = json.NewDecoder(poll.Body).Decode(&job)
+				poll.Body.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if job.Status != "running" {
+				t.Fatalf("job did not dispatch: %+v", job)
+			}
 			if err := job.ValidateLaunch(); err != nil {
 				t.Fatalf("manager snapshot is not launchable: %v", err)
 			}

@@ -21,6 +21,26 @@ const timeout = 30 * time.Second
 
 var baseURL string
 
+func waitForDispatch(t *testing.T, client *http.Client, id string) types.Job {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		resp, err := client.Get(baseURL + "/jobs/" + id)
+		require.NoError(t, err)
+		var job types.Job
+		err = json.NewDecoder(resp.Body).Decode(&job)
+		resp.Body.Close()
+		require.NoError(t, err)
+		if job.Status == types.JobStatusRunning {
+			return job
+		}
+		if job.Status != types.JobStatusPending || time.Now().After(deadline) {
+			t.Fatalf("job did not dispatch: %+v", job)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 func TestMain(m *testing.M) {
 	baseURL = os.Getenv("TEST_MANAGER_URL")
 	if baseURL == "" {
@@ -98,7 +118,8 @@ func TestIntegrationCreateAndGetJob(t *testing.T) {
 	assert.Equal(t, "Update the homepage title", job.Prompt)
 	assert.Equal(t, "v1", job.SourceVersion)
 	assert.Equal(t, "v2", job.TargetVersion)
-	assert.Equal(t, types.JobStatusRunning, job.Status)
+	assert.Equal(t, types.JobStatusPending, job.Status)
+	job = waitForDispatch(t, client, job.JobID)
 	assert.NotEmpty(t, job.LockToken)
 	assert.Greater(t, job.FencingToken, int64(0))
 
@@ -143,6 +164,7 @@ func TestIntegrationUpdateJobStatus(t *testing.T) {
 	resp.Body.Close()
 
 	// Update job status
+	job = waitForDispatch(t, client, job.JobID)
 	statusUpdate := types.JobStatusUpdate{
 		JobID:         job.JobID,
 		SiteID:        job.SiteID,

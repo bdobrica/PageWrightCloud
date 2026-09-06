@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,27 +11,20 @@ import (
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
-	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
 type Handler struct {
-	queue      queue.Backend
-	lockMgr    lock.Manager
-	spawner    spawner.Spawner
-	lockTTL    time.Duration
-	managerURL string
+	queue   queue.Backend
+	lockMgr lock.Manager
 }
 
-func NewHandler(q queue.Backend, l lock.Manager, s spawner.Spawner, lockTTL time.Duration, managerURL string) *Handler {
+func NewHandler(q queue.Backend, l lock.Manager) *Handler {
 	return &Handler{
-		queue:      q,
-		lockMgr:    l,
-		spawner:    s,
-		lockTTL:    lockTTL,
-		managerURL: managerURL,
+		queue:   q,
+		lockMgr: l,
 	}
 }
 
@@ -107,62 +99,12 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		writeJob(w, http.StatusOK, stored)
 		return
 	}
-	// Reservation is durable before any lock or spawn. Retries never claim it again,
-	// including if a following operation fails or the HTTP response is lost.
-	token, fencingToken, err := h.lockMgr.Acquire(ctx, req.SiteID, h.lockTTL)
-	if err != nil {
-		job.Status = types.JobStatusFailed
-		job.ErrorCode = "job_busy"
-		job.ErrorMessage = "Site lock acquisition failed"
-		job.UpdatedAt = time.Now().UTC()
-		if err := h.queue.UpdateJob(ctx, job); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist submission rejection")
-			return
-		}
-		writeSubmissionError(w, job)
+	// Acknowledge only the atomic Redis reservation/enqueue. Docker work belongs
+	// to the dispatcher and is independent of the HTTP request's lifetime.
+	if writeSubmissionError(w, stored) {
 		return
 	}
-	job.LockToken, job.FencingToken = token, fencingToken
-	job.Status, job.UpdatedAt = types.JobStatusRunning, time.Now().UTC()
-	if err := h.queue.UpdateJob(ctx, job); err != nil {
-		h.lockMgr.Release(ctx, req.SiteID, token)
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist running job")
-		return
-	}
-	workerID, err := h.spawner.Spawn(ctx, job, h.managerURL)
-	// The caller may disconnect after Docker accepts the operation.
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	if err != nil && !errors.Is(err, spawner.ErrNotStarted) {
-		if workerID != "" {
-			if _, mergeErr := h.queue.SetWorkerID(persistCtx, job.JobID, workerID); mergeErr != nil {
-				writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist uncertain worker identity")
-				return
-			}
-		}
-		writeError(w, http.StatusServiceUnavailable, "spawn_uncertain", "Worker launch outcome unknown; retry the same submission")
-		return
-	}
-	if err != nil {
-		job.Status, job.ErrorCode = types.JobStatusFailed, "spawn_failed"
-		job.ErrorMessage = "Worker was not started"
-		job.UpdatedAt = time.Now().UTC()
-		persistErr := h.queue.UpdateJob(persistCtx, job)
-		h.lockMgr.Release(persistCtx, req.SiteID, token)
-		if persistErr != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist spawn failure")
-			return
-		}
-		writeSubmissionError(w, job)
-		return
-	}
-	// Merge only metadata, not a stale running snapshot over a terminal callback.
-	latest, err := h.queue.SetWorkerID(persistCtx, job.JobID, workerID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist worker identity")
-		return
-	}
-	writeJob(w, http.StatusCreated, latest)
+	writeJob(w, http.StatusCreated, stored)
 }
 
 func writeSubmissionError(w http.ResponseWriter, job *types.Job) bool {
@@ -255,6 +197,10 @@ func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminal
 		return
 	}
 	updated := *job
+	if job.Status == types.JobStatusPending {
+		writeError(w, http.StatusConflict, "job_conflict", "Job has not entered dispatch")
+		return
+	}
 	updated.Status = update.Status
 	updated.Result = update.Result
 	updated.ErrorMessage = update.ErrorMessage
@@ -265,6 +211,14 @@ func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminal
 		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to update job: %v", err))
 		return
 	}
+	// Return the merged stored snapshot, not a stale copy from before dispatch
+	// metadata or an identical terminal retry was reconciled atomically.
+	confirmed, err := h.queue.GetJob(ctx, jobID)
+	if err != nil {
+		writeLookupError(w, err)
+		return
+	}
+	updated = *confirmed
 	if update.Status == types.JobStatusCompleted || update.Status == types.JobStatusFailed {
 		if updated.LockToken != "" {
 			if err := h.lockMgr.Release(ctx, updated.SiteID, updated.LockToken); err != nil {

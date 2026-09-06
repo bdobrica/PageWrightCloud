@@ -24,6 +24,7 @@ services:
       timeout: 3s
       retries: 30
   manager:
+    stop_grace_period: 65s
     build:
       context: ./pagewright/manager
       dockerfile: ../../tests/manager.Dockerfile
@@ -32,6 +33,8 @@ services:
       PAGEWRIGHT_REDIS_ADDR: redis:6379
       PAGEWRIGHT_MANAGER_URL: http://manager:8081
       PAGEWRIGHT_WORKER_SPAWNER: test-manual
+      PAGEWRIGHT_DISPATCH_CONCURRENCY: '128'
+      PAGEWRIGHT_DISPATCH_CLAIM_TTL: 2s
     depends_on:
       redis:
         condition: service_healthy

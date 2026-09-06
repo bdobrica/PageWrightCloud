@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { gzipSync, gunzipSync } from 'node:zlib';
 
-const [stage, gateway, storage, ui, themes] = process.argv.slice(2);
+const [stage, gateway, storage, ui, themes, manager] = process.argv.slice(2);
 assert.ok(['fresh', 'restored'].includes(stage));
 async function request(base, path, options = {}, expected = 200) {
   const response = await fetch(base + path, {
@@ -81,4 +81,26 @@ const versions = await (await request(storage, versionsPath)).json();
 assert.equal(versions.count, 2);
 assert.equal(versions.versions.find(version => version.build_id === 'smoke-v1').status, 'completed');
 assert.ok(!JSON.stringify(versions).includes('private'));
-console.log(`${stage}: health, UI, theme registry, auth, site, artifact and private metadata persistence passed`);
+// Persist an acknowledged job across full Redis/container recreation. The smoke
+// stack deliberately selects a missing image, so no worker or provider executes.
+const submission = {
+  job_id: '692982f4-3a86-45f6-a84a-c749081c0b22',
+  owner_id: 'smoke-owner', site_id: sites.data[0].id,
+  source_version: 'initial', target_version: 'smoke-dispatch', prompt: 'Smoke dispatch',
+};
+if (stage === 'fresh') {
+  const accepted = await (await request(manager, '/jobs', json(submission), 201)).json();
+  assert.equal(accepted.status, 'pending');
+}
+let job;
+for (let attempt = 0; attempt < 100; attempt++) {
+  job = await (await request(manager, `/jobs/${submission.job_id}`)).json();
+  if (job.status === 'failed') break;
+  await new Promise(resolve => setTimeout(resolve, 100));
+}
+assert.equal(job.status, 'failed');
+assert.equal(job.error_code, 'spawn_failed');
+for (const [key, value] of Object.entries(submission)) assert.equal(job[key], value);
+await request(manager, '/jobs', json(submission), 502);
+assert.deepEqual(await (await request(manager, `/jobs/${submission.job_id}`)).json(), job);
+console.log(`${stage}: health, UI, theme registry, auth, site, artifact, private metadata and acknowledged job persistence passed`);

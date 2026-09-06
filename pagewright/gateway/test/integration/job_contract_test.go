@@ -125,14 +125,15 @@ func TestGatewayManagerJobContract(t *testing.T) {
 	if err := acceptedDecoder.Decode(&accepted); err != nil {
 		t.Fatal(err)
 	}
-	if accepted.JobAccepted == nil || accepted.JobID == "" || accepted.TargetVersion == "" || accepted.JobID == accepted.TargetVersion || accepted.SiteID != site.ID || accepted.OwnerID != user.ID || accepted.SourceVersion != "initial" || accepted.Status != types.JobStatusRunning || accepted.Question != nil {
+	if accepted.JobAccepted == nil || accepted.JobID == "" || accepted.TargetVersion == "" || accepted.JobID == accepted.TargetVersion || accepted.SiteID != site.ID || accepted.OwnerID != user.ID || accepted.SourceVersion != "initial" || accepted.Status != types.JobStatusPending || accepted.Question != nil {
 		t.Fatalf("invalid accepted response: %#v", accepted)
 	}
 	job, err := manager.GetJobStatus(accepted.JobID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if job.JobAccepted != *accepted.JobAccepted || job.Prompt != "Change the homepage title to Contract Test." {
+	job = waitForDispatch(t, manager, accepted.JobID)
+	if job.JobID != accepted.JobID || job.SiteID != accepted.SiteID || job.OwnerID != accepted.OwnerID || job.SourceVersion != accepted.SourceVersion || job.TargetVersion != accepted.TargetVersion || job.Prompt != "Change the homepage title to Contract Test." {
 		t.Fatalf("manager lost contract: %#v", job)
 	}
 

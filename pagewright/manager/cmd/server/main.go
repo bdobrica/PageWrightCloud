@@ -12,6 +12,7 @@ import (
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/api"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/config"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/dispatcher"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock"
 	lockRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock/redis"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
@@ -23,6 +24,9 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
+	if cfg.DispatchConcurrency < 1 || cfg.DispatchConcurrency > 128 || cfg.DispatchClaimTTL < time.Second || cfg.DispatchClaimTTL > time.Minute {
+		log.Fatal("Invalid dispatch concurrency or claim TTL")
+	}
 
 	// Initialize queue backend
 	var queueBackend queue.Backend
@@ -80,8 +84,18 @@ func main() {
 	}
 
 	// Create API handler
-	handler := api.NewHandler(queueBackend, lockMgr, workerSpawner, cfg.LockTTL, managerURL)
+	handler := api.NewHandler(queueBackend, lockMgr)
 	router := handler.SetupRoutes()
+	dispatchQueue := queueBackend.(queue.DispatchBackend)
+	initialization, endInitialization := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := dispatchQueue.InitializeDispatch(initialization, cfg.DispatchConcurrency); err != nil {
+		log.Fatalf("Queue initialization failed: %v", err)
+	}
+	endInitialization()
+	dispatcherContext, stopDispatch := context.WithCancel(context.Background())
+	dispatcherDone := make(chan struct{})
+	dispatch := &dispatcher.Dispatcher{Queue: dispatchQueue, Locks: lockMgr, Spawner: workerSpawner, ManagerURL: managerURL, Limit: cfg.DispatchConcurrency, Lease: cfg.DispatchClaimTTL, LockTTL: cfg.LockTTL}
+	go func() { defer close(dispatcherDone); dispatch.Run(dispatcherContext) }()
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -109,6 +123,12 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down server...")
+	stopDispatch()
+	select {
+	case <-dispatcherDone:
+	case <-time.After(45 * time.Second):
+		log.Println("Dispatch shutdown timed out; persisted intent will not be relaunched")
+	}
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

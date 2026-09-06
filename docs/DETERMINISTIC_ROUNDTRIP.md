@@ -13,7 +13,8 @@ theme into the test image, and runs the race-enabled service suites.
    in this scenario (the suite only creates/migrates its isolated schema).
 2. Submit an authenticated build with an idempotency key. A local deterministic
    instruction-provider response replaces the paid provider. The actual manager
-   API reserves the job and Redis lock and returns the canonical launch snapshot.
+   API durably queues a pending job; the test polls until the dispatcher has
+   acquired its Redis lock and recorded the canonical running snapshot.
 3. Launch the integration-only worker test entrypoint with that snapshot. It
    calls the production `runJob`: fetch/unpack bootstrap, patch instructions,
    execute, pack/validate, upload archive/log/manifest and report completion.
@@ -43,7 +44,8 @@ M2.1's real Docker create/start is tested separately by `make test-docker-spawne
 The executor is excluded by the `integration` build tag and only built by
 `tests/Dockerfile`; production images do not contain it. Production AI execution,
 trusted compiler integration, successive edits, resource isolation, callback
-recovery and queue dispatch remain M2. The existing worker manifest truthfully
+recovery remain later M2 items; M2.2 tests bounded queue dispatch separately.
+The existing worker manifest truthfully
 retains `checks_passed: false`; this fixture is not a production validation gate.
 
 The test-only nginx topology does not repair root Compose's separate nginx reload

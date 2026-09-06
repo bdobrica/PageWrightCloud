@@ -9,13 +9,15 @@ export PAGEWRIGHT_STORAGE_URL=http://storage:8080 PAGEWRIGHT_MANAGER_URL=http://
 export PAGEWRIGHT_SERVING_URL=http://serving:8083 PAGEWRIGHT_REDIS_ADDR=redis:6379
 export PAGEWRIGHT_REDIS_PASSWORD= PAGEWRIGHT_REDIS_DB=0 PAGEWRIGHT_STORAGE_BACKEND=nfs
 export PAGEWRIGHT_QUEUE_BACKEND=redis PAGEWRIGHT_WORKER_SPAWNER=docker
+export PAGEWRIGHT_DISPATCH_CONCURRENCY=4 PAGEWRIGHT_DISPATCH_CLAIM_TTL=30s
 export PAGEWRIGHT_JWT_SECRET=isolated-smoke-test-secret PAGEWRIGHT_JWT_EXPIRATION=15m
 export PAGEWRIGHT_DEFAULT_PAGE_SIZE=25
 export VITE_PAGEWRIGHT_API_URL=http://localhost:8085 VITE_PAGEWRIGHT_WS_URL=ws://localhost:8085/ws
 export VITE_PAGEWRIGHT_DEFAULT_DOMAIN=example.test
 export PAGEWRIGHT_LLM_KEY= PAGEWRIGHT_GOOGLE_CLIENT_ID= PAGEWRIGHT_GOOGLE_CLIENT_SECRET=
 export PAGEWRIGHT_WORKER_LLM_KEY= PAGEWRIGHT_WORKER_LLM_URL=https://api.openai.com/v1
-export PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:m2.1
+# A unique missing image exercises durable dispatch failure without executing AI.
+export PAGEWRIGHT_WORKER_IMAGE="pagewright-missing-smoke:$smoke_project"
 export PAGEWRIGHT_WWW_ROOT=/var/www PAGEWRIGHT_NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
 export PAGEWRIGHT_POSTGRES_PORT=0 PAGEWRIGHT_REDIS_PORT=0 PAGEWRIGHT_GATEWAY_PORT=0
 export PAGEWRIGHT_MANAGER_PORT=0 PAGEWRIGHT_STORAGE_PORT=0 PAGEWRIGHT_SERVING_PORT=0
@@ -38,7 +40,7 @@ url() {
     printf 'http://127.0.0.1:%s' "${address##*:}"
 }
 verify() {
-    node scripts/smoke-stack.mjs "$1" "$(url gateway 8085)" "$(url storage 8080)" "$(url ui 80)" "$(url themes 80)"
+    node scripts/smoke-stack.mjs "$1" "$(url gateway 8085)" "$(url storage 8080)" "$(url ui 80)" "$(url themes 80)" "$(url manager 8081)"
     compose exec -T nginx nginx -t
 }
 compose up -d --build --wait --wait-timeout 180

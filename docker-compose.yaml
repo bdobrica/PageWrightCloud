@@ -20,6 +20,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: [redis-server, --appendonly, 'yes', --appendfsync, always, --save, '']
+    volumes:
+      - redis_data:/data
     ports:
       - "${PAGEWRIGHT_REDIS_PORT:-6379}:6379"
     networks:
@@ -71,6 +74,7 @@ services:
       start_period: 10s
 
   manager:
+    stop_grace_period: 65s
     build:
       context: ./pagewright/manager
       dockerfile: Dockerfile
@@ -92,6 +96,8 @@ services:
       - PAGEWRIGHT_WORKER_LLM_KEY=${PAGEWRIGHT_WORKER_LLM_KEY:-}
       - PAGEWRIGHT_WORKER_LLM_URL=${PAGEWRIGHT_WORKER_LLM_URL:-https://api.openai.com/v1}
       - PAGEWRIGHT_WORKER_TIMEOUT=${PAGEWRIGHT_WORKER_TIMEOUT:-30m}
+      - PAGEWRIGHT_DISPATCH_CONCURRENCY=${PAGEWRIGHT_DISPATCH_CONCURRENCY:-4}
+      - PAGEWRIGHT_DISPATCH_CLAIM_TTL=${PAGEWRIGHT_DISPATCH_CLAIM_TTL:-30s}
       - PAGEWRIGHT_MANAGER_URL=${PAGEWRIGHT_MANAGER_URL:-http://manager:8081}
     # Manager-only daemon access. Never passed to spawned workers.
     volumes:
@@ -244,6 +250,8 @@ networks:
     driver: bridge
 
 volumes:
+  redis_data:
+    driver: local
   postgres_data:
     driver: local
   # Historical name retained to preserve existing filesystem artifacts.

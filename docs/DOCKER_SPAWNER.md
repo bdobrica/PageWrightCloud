@@ -67,7 +67,7 @@ start is attempted. A name conflict is never adopted or restarted.
   lock; a missing image is included in this category.
 - Lost/truncated/invalid create acknowledgements, name conflicts, daemon errors,
   redirects and all unsuccessful/uncertain start acknowledgements are ambiguous.
-  Manager returns `503 spawn_uncertain`, retains the durable running reservation
+  The dispatcher records an uncertain outcome, retains the durable running reservation
   and does not release the lock. Known container ID/name is stored via a metadata
   merge, without overwriting a fast terminal callback.
 - Retrying the same job/idempotency key retrieves the reservation; it never
@@ -76,9 +76,11 @@ start is attempted. A name conflict is never adopted or restarted.
 
 The lock still has its existing TTL: retention here means **no early release**,
 not implemented renewal. Do not infer that an expired lock or a container in
-`created`/`exited` state proves execution never happened. Queue dispatch, fencing,
+`created`/`exited` state proves execution never happened. Fencing enforcement,
 lease renewal, restart reconciliation and recovery from an ambiguous launch are
-M2.2/M2.7–M2.9. Exited containers retain their environment in daemon metadata until
+M2.7–M2.9. M2.2 now supplies [bounded asynchronous dispatch](QUEUE_DISPATCH.md):
+submission acknowledges `201 pending`, and launch failures are read through job
+status rather than returned synchronously. Exited containers retain their environment in daemon metadata until
 removed; cleanup/retention and redacted log policy remain M2.10. No automatic
 production container deletion is introduced here.
 
@@ -92,7 +94,7 @@ checks definitive missing-image rejection. Tests and cleanup remove only workers
 labelled with that generated test network and that run's Compose resources.
 
 Unix-socket simulated-engine tests cover the wire contract and lost/invalid
-acknowledgements; handler tests cover retained reservations, retry deduplication
+acknowledgements; Redis dispatcher tests cover retained reservations, retry deduplication
 and fast callbacks. CI runs this dedicated daemon test separately from
 `make test-integration`. The latter builds a manager with the `integration` tag
 and uses `test-manual` to preserve M1's deterministic launch bridge. Production

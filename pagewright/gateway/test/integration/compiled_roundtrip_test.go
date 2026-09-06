@@ -123,6 +123,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	job = waitForDispatch(t, manager, accepted.JobID)
 	if job.SiteID != site.ID || job.OwnerID != registered.User.ID || job.SourceVersion != "initial" || job.TargetVersion != accepted.TargetVersion || job.Prompt != prompt {
 		t.Fatalf("wrong launch snapshot: %+v", job)
 	}

@@ -32,7 +32,10 @@ func isolatedBackend(t *testing.T) (*RedisBackend, *types.Job) {
 	backend.jobKeyPrefix = prefix + "job:"
 	job := &types.Job{JobID: uuid.NewString(), SiteID: "site", OwnerID: "owner", Prompt: "edit", SourceVersion: "v1", TargetVersion: "v2", Status: types.JobStatusPending, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	t.Cleanup(func() {
-		backend.client.Del(context.Background(), backend.queueKey, backend.jobKeyPrefix+job.JobID)
+		keys, _ := backend.client.Keys(context.Background(), prefix+"*").Result()
+		if len(keys) > 0 {
+			backend.client.Del(context.Background(), keys...)
+		}
 		backend.Close()
 	})
 	return backend, job
@@ -75,9 +78,9 @@ func TestRedisAtomicReservationAndConcurrentReplay(t *testing.T) {
 	if err != nil || created || stored.JobID != j.JobID {
 		t.Fatalf("lost response retry: %+v %v %v", stored, created, err)
 	}
-	popped, err := b.Pop(ctx)
-	if err != nil || popped.JobID != j.JobID {
-		t.Fatalf("pop: %+v %v", popped, err)
+	popped, err := b.Claim(ctx, 2, time.Second)
+	if err != nil || popped.Job.JobID != j.JobID {
+		t.Fatalf("claim: %+v %v", popped, err)
 	}
 	if n := b.client.LLen(ctx, b.queueKey).Val(); n != 0 {
 		t.Fatalf("duplicate queue entry: %d", n)
