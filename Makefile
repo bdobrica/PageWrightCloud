@@ -266,6 +266,10 @@ smoke-stack:
 test-worker-cli:
 	sh scripts/test-worker-cli.sh
 
+.PHONY: test-worker-compiler
+test-worker-compiler:
+	sh scripts/test-worker-compiler.sh
+
 .PHONY: test-compiler-smoke
 test-compiler-smoke:
 	sh scripts/test-compiler.sh

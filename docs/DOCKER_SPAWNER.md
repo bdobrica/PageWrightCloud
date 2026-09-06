@@ -2,7 +2,7 @@
 
 The supported worker is `pagewright/worker`, not the historical
 `pagewright/manager/cmd/worker` prototype. Root Compose, the worker Makefile and
-the manager's worker build targets agree on `pagewright-worker:m2.3`. The old
+the manager's worker build targets agree on `pagewright-worker:m2.4`. The old
 manager `Dockerfile.worker` is retained only as explicitly labelled history.
 
 Before submitting jobs, build the selected image:
@@ -33,7 +33,7 @@ manager use, configure:
 
 | Variable | Default / requirement |
 | --- | --- |
-| `PAGEWRIGHT_WORKER_IMAGE` | `pagewright-worker:m2.3`; explicit non-latest tag or digest |
+| `PAGEWRIGHT_WORKER_IMAGE` | `pagewright-worker:m2.4`; explicit non-latest tag or digest |
 | `PAGEWRIGHT_WORKER_APPARMOR_PROFILE` | Empty for Docker default; only `pagewright-worker` accepted as an override, after explicit host profile loading |
 | `PAGEWRIGHT_WORKER_NETWORK` | Required dedicated Docker network; root Compose supplies it |
 | `PAGEWRIGHT_DOCKER_SOCKET` | `/var/run/docker.sock`; absolute Unix path |

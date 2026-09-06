@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/artifact"
+	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/build"
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/codex"
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/config"
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/server"
@@ -98,6 +99,10 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 	if err := artifact.PatchInstructions(siteDir, cfg.InstructionsPath); err != nil {
 		return fmt.Errorf("failed to patch instructions: %w", err)
 	}
+	before, err := artifact.SnapshotWorkspace(siteDir)
+	if err != nil {
+		return fmt.Errorf("invalid initial workspace: %w", err)
+	}
 
 	// Step 4: Execute codex
 	srv.UpdateStatus("executing", "Running codex exec", 40)
@@ -109,47 +114,44 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 
 	// Step 5: Parse codex output
 	srv.UpdateStatus("processing", "Parsing codex output", 70)
-	filesChanged, summary := executor.ParseOutput()
-	fmt.Printf("Files changed: %v\n", filesChanged)
+	_, summary := executor.ParseOutput()
 	fmt.Printf("Summary: %s\n", summary)
 
-	// Step 6: Pack result
-	srv.UpdateStatus("packing", "Creating new artifact", 80)
+	// Validate the edit, freeze source and compile before packing or uploading.
+	srv.UpdateStatus("compiling", "Validating source and compiling trusted theme", 80)
 	outputArtifact := filepath.Join(cfg.WorkDir, "output.tar.gz")
-
-	fmt.Println("Packing result...")
-	if err := artifact.Pack(siteDir, outputArtifact); err != nil {
-		return fmt.Errorf("failed to pack artifact: %w", err)
-	}
-
-	// Step 7: Create manifest
-	layout, err := artifact.Inspect(outputArtifact)
+	compiled, err := build.Compile(ctx, siteDir, cfg.CompilerBinary, cfg.ThemePath, outputArtifact, before)
 	if err != nil {
-		return fmt.Errorf("failed to inspect packed artifact: %w", err)
+		return fmt.Errorf("build validation failed: %w", err)
 	}
+	layout := compiled.Layout
 	entrypoints := []string{}
 	if layout.Kind == "compiled" {
 		entrypoints = []string{"index.html"}
 	}
 
 	manifest := types.Manifest{
-		ArchiveSchemaVersion: layout.SchemaVersion,
-		Kind:                 layout.Kind,
-		ThemeID:              layout.ThemeID,
-		SiteID:               job.SiteID,
-		BuildID:              job.TargetVersion,
-		BaseBuildID:          job.SourceVersion,
-		FencingToken:         job.FencingToken,
-		Prompt:               job.Prompt,
-		CreatedAt:            time.Now().UTC(),
-		FileCount:            layout.FileCount,
-		TotalSize:            layout.TotalSize,
-		Entrypoints:          entrypoints,
-		Screenshots:          []string{}, // Stubbed for now
-		ChecksPassed:         false,      // Compiler/output checks are not integrated yet.
-		ConsoleErrors:        0,          // Stubbed for now
-		FilesChanged:         filesChanged,
-		ChangesSummary:       summary,
+		ArchiveSchemaVersion:   layout.SchemaVersion,
+		Kind:                   layout.Kind,
+		ThemeID:                layout.ThemeID,
+		SiteID:                 job.SiteID,
+		BuildID:                job.TargetVersion,
+		BaseBuildID:            job.SourceVersion,
+		FencingToken:           job.FencingToken,
+		Prompt:                 job.Prompt,
+		CreatedAt:              time.Now().UTC(),
+		FileCount:              layout.FileCount,
+		TotalSize:              layout.TotalSize,
+		Entrypoints:            entrypoints,
+		Screenshots:            []string{}, // Stubbed for now
+		ChecksPassed:           true,       // Only after every named static gate succeeds.
+		ValidationChecks:       compiled.Checks,
+		CompilerVersion:        build.CompilerVersion,
+		ThemeVersion:           build.ThemeVersion,
+		ConsoleErrors:          0, // Legacy count; browser_checks_performed=false means unmeasured.
+		BrowserChecksPerformed: false,
+		FilesChanged:           compiled.FilesChanged,
+		ChangesSummary:         summary,
 	}
 
 	// Step 8: Upload artifact and manifest

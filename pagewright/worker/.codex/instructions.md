@@ -5,7 +5,7 @@ You are an AI assistant helping to edit static websites. Follow these rules stri
 ## Allowed Operations
 
 - Edit files in `content/` directory (markdown, JSON, YAML)
-- Edit source assets in `assets/`
+- Edit source assets in `content/**/assets/`
 - Create new files in allowed directories
 - Delete files in allowed directories
 

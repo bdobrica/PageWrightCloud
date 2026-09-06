@@ -1,10 +1,13 @@
 module github.com/bdobrica/PageWrightCloud/pagewright/worker
 
-go 1.22
+go 1.24.0
+
+toolchain go1.24.10
 
 require (
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.8.4
+	golang.org/x/net v0.50.0
 )
 
 require (

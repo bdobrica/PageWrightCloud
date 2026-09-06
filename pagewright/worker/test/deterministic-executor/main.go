@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 )
 
 func main() {
@@ -30,11 +29,6 @@ func execute() error {
 	if err := os.WriteFile("content/home/index.md", []byte("# Deterministic M1 round trip\n\nCompiled from bootstrapped source.\n"), 0644); err != nil {
 		return err
 	}
-	cmd := exec.Command("/usr/local/bin/pagewrightc", "build", "--theme", "/workspace/pagewright/themes/starter", "--content", "content", "--out", "public")
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	fmt.Println("SUMMARY: Deterministic source edit compiled successfully")
+	fmt.Println("SUMMARY: Deterministic source edit completed")
 	return nil
 }

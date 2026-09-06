@@ -1,6 +1,6 @@
 # Worker CLI and sandbox contract (M2.3)
 
-`pagewright-worker:m2.3` packages Codex CLI **0.153.4**, replacing the production
+`pagewright-worker:m2.4` packages Codex CLI **0.153.4**, replacing the production
 mock. The npm lockfile pins both the wrapper and native platform packages with
 integrity hashes; the image checks the installed version. The worker invokes the
 native executable directly so cancellation does not merely kill an npm launcher.

@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,7 +30,7 @@ func TestDeterministicWorkerEntrypoint(t *testing.T) {
 	if err := job.ValidateLaunch(); err != nil {
 		t.Fatal(err)
 	}
-	cfg := &config.Config{WorkDir: t.TempDir(), ManagerURL: os.Getenv("TEST_MANAGER_URL"), StorageURL: os.Getenv("TEST_STORAGE_URL")}
+	cfg := &config.Config{WorkDir: t.TempDir(), ManagerURL: os.Getenv("TEST_MANAGER_URL"), StorageURL: os.Getenv("TEST_STORAGE_URL"), ThemePath: "/workspace/pagewright/themes/starter"}
 	cfg.InstructionsPath = filepath.Join(cfg.WorkDir, "instructions.md")
 	if err := os.WriteFile(cfg.InstructionsPath, []byte("Test-only deterministic executor.\n"), 0600); err != nil {
 		t.Fatal(err)
@@ -37,5 +38,20 @@ func TestDeterministicWorkerEntrypoint(t *testing.T) {
 	executor := codex.NewExecutor("/usr/local/bin/deterministic-executor", filepath.Join(cfg.WorkDir, "site"), "test-only-key", "")
 	if err := runJob(cfg, &job, storage.NewClient(cfg.StorageURL), executor, server.NewServer(0, executor)); err != nil {
 		t.Fatal(err)
+	}
+	response, err := http.Get(cfg.StorageURL + "/sites/" + job.SiteID + "/artifacts/" + job.TargetVersion + "/manifest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("manifest status: %d", response.StatusCode)
+	}
+	var manifest types.Manifest
+	if err := json.NewDecoder(response.Body).Decode(&manifest); err != nil {
+		t.Fatal(err)
+	}
+	if !manifest.ChecksPassed || manifest.BrowserChecksPerformed || len(manifest.ValidationChecks) != 4 || manifest.CompilerVersion != "0.1.0" || manifest.ThemeVersion != "1.0.0" || len(manifest.FilesChanged) != 1 || manifest.FilesChanged[0] != "content/home/index.md" {
+		t.Fatalf("untruthful compilation manifest: %+v", manifest)
 	}
 }

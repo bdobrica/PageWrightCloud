@@ -20,7 +20,7 @@ func TestLoadConfigDefaults(t *testing.T) {
 	assert.Equal(t, "", cfg.RedisPassword)
 	assert.Equal(t, 0, cfg.RedisDB)
 	assert.Equal(t, 5*time.Minute, cfg.LockTTL)
-	assert.Equal(t, "pagewright-worker:m2.3", cfg.WorkerImage)
+	assert.Equal(t, "pagewright-worker:m2.4", cfg.WorkerImage)
 	assert.Equal(t, "", cfg.WorkerNetwork)
 	assert.Equal(t, "/var/run/docker.sock", cfg.DockerSocket)
 	assert.Equal(t, "/work", cfg.WorkerWorkDir)

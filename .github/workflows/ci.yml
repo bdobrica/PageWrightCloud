@@ -63,6 +63,7 @@ jobs:
             echo 'PAGEWRIGHT_WORKER_APPARMOR_PROFILE=pagewright-worker' >> "$GITHUB_ENV"
           fi
       - run: make test-worker-cli
+      - run: make test-worker-compiler
   startup:
     runs-on: ubuntu-24.04
     timeout-minutes: 20

@@ -79,5 +79,6 @@ and line numbers, escaping, deterministic tokens, exact assets, malformed config
 traversal, symlinks, existing-output preservation, late failure cleanup and CLI exit
 codes. Root `make test-all` and existing CI run the suite. The smoke target also
 builds the original three-page fixture and gateway bootstrap through the CLI.
-No provider, Docker stack or browser is needed. Real worker integration and broader
-production output validation remain future work.
+No provider, Docker stack or browser is needed for these compiler suites.
+M2.4 adds [production worker integration and static output checks](WORKER_BUILD.md).
+Browser validation and broader production hardening remain future work.

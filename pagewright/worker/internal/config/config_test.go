@@ -21,6 +21,8 @@ func TestLoadConfigDefaults(t *testing.T) {
 	assert.Equal(t, "http://localhost:8080", cfg.StorageURL)
 	assert.Equal(t, "/usr/local/bin/codex", cfg.CodexBinary)
 	assert.Equal(t, "/.codex/instructions.md", cfg.InstructionsPath)
+	assert.Equal(t, "/usr/local/bin/pagewrightc", cfg.CompilerBinary)
+	assert.Equal(t, "/opt/pagewright/themes/starter-1.0.0", cfg.ThemePath)
 }
 
 func TestLoadConfigFromEnv(t *testing.T) {

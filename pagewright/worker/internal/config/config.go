@@ -15,6 +15,8 @@ type Config struct {
 	JobJSON          string
 	CodexBinary      string
 	InstructionsPath string
+	CompilerBinary   string
+	ThemePath        string
 }
 
 func LoadConfig() *Config {
@@ -30,6 +32,8 @@ func LoadConfig() *Config {
 		JobJSON:          getEnv("PAGEWRIGHT_JOB", ""),
 		CodexBinary:      getEnv("PAGEWRIGHT_CODEX_BINARY", "/usr/local/bin/codex"),
 		InstructionsPath: getEnv("PAGEWRIGHT_INSTRUCTIONS_PATH", "/.codex/instructions.md"),
+		CompilerBinary:   getEnv("PAGEWRIGHT_COMPILER_BINARY", "/usr/local/bin/pagewrightc"),
+		ThemePath:        getEnv("PAGEWRIGHT_THEME_PATH", "/opt/pagewright/themes/starter-1.0.0"),
 	}
 }
 
