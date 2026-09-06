@@ -17,18 +17,18 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3–M2.6 add pinned CLI, trusted compilation, edit accumulation and tested worker isolation. M2.7 adds lease renewal/fenced commits; M2.8 (`e0c484e`) selects `pagewright-worker:m2.8` with bounded callbacks and receipt/worker-exit/timeout reconciliation. Kubernetes remains a historical logging stub. | Broader restart durability, retention and real-provider acceptance remain M2.9 onward. Drain/reconcile before coordinated manager/storage/worker upgrades; manager Docker access and internal APIs require trusted operation. |
+| Execution | M2.1–M2.8 implement Docker launch, bounded dispatch, pinned CLI/compiler, isolation, fenced commits and result recovery. M2.9 (`25dcf08`) adds durable gateway history, Redis startup checks and restart recovery. Worker remains `pagewright-worker:m2.8`; Kubernetes remains a historical logging stub. | Container/log retention and real-provider acceptance remain M2.10 onward. Missing evidence follows the conservative operator runbook, never speculative redispatch. Drain/reconcile before coordinated upgrades; internal services require trusted operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
 | Compilation | M1.8 (`6bc86f1`) adds [compiler fixtures and filesystem checks](docs/COMPILER_CONTRACT.md). M2.4 integrates trusted compilation and named static checks; M2.5 verifies two accumulated edits through the production runner. Serving validates compiled archive structure. | Browser checks and paid-provider acceptance remain unverified; static checks do not establish safe HTML for remote multi-user hosting. |
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
-| Version state | M1.2 persists the job/target mapping before dispatch. M1.9 (`8609d32`) normalizes committed-storage versions into validated UI fields, status and UTC timestamps. | Pending/failed job history and DB/storage completion reconciliation remain M3.1. |
+| Version state | M1.2 persists the job/target mapping before dispatch. M1.9 normalizes storage versions for UI. M2.9 adds PostgreSQL lifecycle history and atomically reconciles verified manager outcomes into submission/version status. | Owner-checked history retrieval, browser refresh and combined DB/storage views remain M3.1. Conservative terminal outcomes must not be reopened by late materialization. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
 | Hosting | [Compose](docker-compose.yaml) separates serving and nginx, but serving executes local `nginx -s reload`. Preview activation does not create nginx config. | Make nginx configuration/reload part of a supported topology; first preview must work before first publish. |
-| Job reliability | M2.2 (`5da77ad`) adds [durable bounded dispatch](docs/QUEUE_DISPATCH.md), atomic pending admission, shared active slots and token-fenced pre-intent recovery. Redis uses AOF and a persistent volume. M2.7/M2.8 add bounded renewal, fenced commits and [result/exit/timeout recovery](docs/RESULT_RECOVERY.md). | Intent is never replayed. Missing/legacy evidence and storage outages retain capacity pending safe recovery. Broader restart durability remains M2.9; existing Redis data needs operator migration before container replacement. |
+| Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. Site links assume HTTPS without the local port. | Ship only working controls, configure returned hosting URLs, and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
@@ -454,6 +454,43 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.9 completed (2026-09-06) in `25dcf08`. Worker execution and isolation remain
+unchanged on `pagewright-worker:m2.8`. Migration 009 adds PostgreSQL lifecycle
+history and durable recovery diagnostics. A bounded gateway loop claims never-
+dispatched ready submissions once and observes exact manager identities thereafter.
+Verified outcomes update submission, version and history atomically; terminal
+outcomes cannot regress or be revised by late filesystem materialization.
+Claimed-before-send submissions with missing manager evidence remain uncertain
+and operator-visible, never automatically redispatched.
+
+Production manager startup now verifies AOF/fsync/no-eviction settings and AOF
+write health, protects surviving legacy job/receipt/fence/index TTLs, and never
+makes site leases permanent. Root/standalone Compose explicitly reject truncated
+AOF loading. Thirty-day incremental cleanup removes only disposable terminal
+dispatch metadata. Canonical job/request/version identities, receipts and fences
+remain nonexpiring; the lifecycle journal has at most one event per status/job.
+This bounds bookkeeping and polling history, not total retained identity storage.
+The packaged read-only audit and [operator runbook](docs/JOB_DURABILITY.md) provide
+a conservative quarantine/restore path when evidence is missing or corrupt.
+
+Acceptance passed: repository-wide package suite, full race-enabled service
+integration, gateway/manager race and vet, root production image builds, packaged
+audit, independent-manager reconnect, and isolated root-stack SIGKILL/recreation
+checks. Tests cover atomic journal rollback, concurrent recovery claims, gateway
+recreation, missing manager evidence without POST, late verified completion,
+terminal non-regression, legacy TTL protection and retained deduplication after
+metadata cleanup. The crash smoke verifies manager job persistence and recovered
+PostgreSQL history while a claimed-but-never-received job remains uncertain.
+Two existing serving skips remain. No paid calls, remote changes, application-data
+migration, isolation relaxation or push occurred; disk-loss/backup-restore/HA
+safety is not claimed.
+
+Next: **M2.10**, exited/orphan worker and temporary/private-log cleanup with
+documented retention. M3.1 still owns owner-scoped history endpoints and browser
+refresh; M4 owns service authentication. Back up and review surviving legacy TTLs
+before coordinated upgrade; do not enable writers on rolled-back data until
+possibly executed work is quarantined or its exact evidence is restored.
 
 M2.8 completed (2026-09-06) in `e0c484e`. Selected image/build defaults now use
 `pagewright-worker:m2.8`. Result delivery makes at most four identical attempts
