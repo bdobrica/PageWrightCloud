@@ -44,7 +44,41 @@ func (m *Manager) CreateSiteConfig(fqdn string, sitePath string, aliases []strin
 	return m.Reload()
 }
 
-// RemoveSiteConfig removes nginx config for a site
+// EnsureSiteConfig provisions first-preview routing without replacing an existing
+// site's aliases or enabled/disabled policy. Retry reloads even an existing file.
+func (m *Manager) EnsureSiteConfig(fqdn, sitePath string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := os.MkdirAll(m.sitesEnabledDir, 0755); err != nil {
+		return err
+	}
+	path := filepath.Join(m.sitesEnabledDir, fqdn)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if os.IsExist(err) {
+		info, statErr := os.Lstat(path)
+		if statErr != nil {
+			return statErr
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("site config is not a regular file")
+		}
+		return m.Reload()
+	}
+	if err != nil {
+		return err
+	}
+	_, writeErr := f.WriteString(m.generateSiteConfig(fqdn, sitePath, nil, true))
+	closeErr := f.Close()
+	if writeErr != nil {
+		return writeErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return m.Reload()
+}
+
+// RemoveSiteConfig removes nginx config for a site.
 func (m *Manager) RemoveSiteConfig(fqdn string) error {
 	configPath := filepath.Join(m.sitesEnabledDir, fqdn)
 

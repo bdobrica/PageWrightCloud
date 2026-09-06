@@ -39,3 +39,25 @@ func TestVersionNormalization(t *testing.T) {
 		}
 	}
 }
+
+func TestConfiguredDeploymentURL(t *testing.T) {
+	h := NewVersionsHandler(nil, nil, nil, 25)
+	for _, tc := range []struct{ scheme, port, host, target, want string }{
+		{"http", "8084", "site.example.test", "preview", "http://site.example.test:8084/preview/"},
+		{"https", "443", "site.example.test", "preview", "https://site.example.test/preview/"},
+		{"http", "80", "site.example.test", "live", "http://site.example.test/"},
+		{"javascript", "80", "site.example.test", "preview", ""},
+		{"https", "0", "site.example.test", "preview", ""},
+		{"http", "80", "site.example.test/evil", "preview", ""},
+	} {
+		h.SetHostingAddress(tc.scheme, tc.port)
+		got, err := h.deploymentURL(tc.host, tc.target)
+		if tc.want == "" {
+			if err == nil {
+				t.Fatal("unsafe URL accepted")
+			}
+		} else if err != nil || got != tc.want {
+			t.Fatalf("%q %v", got, err)
+		}
+	}
+}

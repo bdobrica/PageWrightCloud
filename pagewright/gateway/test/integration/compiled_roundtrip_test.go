@@ -259,7 +259,6 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	if !bytes.Equal(archive, request("GET", base+"/versions/"+job.TargetVersion+"/download", "", 200)) {
 		t.Fatal("second edit mutated first draft")
 	}
-	request("POST", base+"/versions/"+job.TargetVersion+"/deploy", `{"target":"live"}`, 200)
 	hosted := func(path string) (int, []byte) {
 		t.Helper()
 		req, err := http.NewRequest("GET", os.Getenv("TEST_HOSTING_URL")+path, nil)
@@ -277,6 +276,38 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		return resp.StatusCode, data
+	}
+	var preview struct {
+		URL     string `json:"url"`
+		Version string `json:"version_id"`
+	}
+	decode(request("POST", base+"/versions/"+job.TargetVersion+"/deploy", `{"target":"preview"}`, 200), &preview)
+	if preview.URL != "http://"+fqdn+":8084/preview/" || preview.Version != job.TargetVersion {
+		t.Fatalf("preview response %+v", preview)
+	}
+	previewDeadline := time.Now().Add(5 * time.Second)
+	for {
+		status, data := hosted("/preview/index.html")
+		if status == 200 && bytes.Equal(data, html) {
+			break
+		}
+		if time.Now().After(previewDeadline) {
+			t.Fatalf("first preview before publish failed: %d %s", status, data)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if status, _ := hosted("/index.html"); status != 404 {
+		t.Fatalf("preview unexpectedly published live: %d", status)
+	}
+	previewSite, err := testDB.GetSiteByFQDN(fqdn)
+	if err != nil || previewSite.LiveVersionID != nil || previewSite.PreviewVersionID == nil || *previewSite.PreviewVersionID != job.TargetVersion {
+		t.Fatalf("first preview DB %+v %v", previewSite, err)
+	}
+	request("POST", base+"/versions/"+job.TargetVersion+"/deploy", `{"target":"live"}`, 200)
+	request("POST", base+"/versions/"+second.TargetVersion+"/deploy", `{"target":"preview"}`, 200)
+	previewSite, err = testDB.GetSiteByFQDN(fqdn)
+	if err != nil || previewSite.LiveVersionID == nil || *previewSite.LiveVersionID != job.TargetVersion || previewSite.PreviewVersionID == nil || *previewSite.PreviewVersionID != second.TargetVersion {
+		t.Fatalf("preview changed live DB %+v %v", previewSite, err)
 	}
 	// nginx reload acknowledges the signal before new workers accept requests.
 	deadline := time.Now().Add(5 * time.Second)

@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, AxiosError } from 'axios';
 import { config } from '../config';
-import { parseBuildResponse, parseVersionPage, parseBuildHistory, parseBuildHistoryItem } from './contracts';
+import { parseBuildResponse, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from './contracts';
 import type {
   AuthResponse,
   RegisterRequest,
@@ -133,8 +133,9 @@ class ApiClient {
     return parseVersionPage(response.data);
   }
 
-  async deployVersion(fqdn: string, versionId: string, data: DeployVersionRequest): Promise<void> {
-    await this.client.post(`/sites/${fqdn}/versions/${versionId}/deploy`, data);
+  async deployVersion(fqdn: string, versionId: string, data: DeployVersionRequest) {
+    const response = await this.client.post<unknown>(`/sites/${encodeURIComponent(fqdn)}/versions/${encodeURIComponent(versionId)}/deploy`, data);
+    return parseDeployment(response.data, fqdn, versionId, data.target);
   }
 
   async downloadVersion(fqdn: string, versionId: string): Promise<Blob> {

@@ -139,6 +139,10 @@ func (h *Handler) ActivatePreview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to activate preview: %v", err), http.StatusInternalServerError)
 		return
 	}
+	if err := h.nginxMgr.EnsureSiteConfig(fqdn, h.artifactMgr.GetSitePath(fqdn)); err != nil {
+		http.Error(w, "Failed to provision preview routing", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{

@@ -42,10 +42,10 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => 
     setSelectedVersion(version);
   };
 
-  const handlePreview = () => {
-    if (selectedVersion) {
-      window.open(`https://${fqdn}/preview/${selectedVersion.build_id}`, '_blank');
-    }
+  const handlePreview = async () => {
+    if (!selectedVersion) throw new Error('No version selected');
+    const result = await apiClient.deployVersion(fqdn, selectedVersion.build_id, { target: 'preview' });
+    return result.url;
   };
 
   const handlePromote = async () => {
@@ -82,6 +82,7 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => 
       </div>
       {selectedVersion && (
         <VersionActionModal
+          key={selectedVersion.build_id}
           version={selectedVersion}
           siteId={selectedVersion.site_id}
           onClose={() => setSelectedVersion(null)}

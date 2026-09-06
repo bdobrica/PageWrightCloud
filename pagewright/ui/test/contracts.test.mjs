@@ -1,7 +1,28 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { parseBuildResponse, parseJobSnapshot, parseVersionPage, parseBuildHistory, parseBuildHistoryItem } from '../src/api/contracts.ts';
+import { parseBuildResponse, parseJobSnapshot, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from '../src/api/contracts.ts';
+import { openActivatedPreview } from '../src/api/preview.ts';
+
+test('preview opens only after confirmed activation and ignores a closed modal', async () => {
+ let resolve;
+ const opened=[];
+ const pending=openActivatedPreview(()=>new Promise(r=>{resolve=r;}),url=>opened.push(url),()=>true);
+ assert.deepEqual(opened,[]);resolve('http://site.example.test:8084/preview/');
+ assert.equal(await pending,opened[0]);
+ await assert.rejects(openActivatedPreview(async()=>{throw new Error('activation failed');},url=>opened.push(url),()=>true));
+ await openActivatedPreview(async()=> 'http://site.example.test/preview/',url=>opened.push(url),()=>false);
+ assert.equal(opened.length,1);
+ assert.equal(await openActivatedPreview(async()=> 'http://site.example.test/preview/',()=>{throw new Error('popup blocked');},()=>true),'http://site.example.test/preview/');
+});
+
+test('deployment responses bind target/version and reject unsafe or wrong-host URLs', () => {
+ const response={status:'deployed',version_id:'v1',target:'preview',url:'http://site.example.test:8084/preview/'};
+ assert.equal(parseDeployment(response,'site.example.test','v1','preview').url,response.url);
+ for (const changed of [{version_id:'v2'},{target:'live'},{status:'pending'},{url:'javascript:alert(1)'},{url:'https://other.test/preview/'},{url:'https://user:password@site.example.test/preview/'},{url:'https://site.example.test/preview/v1'}]) assert.throws(()=>parseDeployment({...response,...changed},'site.example.test','v1','preview'));
+ const versions=readFileSync(new URL('../src/components/VersionsList.tsx',import.meta.url),'utf8');
+ assert.match(versions,/target: 'preview'/);assert.doesNotMatch(versions,/window.open|preview\/\$\{/);
+});
 
 test('polling MVP has no socket transport or socket URL configuration', () => {
  const root = new URL('../src/', import.meta.url);

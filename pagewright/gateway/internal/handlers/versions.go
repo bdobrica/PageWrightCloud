@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,6 +24,8 @@ type VersionsHandler struct {
 	storageClient   *clients.StorageClient
 	servingClient   *clients.ServingClient
 	defaultPageSize int
+	hostingScheme   string
+	hostingPort     string
 }
 
 func NewVersionsHandler(db *database.DB, storageClient *clients.StorageClient, servingClient *clients.ServingClient, defaultPageSize int) *VersionsHandler {
@@ -33,7 +37,38 @@ func NewVersionsHandler(db *database.DB, storageClient *clients.StorageClient, s
 		storageClient:   storageClient,
 		servingClient:   servingClient,
 		defaultPageSize: defaultPageSize,
+		hostingScheme:   "http",
+		hostingPort:     "8084",
 	}
+}
+
+// Configure once at startup; never infer public URLs from request/proxy headers.
+func (h *VersionsHandler) SetHostingAddress(scheme, port string) {
+	h.hostingScheme, h.hostingPort = scheme, port
+}
+
+var hostingNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$`)
+
+func (h *VersionsHandler) deploymentURL(fqdn, target string) (string, error) {
+	if h.hostingScheme != "http" && h.hostingScheme != "https" {
+		return "", fmt.Errorf("invalid hosting scheme")
+	}
+	port, err := strconv.Atoi(h.hostingPort)
+	if err != nil || port < 1 || port > 65535 {
+		return "", fmt.Errorf("invalid hosting port")
+	}
+	if len(fqdn) > 253 || !hostingNamePattern.MatchString(fqdn) {
+		return "", fmt.Errorf("invalid hosting name")
+	}
+	host := fqdn
+	if !(h.hostingScheme == "http" && port == 80) && !(h.hostingScheme == "https" && port == 443) {
+		host = net.JoinHostPort(fqdn, h.hostingPort)
+	}
+	path := "/"
+	if target == "preview" {
+		path = "/preview/"
+	}
+	return (&url.URL{Scheme: h.hostingScheme, Host: host, Path: path}).String(), nil
 }
 
 // ListVersions lists all versions for a site (from storage service)
@@ -168,6 +203,11 @@ func (h *VersionsHandler) DeployVersion(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Deploy artifact to serving infrastructure
+	publicURL, err := h.deploymentURL(fqdn, req.Target)
+	if err != nil {
+		respondError(w, 500, "invalid public hosting configuration")
+		return
+	}
 	if err := h.servingClient.DeployArtifact(fqdn, site.ID, versionID); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to deploy artifact")
 		return
@@ -180,20 +220,27 @@ func (h *VersionsHandler) DeployVersion(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		// Update database
-		h.db.UpdateSiteVersions(fqdn, &versionID, nil)
+		if err := h.db.UpdateSiteVersions(fqdn, &versionID, nil); err != nil {
+			respondError(w, 500, "activation may have succeeded but its database state could not be saved; retry the same version")
+			return
+		}
 	} else {
 		if err := h.servingClient.ActivatePreview(fqdn, versionID); err != nil {
 			respondError(w, http.StatusInternalServerError, "failed to activate preview")
 			return
 		}
 		// Update database
-		h.db.UpdateSiteVersions(fqdn, nil, &versionID)
+		if err := h.db.UpdateSiteVersions(fqdn, nil, &versionID); err != nil {
+			respondError(w, 500, "activation may have succeeded but its database state could not be saved; retry the same version")
+			return
+		}
 	}
 
 	respondJSON(w, map[string]string{
 		"status":     "deployed",
 		"target":     req.Target,
 		"version_id": versionID,
+		"url":        publicURL,
 	})
 }
 

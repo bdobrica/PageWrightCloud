@@ -1,5 +1,13 @@
 import type { AcceptedBuildResponse, BuildResponse, BuildHistoryItem, JobSnapshot, JobStatus, Version, PaginatedResponse } from '../types/api.ts';
 
+export function parseDeployment(input: unknown, fqdn: string, version: string, target: 'live' | 'preview') {
+  const value = object(input);
+  if (value.status !== 'deployed' || value.target !== target || value.version_id !== version) throw new Error('Unexpected deployment identity');
+  const address = new URL(stringField(value, 'url'));
+  if (!['http:', 'https:'].includes(address.protocol) || address.hostname !== fqdn.toLowerCase() || address.username || address.password || address.search || address.hash || address.pathname !== (target === 'preview' ? '/preview/' : '/')) throw new Error('Invalid deployment URL');
+  return { url: address.href, version_id: version, target };
+}
+
 export function parseBuildHistoryItem(input: unknown): BuildHistoryItem {
   const v = object(input);
   const state = v.dispatch_state;

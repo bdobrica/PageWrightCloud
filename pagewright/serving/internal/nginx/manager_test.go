@@ -36,6 +36,26 @@ func TestCreateSiteConfig(t *testing.T) {
 	assert.Contains(t, contentStr, "# Security headers")
 }
 
+func TestEnsurePreviewRoutingPreservesExistingPolicy(t *testing.T) {
+	dir := t.TempDir()
+	mgr := NewManager(dir, "true", "/tmp/503.html")
+	require.NoError(t, mgr.EnsureSiteConfig("preview.example.test", "/var/www/site"))
+	path := filepath.Join(dir, "preview.example.test")
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "location /preview/")
+	require.NoError(t, mgr.CreateSiteConfig("preview.example.test", "/var/www/site", []string{"alias.example.test"}, false))
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, mgr.EnsureSiteConfig("preview.example.test", "/different/path"))
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
+	mgr.reloadCommand = "false"
+	require.Error(t, mgr.EnsureSiteConfig("preview.example.test", "/var/www/site"))
+	require.Error(t, mgr.EnsureSiteConfig("new.example.test", "/var/www/new"))
+}
+
 func TestUpdateAliases(t *testing.T) {
 	tmpDir := t.TempDir()
 	mgr := &Manager{

@@ -58,6 +58,7 @@ func main() {
 	sitesHandler := handlers.NewSitesHandler(db, servingClient, storageClient, cfg.DefaultPageSize)
 	aliasesHandler := handlers.NewAliasesHandler(db, servingClient)
 	versionsHandler := handlers.NewVersionsHandler(db, storageClient, servingClient, cfg.DefaultPageSize)
+	versionsHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
 	buildHandler := handlers.NewBuildHandler(db, llmClient, managerClient, storageClient)
 	recoveryContext, stopRecovery := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopRecovery()

@@ -87,10 +87,12 @@ func (db *DB) UpdateSiteEnabled(fqdn string, enabled bool) error {
 	return nil
 }
 
+// Nil means leave that pointer unchanged, not clear it. Activation updates only
+// the requested target; explicit pointer clearing needs a separate operation.
 func (db *DB) UpdateSiteVersions(fqdn string, liveVersionID, previewVersionID *string) error {
 	query := `
 		UPDATE sites 
-		SET live_version_id = $1, preview_version_id = $2, updated_at = $3 
+		SET live_version_id = COALESCE($1, live_version_id), preview_version_id = COALESCE($2, preview_version_id), updated_at = $3
 		WHERE fqdn = $4
 	`
 	_, err := db.Exec(query, liveVersionID, previewVersionID, time.Now(), fqdn)
