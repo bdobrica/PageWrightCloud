@@ -10,6 +10,8 @@ Paid-provider acceptance remains a later milestone.
 Production startup now requires the Redis settings in the
 [M2.9 durability and recovery runbook](../../docs/JOB_DURABILITY.md). The image
 also includes `/app/recovery-audit`, a read-only consistency report for operators.
+Terminal worker cleanup and bounded diagnostics follow the
+[retention policy](../../docs/WORKER_RETENTION.md); ambiguous orphans stay quarantined.
 
 ## API
 
@@ -55,7 +57,7 @@ All variables use the `PAGEWRIGHT_` prefix.
 | `DISPATCH_CLAIM_TTL` | `30s`, range 1s–1m, pre-launch claim lease |
 | `LOCK_TTL` | `5m`; renewal remains unimplemented |
 | `WORKER_SPAWNER` | `docker`; Kubernetes is a historical logging stub |
-| `WORKER_IMAGE` | `pagewright-worker:m2.8`; [CLI contract and sandbox prerequisites](../../docs/WORKER_CLI.md) |
+| `WORKER_IMAGE` | `pagewright-worker:m2.10`; [CLI contract and sandbox prerequisites](../../docs/WORKER_CLI.md) |
 | `WORKER_APPARMOR_PROFILE` | Empty or reviewed `pagewright-worker`; requires explicit host profile installation |
 | `WORKER_NETWORK` | Required dedicated Docker network |
 | `WORKER_STORAGE_URL` | `http://storage:8080`, reachable by workers |

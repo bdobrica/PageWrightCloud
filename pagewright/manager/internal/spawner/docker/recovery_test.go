@@ -11,7 +11,7 @@ import (
 )
 
 func TestInspectOwnershipAndKill(t *testing.T) {
-	for _, scenario := range []string{"exited", "running", "missing", "wrong_role", "wrong_network", "wrong_attempt", "wrong_name", "invalid"} {
+	for _, scenario := range []string{"exited", "created", "running", "missing", "wrong_role", "wrong_network", "wrong_attempt", "wrong_name", "invalid"} {
 		t.Run(scenario, func(t *testing.T) {
 			job := jobFixture()
 			launch := *job
@@ -58,15 +58,21 @@ func TestInspectOwnershipAndKill(t *testing.T) {
 				if scenario == "running" {
 					state = "running"
 				}
+				if scenario == "created" {
+					state = "created"
+				}
 				json.NewEncoder(w).Encode(map[string]any{"Id": id, "Name": recordName, "Config": map[string]any{"Labels": labels, "Env": []string{"PAGEWRIGHT_JOB=" + string(data)}}, "HostConfig": map[string]any{"NetworkMode": network}, "State": map[string]any{"Status": state, "Running": state == "running", "ExitCode": 137, "OOMKilled": true}})
 			})
 			state, err := d.Inspect(context.Background(), job)
-			valid := scenario == "exited" || scenario == "running" || scenario == "missing"
+			valid := scenario == "exited" || scenario == "created" || scenario == "running" || scenario == "missing"
 			if (err == nil) != valid {
 				t.Fatalf("inspection %+v %v", state, err)
 			}
 			if scenario == "exited" && (!state.Exited || state.ExitCode != 137 || !state.OOMKilled) {
 				t.Fatal("lost exit evidence")
+			}
+			if scenario == "created" && (!state.Created || state.Running || state.Exited) {
+				t.Fatal("created worker classified incorrectly")
 			}
 			if scenario == "running" {
 				if err := d.Kill(context.Background(), state.ID); err != nil {
@@ -77,6 +83,27 @@ func TestInspectOwnershipAndKill(t *testing.T) {
 				t.Fatal("unsafe mutation")
 			}
 			if err := d.Kill(context.Background(), "../other"); err == nil {
+				t.Fatal("unsafe ID accepted")
+			}
+		})
+	}
+}
+
+func TestRemovalNeverForcesOrDeletesVolumes(t *testing.T) {
+	for _, code := range []int{204, 404, 409, 500} {
+		t.Run(fmt.Sprint(code), func(t *testing.T) {
+			id := strings.Repeat("a", 64)
+			d := fakeEngine(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "DELETE" || r.URL.Path != "/v1.45/containers/"+id || r.URL.RawQuery != "" {
+					t.Errorf("unsafe delete request: %s %s", r.Method, r.URL)
+				}
+				w.WriteHeader(code)
+			})
+			err := d.Remove(context.Background(), id)
+			if (err == nil) != (code == 204 || code == 404) {
+				t.Fatalf("remove outcome: %v", err)
+			}
+			if err := d.Remove(context.Background(), "../unrelated"); err == nil {
 				t.Fatal("unsafe ID accepted")
 			}
 		})

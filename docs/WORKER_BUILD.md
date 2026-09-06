@@ -1,12 +1,12 @@
 # Trusted worker builds (M2.4)
 
-The selected `pagewright-worker:m2.8` image packages `pagewrightc` **0.1.0**
+The selected `pagewright-worker:m2.10` image packages `pagewrightc` **0.1.0**
 and starter theme **1.0.0** at `/usr/local/bin/pagewrightc` and
 `/opt/pagewright/themes/starter-1.0.0`. Both are root-owned, read-only to the
 UID 1000 worker. Build from the repository root:
 
 ```sh
-docker build -f pagewright/worker/Dockerfile -t pagewright-worker:m2.8 .
+docker build -f pagewright/worker/Dockerfile -t pagewright-worker:m2.10 .
 make test-worker-compiler
 make test-worker-cli
 make test-integration

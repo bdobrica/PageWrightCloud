@@ -64,7 +64,7 @@ be staged/reserved but not visible. An identical object retry is allowed only
 while that attempt remains active and leased. M2.8 adds conservative
 [receipt and result reconciliation](RESULT_RECOVERY.md); do not delete a receipt
 to retry different bytes. [Restart durability](JOB_DURABILITY.md) is covered by M2.9 and receipt
-retention/garbage collection belongs to M2.10.
+receipts remain nonexpiring under the [M2.10 retention policy](WORKER_RETENTION.md).
 
 ## Results and retries
 
@@ -83,7 +83,7 @@ its previous result was never accepted.
 
 ## Upgrade and scope
 
-Selected image/build defaults are `pagewright-worker:m2.8`.
+Selected image/build defaults are `pagewright-worker:m2.10`.
 Drain/reconcile pending, running and uncertain jobs before upgrading manager,
 storage and worker together. Old workers do not send the new identity header;
 old active jobs lack the dispatch timestamp/commit receipts needed for this

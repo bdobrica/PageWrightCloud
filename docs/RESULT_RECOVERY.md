@@ -1,6 +1,6 @@
 # Bounded result delivery and recovery (M2.8)
 
-Selected worker: `pagewright-worker:m2.8`. This extends the
+Selected worker: `pagewright-worker:m2.10`. This extends the
 [M2.7 fenced commit contract](FENCED_COMMITS.md); it does not weaken worker
 commit checks, reacquire expired leases, restart workers, or overwrite artifacts.
 
@@ -81,14 +81,15 @@ Recovery neither reconstructs missing bytes nor authorizes a new writer.
 A storage operation already holding a reservation may still finish materializing
 those exact bytes after observation, as defined by M2.7. This does not reopen a
 failed job or change its terminal result. Completed materializations remain
-immutable/readable; receipt and orphan/version retention needs M2.9/M2.10 policy.
+immutable/readable; receipts and versions are preserved by the
+[M2.10 retention policy](WORKER_RETENTION.md).
 Transient storage failure is not a definitive 404: it retains capacity until
 evidence becomes available. Renewal still ends at the configured lifetime.
 
 If Docker is unavailable at timeout, terminal fencing can proceed when storage
 evidence is sufficient even though termination cannot be confirmed. The container
 may remain; resource ceilings/watchdog are unchanged. Orphan-container cleanup
-is M2.10, not permission to delete unrelated containers.
+follows [M2.10 verified-identity cleanup](WORKER_RETENTION.md), never broad pruning.
 
 ## Operations and remaining scope
 

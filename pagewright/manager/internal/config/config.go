@@ -35,7 +35,7 @@ func LoadConfig() *Config {
 		RedisDB:               getEnvInt("PAGEWRIGHT_REDIS_DB", 0),
 		LockTTL:               getEnvDuration("PAGEWRIGHT_LOCK_TTL", 5*time.Minute),
 		LockRenewInterval:     getEnvDuration("PAGEWRIGHT_LOCK_RENEW_INTERVAL", 1*time.Minute),
-		WorkerImage:           getEnv("PAGEWRIGHT_WORKER_IMAGE", "pagewright-worker:m2.8"),
+		WorkerImage:           getEnv("PAGEWRIGHT_WORKER_IMAGE", "pagewright-worker:m2.10"),
 		WorkerNetwork:         getEnv("PAGEWRIGHT_WORKER_NETWORK", ""),
 		WorkerAppArmorProfile: getEnv("PAGEWRIGHT_WORKER_APPARMOR_PROFILE", ""),
 		DockerSocket:          getEnv("PAGEWRIGHT_DOCKER_SOCKET", "/var/run/docker.sock"),

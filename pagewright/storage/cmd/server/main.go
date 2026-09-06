@@ -43,6 +43,9 @@ func main() {
 		log.Fatal(err)
 	}
 	router := handler.SetupRoutes()
+	cleanupContext, stopCleanup := context.WithCancel(context.Background())
+	cleanupDone := make(chan struct{})
+	go func() { defer close(cleanupDone); backend.(*nfs.NFSBackend).MaintainStaging(cleanupContext) }()
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -67,6 +70,8 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down server...")
+	stopCleanup()
+	<-cleanupDone
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

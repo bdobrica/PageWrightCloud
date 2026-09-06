@@ -24,6 +24,12 @@ type WorkerState struct {
 	ID                                 string
 	Exists, Running, Exited, OOMKilled bool
 	ExitCode                           int
+	Created                            bool
+}
+
+type Cleaner interface {
+	Inspector
+	Remove(context.Context, string) error
 }
 
 type Inspector interface {

@@ -59,12 +59,12 @@ func main() {
 
 	// Run the job
 	if err := runJob(cfg, &job, storageClient, executor, srv); err != nil {
-		fmt.Printf("ERROR: Job failed: %v\n", err)
+		fmt.Println("ERROR: Job failed; raw execution diagnostics withheld")
 		srv.SetError(err)
 
 		// Report failure to manager
 		if !errors.Is(err, errDeliveryUncertain) {
-			reportResult(cfg.ManagerURL, &job, "failed", "", err.Error())
+			reportResult(cfg.ManagerURL, &job, "failed", "", "Worker execution failed; raw diagnostics withheld")
 		}
 		os.Exit(1)
 	}
@@ -126,7 +126,7 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 	// Step 5: Parse codex output
 	srv.UpdateStatus("processing", "Parsing codex output", 70)
 	_, summary := executor.ParseOutput()
-	fmt.Printf("Summary: %s\n", summary)
+	fmt.Println("Execution summary withheld from operational logs")
 
 	// Validate the edit, freeze source and compile before packing or uploading.
 	srv.UpdateStatus("compiling", "Validating source and compiling trusted theme", 80)
@@ -186,7 +186,7 @@ func persistAndReport(storageClient *storage.Client, managerURL string, job *typ
 
 	// Private logs are required. The manifest is uploaded last as the storage
 	// commit record; no completed callback is sent on any persistence failure.
-	if err := storageClient.UploadLog(job.SiteID, job.TargetVersion, logContent); err != nil {
+	if err := storageClient.UploadLog(job.SiteID, job.TargetVersion, privateDiagnostic(job, logContent)); err != nil {
 		return fmt.Errorf("failed to upload logs: %w", err)
 	}
 	fmt.Println("Committing manifest...")

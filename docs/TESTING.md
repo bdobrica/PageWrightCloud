@@ -87,6 +87,11 @@ Five existing tests explicitly skip. Passing package checks do not mean these be
 
 ## What passing does not prove
 
+M2.10 adds Redis-backed terminal cleanup/diagnostic TTL guards, real-Docker
+non-forced removal, live-upload locking and staging preservation tests, and
+bounded private-log redaction tests. See [retention acceptance](WORKER_RETENTION.md).
+These use disposable local resources, not production-host cleanup.
+
 - Compiler fixtures cover specific rendering and adversarial regressions, not all possible HTML/CSS content or hostile concurrent filesystem changes.
 - UI lint/build does not exercise browser interactions.
 - Integration checks cover canonical migrations, rollback, restart, legacy adoption, concurrent startup and invalid history/data, but not a complete edit/build/publish workflow.

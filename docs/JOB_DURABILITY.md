@@ -98,7 +98,8 @@ is not exposed as an unauthenticated endpoint.
   finds the original outcome after this cleanup.
 - There is **no bounded total-storage guarantee** for permanent identities. Monitor
   Redis/PostgreSQL capacity and back them up; do not enable eviction or expire
-  deduplication to save space. Container/temp/private-log retention is M2.10.
+  deduplication to save space. See [M2.10 container/temp/private-log retention](WORKER_RETENTION.md)
+  for the current `pagewright-worker:m2.10` upgrade and cleanup policy.
   Future canonical-history archival needs a separate, coordinated tombstone policy.
 
 ## Operator recovery: missing or corrupt evidence

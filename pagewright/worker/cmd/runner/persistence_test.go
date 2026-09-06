@@ -54,7 +54,7 @@ func TestPersistenceGatesCompletion(t *testing.T) {
 				if stage != "artifact" && (r.Method != "POST" || r.Header.Get("Content-Type") != "application/json") {
 					t.Error("metadata/callback wire contract")
 				}
-				if stage == "logs" && !strings.Contains(string(body), "private output") {
+				if stage == "logs" && (!strings.Contains(string(body), "executor output withheld") || strings.Contains(string(body), "private output")) {
 					t.Error("missing execution log")
 				}
 				if stage == "manifest" {

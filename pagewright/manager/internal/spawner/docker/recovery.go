@@ -64,7 +64,24 @@ func (d *DockerSpawner) Inspect(ctx context.Context, job *types.Job) (spawner.Wo
 		return out, fmt.Errorf("worker attempt mismatch")
 	}
 	out = spawner.WorkerState{ID: record.ID, Exists: true, Running: record.State.Running, Exited: !record.State.Running && (record.State.Status == "exited" || record.State.Status == "dead"), ExitCode: record.State.ExitCode, OOMKilled: record.State.OOMKilled}
+	out.Created = !record.State.Running && record.State.Status == "created"
 	return out, nil
+}
+
+// Non-force removal by verified immutable ID. Docker rejects a concurrent start;
+// never remove volumes or turn a 409 into a force-delete.
+func (d *DockerSpawner) Remove(ctx context.Context, id string) error {
+	if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(id) {
+		return fmt.Errorf("invalid worker ID")
+	}
+	code, _, err := d.call(ctx, "DELETE", "/containers/"+id, nil)
+	if err != nil {
+		return err
+	}
+	if code != 204 && code != 404 {
+		return fmt.Errorf("worker removal unconfirmed (%d)", code)
+	}
+	return nil
 }
 
 // Only immutable IDs obtained from a verified inspection can be passed here.

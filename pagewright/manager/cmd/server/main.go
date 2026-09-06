@@ -108,6 +108,13 @@ func main() {
 	dispatcherDone := make(chan struct{})
 	leasesDone := make(chan struct{})
 	historyDone := make(chan struct{})
+	cleanupDone := make(chan struct{})
+	go func() {
+		defer close(cleanupDone)
+		if cleaner, ok := workerSpawner.(spawner.Cleaner); ok {
+			queueBackend.(*queueRedis.RedisBackend).MaintainWorkerCleanup(dispatcherContext, cleaner)
+		}
+	}()
 	go func() {
 		defer close(historyDone)
 		queueBackend.(*queueRedis.RedisBackend).MaintainHistory(dispatcherContext)
@@ -156,6 +163,7 @@ func main() {
 	stopDispatch()
 	<-leasesDone
 	<-historyDone
+	<-cleanupDone
 	<-recoveryDone
 	select {
 	case <-dispatcherDone:

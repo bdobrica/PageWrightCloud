@@ -14,6 +14,11 @@ import (
 // this is atomic across independent processes without overwriting a winner.
 // Supported deployment: Linux local filesystem / Docker named volume.
 func immutableWrite(root, path string, reader io.Reader, guards ...func(string, int64) error) error {
+	lock, err := uploadLock(root, false)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err

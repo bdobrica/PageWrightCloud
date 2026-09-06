@@ -112,4 +112,13 @@ func TestRealDockerCreateStart(t *testing.T) {
 	if _, err := absent.Spawn(ctx, jobFixture(), "http://manager:8081"); !errors.Is(err, spawner.ErrNotStarted) {
 		t.Fatalf("missing image not definitive: %v", err)
 	}
+	if err := d.Remove(ctx, observed.ID); err != nil {
+		t.Fatalf("non-force cleanup: %v", err)
+	}
+	if state, err := d.Inspect(ctx, job); err != nil || state.Exists {
+		t.Fatalf("removed test worker still present: %+v %v", state, err)
+	}
+	if err := d.Remove(ctx, observed.ID); err != nil {
+		t.Fatalf("repeat cleanup: %v", err)
+	}
 }
