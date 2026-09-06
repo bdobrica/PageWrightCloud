@@ -143,6 +143,7 @@ func (c *StorageClient) ListVersions(siteID string) ([]StorageVersion, error) {
 }
 
 type StorageVersion struct {
+	Status    string    `json:"status"`
 	BuildID   string    `json:"build_id"`
 	Timestamp time.Time `json:"timestamp"`
 	Size      int64     `json:"size"`

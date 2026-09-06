@@ -1,4 +1,37 @@
-import type { AcceptedBuildResponse, BuildResponse, JobSnapshot, JobStatus } from '../types/api.ts';
+import type { AcceptedBuildResponse, BuildResponse, JobSnapshot, JobStatus, Version, PaginatedResponse } from '../types/api.ts';
+
+export function parseVersionPage(input: unknown): PaginatedResponse<Version> {
+  const value = object(input);
+  const integer = (key: string, min: number, max = Number.MAX_SAFE_INTEGER): number => {
+    const n = value[key];
+    if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < min || n > max) {
+      throw new Error(`Invalid response field: ${key}`);
+    }
+    return n;
+  };
+  const page = integer('page', 1);
+  const page_size = integer('page_size', 1, 100);
+  const total_count = integer('total_count', 0);
+  const total_pages = integer('total_pages', 0);
+  if (total_pages !== Math.ceil(total_count / page_size) || !Array.isArray(value.data)) {
+    throw new Error('Invalid version pagination');
+  }
+  const seen = new Set<string>();
+  const data = value.data.map((item): Version => {
+    const v = object(item);
+    const id = stringField(v, 'id');
+    const build_id = stringField(v, 'build_id');
+    const site_id = stringField(v, 'site_id');
+    if (id !== build_id || seen.has(id) || v.status !== 'completed') {
+      throw new Error('Invalid version identity or status');
+    }
+    seen.add(id);
+    return { id, build_id, site_id, status: 'completed', created_at: timestampField(v, 'created_at') };
+  });
+  const expected = page > total_pages ? 0 : Math.min(page_size, total_count - (page - 1) * page_size);
+  if (data.length !== expected) throw new Error('Invalid version page length');
+  return { data, page, page_size, total_count, total_pages };
+}
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {

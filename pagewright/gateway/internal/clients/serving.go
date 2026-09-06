@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -15,9 +16,10 @@ type ServingClient struct {
 
 func NewServingClient(baseURL string) *ServingClient {
 	return &ServingClient{
-		baseURL: baseURL,
+		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:       30 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
 }
@@ -27,8 +29,8 @@ func (c *ServingClient) DeployArtifact(fqdn, siteID, versionID string) error {
 	url := fmt.Sprintf("%s/sites/%s/artifacts", c.baseURL, fqdn)
 
 	req := map[string]string{
-		"site_id":    siteID,
-		"version_id": versionID,
+		"site_id": siteID,
+		"version": versionID,
 	}
 
 	body, err := json.Marshal(req)
@@ -54,7 +56,7 @@ func (c *ServingClient) ActivateVersion(fqdn, versionID string) error {
 	url := fmt.Sprintf("%s/sites/%s/activate", c.baseURL, fqdn)
 
 	req := map[string]string{
-		"version_id": versionID,
+		"version": versionID,
 	}
 
 	body, err := json.Marshal(req)
@@ -80,7 +82,7 @@ func (c *ServingClient) ActivatePreview(fqdn, versionID string) error {
 	url := fmt.Sprintf("%s/sites/%s/preview", c.baseURL, fqdn)
 
 	req := map[string]string{
-		"version_id": versionID,
+		"version": versionID,
 	}
 
 	body, err := json.Marshal(req)

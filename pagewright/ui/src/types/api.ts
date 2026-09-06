@@ -36,7 +36,7 @@ export interface Version {
   id: string;
   site_id: string;
   build_id: string;
-  status: string;
+  status: 'completed';
   created_at: string;
 }
 

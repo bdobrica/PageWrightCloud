@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, AxiosError } from 'axios';
 import { config } from '../config';
-import { parseBuildResponse } from './contracts';
+import { parseBuildResponse, parseVersionPage } from './contracts';
 import type {
   AuthResponse,
   RegisterRequest,
@@ -130,7 +130,7 @@ class ApiClient {
     const response = await this.client.get<PaginatedResponse<Version>>(`/sites/${fqdn}/versions`, {
       params: { page, page_size: pageSize },
     });
-    return response.data;
+    return parseVersionPage(response.data);
   }
 
   async deployVersion(fqdn: string, versionId: string, data: DeployVersionRequest): Promise<void> {

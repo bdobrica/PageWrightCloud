@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { chatPath } from '../routes';
 import { useNavigate } from 'react-router-dom';
 import { ManageAliasesModal } from './ManageAliasesModal';
 import type { Site } from '../types/api';
@@ -45,7 +46,7 @@ export const SiteCard: React.FC<SiteCardProps> = ({ site, onDelete, onToggleEnab
           <button onClick={() => onToggleEnabled(site)} className="pure-button" disabled={pending}>
             {site.enabled ? 'Disable' : 'Enable'}
           </button>
-          <button onClick={() => navigate(pending ? `/create-site?fqdn=${encodeURIComponent(site.fqdn)}` : `/chat/${site.fqdn}`)} className="pure-button pure-button-primary">
+          <button onClick={() => navigate(pending ? `/create-site?fqdn=${encodeURIComponent(site.fqdn)}` : chatPath(site.fqdn))} className="pure-button pure-button-primary">
             {pending ? 'Resume Setup' : 'Build'}
           </button>
           <button onClick={() => onDelete(site.fqdn)} className="pure-button button-error">

@@ -2,9 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"sort"
 	"strconv"
+	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/clients"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
@@ -21,6 +25,9 @@ type VersionsHandler struct {
 }
 
 func NewVersionsHandler(db *database.DB, storageClient *clients.StorageClient, servingClient *clients.ServingClient, defaultPageSize int) *VersionsHandler {
+	if defaultPageSize < 1 || defaultPageSize > 100 {
+		defaultPageSize = 25
+	}
 	return &VersionsHandler{
 		db:              db,
 		storageClient:   storageClient,
@@ -47,9 +54,14 @@ func (h *VersionsHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch versions from storage service
-	versions, err := h.storageClient.ListVersions(site.ID)
+	stored, err := h.storageClient.ListVersions(site.ID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to list versions")
+		return
+	}
+	versions, err := normalizeVersions(site.ID, stored)
+	if err != nil {
+		respondError(w, http.StatusBadGateway, "invalid storage version response")
 		return
 	}
 
@@ -64,14 +76,12 @@ func (h *VersionsHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 		pageSize = h.defaultPageSize
 	}
 
-	start := (page - 1) * pageSize
-	end := start + pageSize
-	if start > len(versions) {
-		start = len(versions)
+	// Compare before multiplying so arbitrarily large page values cannot overflow.
+	start := len(versions)
+	if page-1 <= len(versions)/pageSize {
+		start = (page - 1) * pageSize
 	}
-	if end > len(versions) {
-		end = len(versions)
-	}
+	end := start + min(pageSize, len(versions)-start)
 
 	paginatedVersions := versions[start:end]
 	totalPages := (len(versions) + pageSize - 1) / pageSize
@@ -83,6 +93,36 @@ func (h *VersionsHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 		TotalCount: len(versions),
 		TotalPages: totalPages,
 	})
+}
+
+// VersionSummary is an artifact identity, not a database version-row identity.
+type VersionSummary struct {
+	ID        string    `json:"id"`
+	SiteID    string    `json:"site_id"`
+	BuildID   string    `json:"build_id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+var versionIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+
+func normalizeVersions(siteID string, stored []clients.StorageVersion) ([]VersionSummary, error) {
+	result := make([]VersionSummary, 0, len(stored))
+	seen := map[string]bool{}
+	for _, v := range stored {
+		if !versionIDPattern.MatchString(v.BuildID) || v.Timestamp.IsZero() || v.Status != "completed" || seen[v.BuildID] {
+			return nil, fmt.Errorf("invalid committed version")
+		}
+		seen[v.BuildID] = true
+		result = append(result, VersionSummary{v.BuildID, siteID, v.BuildID, "completed", v.Timestamp.UTC()})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].BuildID < result[j].BuildID
+		}
+		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	return result, nil
 }
 
 // DeployVersion deploys a version to live or preview

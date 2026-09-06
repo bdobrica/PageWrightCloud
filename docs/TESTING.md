@@ -64,6 +64,11 @@ malformed configuration, escaping, filesystem boundaries and CLI exit codes.
 Run `go test -race -count=1 -coverpkg=./internal/... ./...` in
 `pagewright/compiler` for race-enabled cross-package coverage.
 
+[M1.9 version API checks](VERSION_API.md) verify serving JSON fields, normalized
+owner-checked committed-version lists, pagination and upstream failures against
+real storage/PostgreSQL. UI contracts exercise version parsing and FQDN routing.
+These do not establish the full publish/preview journey.
+
 ## Known skipped tests
 
 Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.

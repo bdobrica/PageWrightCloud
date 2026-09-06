@@ -1,4 +1,5 @@
 import React from 'react';
+import { CHAT_ROUTE } from './routes';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/auth';
@@ -51,7 +52,7 @@ const App: React.FC = () => {
             }
           />
           <Route
-            path="/chat/:siteId"
+            path={CHAT_ROUTE}
             element={
               <ProtectedRoute>
                 <Chat />

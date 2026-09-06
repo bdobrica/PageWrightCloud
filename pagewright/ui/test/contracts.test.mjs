@@ -1,7 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { parseBuildResponse, parseJobSnapshot } from '../src/api/contracts.ts';
+import { parseBuildResponse, parseJobSnapshot, parseVersionPage } from '../src/api/contracts.ts';
+import { CHAT_ROUTE, chatPath } from '../src/routes.ts';
+import { matchRoutes } from 'react-router-dom';
+
+test('chat route and links use the FQDN consumed by Chat',()=>{
+ const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
+ const chat=readFileSync(new URL('../src/pages/Chat.tsx',import.meta.url),'utf8');
+ const card=readFileSync(new URL('../src/components/SiteCard.tsx',import.meta.url),'utf8');
+ assert.match(app,/path=\{CHAT_ROUTE\}/);
+ assert.match(chat,/useParams<\{ fqdn: string \}>/);
+ assert.match(card,/chatPath\(site.fqdn\)/);
+ const matches=matchRoutes([{path:CHAT_ROUTE}],chatPath('blog.example.test'));
+ assert.equal(matches[0].params.fqdn,'blog.example.test');
+ assert.equal(matches[0].params.siteId,undefined);
+});
+
+test('version pages have canonical artifact identity, status and timestamp',()=>{
+ const version={id:'v1',build_id:'v1',site_id:'site',status:'completed',created_at:'2026-09-06T12:00:00Z'};
+ const page={data:[version],page:1,page_size:10,total_count:1,total_pages:1};
+ assert.deepEqual(parseVersionPage(page),page);
+ for(const mutation of [{status:'success'},{status:'pending'},{created_at:'bad'},{created_at:undefined,timestamp:version.created_at},{site_id:undefined},{id:'database-id'}]){
+  assert.throws(()=>parseVersionPage({...page,data:[{...version,...mutation}]}));
+ }
+ for(const mutation of [{page:0},{page_size:0},{total_pages:2},{data:null},{data:[version,version]}]){
+  assert.throws(()=>parseVersionPage({...page,...mutation}));
+ }
+ assert.deepEqual(parseVersionPage({...page,data:[],page:999}),{...page,data:[],page:999});
+ assert.deepEqual(parseVersionPage({...page,data:[],total_count:0,total_pages:0}),{...page,data:[],total_count:0,total_pages:0});
+});
 import { createSubmissionIdentity, isRejectedSubmission } from '../src/api/submission.ts';
 
 test('site creation selects starter and offers pending setup recovery', () => {

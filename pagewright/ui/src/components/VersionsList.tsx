@@ -13,22 +13,29 @@ interface VersionsListProps {
 export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => {
   const [versions, setVersions] = useState<Version[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null);
 
   useEffect(() => {
+    let active = true;
     const fetchVersions = async () => {
       try {
         setIsLoading(true);
+        setVersions([]);
+        setSelectedVersion(null);
+        setLoadError(false);
         const response = await apiClient.listVersions(fqdn, 1, 10);
-        setVersions(response.data || []);
+        if (active) setVersions(response.data);
       } catch (error) {
         console.error('Failed to fetch versions:', error);
+        if (active) setLoadError(true);
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     };
 
     fetchVersions();
+    return () => { active = false; };
   }, [fqdn, refresh]);
 
   const handleVersionClick = (version: Version) => {
@@ -54,6 +61,8 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => 
         <h3>Versions</h3>
         {isLoading ? (
           <p className="no-versions">Loading...</p>
+        ) : loadError ? (
+          <p role="alert">Unable to load versions.</p>
         ) : versions.length === 0 ? (
           <p className="no-versions">No versions yet</p>
         ) : (
