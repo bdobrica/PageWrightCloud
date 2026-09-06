@@ -63,7 +63,7 @@ If storage crashes or the acknowledgement is lost after reservation, bytes may
 be staged/reserved but not visible. An identical object retry is allowed only
 while that attempt remains active and leased. M2.8 adds conservative
 [receipt and result reconciliation](RESULT_RECOVERY.md); do not delete a receipt
-to retry different bytes. Restart durability remains M2.9 and receipt
+to retry different bytes. [Restart durability](JOB_DURABILITY.md) is covered by M2.9 and receipt
 retention/garbage collection belongs to M2.10.
 
 ## Results and retries
@@ -89,7 +89,8 @@ storage and worker together. Old workers do not send the new identity header;
 old active jobs lack the dispatch timestamp/commit receipts needed for this
 contract. Do not hot-mix worker generations or reset fence counters/receipts.
 Back up Redis and storage together; Redis persistence and uncertain-job recovery
-remain subject to the M2.9 durability gate. No live data migration is performed.
+follow the [M2.9 durability gate and operator policy](JOB_DURABILITY.md). No live
+application-data restore is performed; surviving legacy reservation TTLs are protected.
 
 Fencing is not authentication: the internal API is still trusted-network-only.
 An actor with internal API/Redis access can obtain or forge identities. Service

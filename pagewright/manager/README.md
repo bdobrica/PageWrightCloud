@@ -7,6 +7,9 @@ persistence, configuration and upgrade requirements, and the
 socket authority. [Result recovery](../../docs/RESULT_RECOVERY.md) covers bounded
 callbacks, verified worker exits, artifact receipts and terminal timeouts.
 Paid-provider acceptance remains a later milestone.
+Production startup now requires the Redis settings in the
+[M2.9 durability and recovery runbook](../../docs/JOB_DURABILITY.md). The image
+also includes `/app/recovery-audit`, a read-only consistency report for operators.
 
 ## API
 

@@ -24,7 +24,8 @@ launch. Restarting a manager preserves this recovery and the shared limit.
 Docker is called, a lost intent acknowledgement or an ambiguous launch. These
 jobs conservatively remain running and occupy capacity until
 [M2.8 result/exit/timeout reconciliation](RESULT_RECOVERY.md); broader restart
-and operator recovery remains M2.9. This is duplicate-safe dispatch, not guaranteed
+and operator recovery follows the [M2.9 durability runbook](JOB_DURABILITY.md).
+This is duplicate-safe dispatch, not guaranteed
 eventual completion or exactly-once execution under arbitrary storage loss.
 Do not delete dispatch markers or expire reservations to force retries.
 
@@ -79,8 +80,9 @@ never relaunched; terminal history remains stored. Missing/malformed records,
 unknown states or multiple active legacy jobs for one site stop initialization
 for reconciliation. Stop **all** old request-spawning managers before upgrading;
 mixed old/new dispatch implementations are unsupported. Existing legacy record
-TTLs are not rewritten; history retention and broader restart reconciliation,
-including gateway claims not received by the manager, remain M2.9.
+TTLs are now removed from surviving reservations before admission by M2.9.
+[History retention and restart reconciliation](JOB_DURABILITY.md) preserve
+missing-evidence uncertainty, including gateway claims not received by the manager.
 
 ## Verification
 

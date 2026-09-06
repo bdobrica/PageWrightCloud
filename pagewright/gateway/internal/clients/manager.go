@@ -2,6 +2,7 @@ package clients
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,6 +32,10 @@ func NewManagerClient(baseURL string) *ManagerClient {
 
 // EnqueueJob submits a new job to the manager
 func (c *ManagerClient) EnqueueJob(req ManagerJobRequest) (*ManagerJobResponse, error) {
+	return c.EnqueueJobContext(context.Background(), req)
+}
+
+func (c *ManagerClient) EnqueueJobContext(ctx context.Context, req ManagerJobRequest) (*ManagerJobResponse, error) {
 	url := fmt.Sprintf("%s/jobs", c.baseURL)
 
 	body, err := json.Marshal(req)
@@ -38,7 +43,12 @@ func (c *ManagerClient) EnqueueJob(req ManagerJobRequest) (*ManagerJobResponse, 
 		return nil, fmt.Errorf("failed to marshal job request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to enqueue job: %w", err)
 	}
@@ -49,7 +59,7 @@ func (c *ManagerClient) EnqueueJob(req ManagerJobRequest) (*ManagerJobResponse, 
 	}
 
 	var result ManagerJobResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeManagerJob(resp.Body, &result); err != nil {
 		return nil, fmt.Errorf("failed to decode job response: %w", err)
 	}
 	if err := result.Validate(); err != nil {
@@ -64,12 +74,20 @@ func (c *ManagerClient) EnqueueJob(req ManagerJobRequest) (*ManagerJobResponse, 
 
 // GetJobStatus retrieves the status of a job
 func (c *ManagerClient) GetJobStatus(jobID string) (*ManagerJobStatus, error) {
+	return c.GetJobStatusContext(context.Background(), jobID)
+}
+
+func (c *ManagerClient) GetJobStatusContext(ctx context.Context, jobID string) (*ManagerJobStatus, error) {
 	if jobID == "" {
 		return nil, fmt.Errorf("job_id is required")
 	}
 	url := fmt.Sprintf("%s/jobs/%s", c.baseURL, url.PathEscape(jobID))
 
-	resp, err := c.httpClient.Get(url)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get job status: %w", err)
 	}
@@ -80,7 +98,7 @@ func (c *ManagerClient) GetJobStatus(jobID string) (*ManagerJobStatus, error) {
 	}
 
 	var status ManagerJobStatus
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+	if err := decodeManagerJob(resp.Body, &status); err != nil {
 		return nil, fmt.Errorf("failed to decode job status: %w", err)
 	}
 	if err := status.Validate(); err != nil {
@@ -91,6 +109,17 @@ func (c *ManagerClient) GetJobStatus(jobID string) (*ManagerJobStatus, error) {
 	}
 
 	return &status, nil
+}
+
+func decodeManagerJob(body io.Reader, job *types.Job) error {
+	data, err := io.ReadAll(io.LimitReader(body, (1<<20)+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > 1<<20 {
+		return fmt.Errorf("manager response too large")
+	}
+	return json.Unmarshal(data, job)
 }
 
 // Aliases keep the gateway's wire definitions in one place.

@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: [redis-server, --appendonly, 'yes', --appendfsync, always, --save, '']
+    command: [redis-server, --appendonly, 'yes', --appendfsync, always, --no-appendfsync-on-rewrite, 'no', --aof-load-truncated, 'no', --maxmemory-policy, noeviction, --save, '']
     volumes:
       - redis_data:/data
     ports:

@@ -94,13 +94,15 @@ is M2.10, not permission to delete unrelated containers.
 
 Drain/reconcile before a coordinated manager/storage/worker upgrade. Do not reset
 fences, remove receipts, or hot-mix old active jobs lacking required metadata.
-Legacy/corrupt/missing Redis records remain fail-closed and need the M2.9 restart
-and durability policy. Kubernetes remains a stub without this Docker reconciler.
+Legacy/corrupt/missing Redis records remain fail-closed under the
+[M2.9 restart and durability policy](JOB_DURABILITY.md). Kubernetes remains a stub
+without this Docker reconciler.
 All replicas must share configuration, Redis, storage and the same Docker daemon;
 multi-host scheduling is not supported.
 
 Internal APIs/Redis/Docker remain trusted infrastructure; fencing is not service
-authentication. M4 owns scoped credentials. M2.9 covers broader restart/durability
-and gateway ambiguity; M2.10 covers cleanup/retention; M2.12 covers an explicitly
+authentication. M4 owns scoped credentials. M2.9 adds gateway history recovery and
+an operator policy for missing evidence, alongside stronger Redis durability;
+M2.10 covers cleanup/retention; M2.12 covers an explicitly
 cost-bounded provider run. This work does not claim production or paid-provider
 acceptance.

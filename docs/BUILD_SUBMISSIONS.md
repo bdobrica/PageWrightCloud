@@ -5,6 +5,7 @@ pending version uses `target_version`, never the execution's `job_id`.
 See [JOB_CONTRACT.md](JOB_CONTRACT.md) for wire shapes.
 M2.5 selects [the latest completed draft, then live, then bootstrap](BUILD_SOURCE.md)
 for each new submission and exposes the persisted base in chat.
+M2.9 adds [durable lifecycle history and background recovery](JOB_DURABILITY.md).
 
 ## Retry identity
 
@@ -38,7 +39,7 @@ duplicates. Legacy versions are preserved without guessing their execution IDs.
 | --- | --- | --- |
 | `ready` | Mapping/version committed; dispatch unclaimed | Atomically claim; only winner sends POST |
 | `dispatching` | Manager may have received the request | GET the same ID; no second POST |
-| `accepted` | Manager outcome and version status saved | Return saved accepted response |
+| `accepted` | Manager outcome and version status saved | Return saved response; M2.9 recovers subsequent lifecycle status |
 | `rejected` | Definite failure and failed version saved | Return saved error |
 
 The gateway sends the exact committed identities and prompt. Outcome writes
@@ -46,9 +47,10 @@ update submission and version together, use a bounded context independent of
 browser disconnect, and reject conflicting late decisions. A failed outcome
 write leaves the mapping available for reconciliation.
 
-Status is the submission-time snapshot, not live history. Callbacks do not yet
-update PostgreSQL; M3.1 adds that reconciliation and owner-checked retrieval.
-Replays can therefore return an older pending/running status after execution ends.
+M2.9 periodically reconciles exact manager outcomes into PostgreSQL submission,
+version and lifecycle history in one transaction. Replays can still lag while
+the manager is unavailable. M3.1 adds owner-checked history retrieval and UI wiring;
+worker callbacks do not write directly to PostgreSQL.
 
 ## Failure and uncertainty
 
@@ -67,8 +69,9 @@ and the persisted job/target IDs. Retry with the same key.
 
 A crash between claiming and sending, or loss of manager evidence, can leave a
 submission uncertain even when GET returns 404. The gateway deliberately does
-not automatically redispatch or invent a new version. Automatic recovery,
-reliable queue dispatch and operator reconciliation remain M2. Do not delete a
+not automatically redispatch or invent a new version. M2.9 records a durable
+operator-required diagnostic and supplies a [recovery runbook](JOB_DURABILITY.md).
+Do not delete a
 submission or switch keys to bypass uncertainty without checking whether work ran.
 
 ## Manager boundary
@@ -81,18 +84,20 @@ changed associations/prompt/source/target return 409. Remembered `job_busy` and
 spawned again by the request handler, including pending ones after a crash.
 
 New reservation keys have no TTL so deduplication cannot simply age out during
-execution. Updates preserve legacy TTLs and cannot recreate deleted keys. An
+execution. M2.9 startup removes surviving legacy reservation TTLs; already-missing
+records are not recreated. An
 atomic worker-ID merge preserves a terminal callback that finishes during Spawn.
 
-Nonexpiring Redis keys are not restart durability. Root Redis still lacks the
-persistent volume/recovery policy planned in M2.9. Queue entries, rejections and
-terminal reservations also need a retention policy. PostgreSQL mappings survive
-independently; the gateway avoids redispatch when manager evidence disappears.
-Internal API authentication and callback fencing remain unfinished.
+Nonexpiring keys alone are not restart durability. Root/standalone Redis use
+persistent AOF storage and M2.9 checks the production durability settings.
+Canonical identities/receipts remain permanent; only old terminal dispatch
+bookkeeping is trimmed. PostgreSQL history survives independently, and missing
+manager evidence is never automatically redispatched. Callback fencing is M2.7;
+internal API authentication remains M4.
 
-The current placeholder spawner treats a returned error as a definite start
-failure. The real spawner in M2 must distinguish ambiguous container create/start
-errors before reporting definitive rejection. Manager POST redirects are not
+The real Docker spawner distinguishes definite rejection from ambiguous
+create/start outcomes; M2.8 handles result/exit/timeout reconciliation without
+relaunching intent. Manager POST redirects are not
 followed, so a later redirect dial failure cannot masquerade as an undelivered request.
 
 ## Verification and upgrade
@@ -111,5 +116,6 @@ paid AI or prove publishing works.
 
 Back up before upgrading and rebuild gateway/manager/UI together. Submission
 records reference version rows: generic version deletion/retention cannot silently
-remove mappings. That policy remains M1.5/M2 work. Migration does not delete old
+remove mappings. M2.9 retains these identities; destructive retention remains
+disabled. Migration does not delete old
 versions or rewrite live/preview pointers.

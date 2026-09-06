@@ -4,6 +4,11 @@
 
 User-facing REST API for authentication, site management, and build orchestration.
 
+Migrations are the authoritative schema. Migration 009 adds durable job lifecycle
+history and background recovery of saved build submissions; see the
+[M2.9 durability/runbook](../../docs/JOB_DURABILITY.md). Missing manager evidence
+does not authorize redispatch. Owner-checked history endpoints/UI remain M3.
+
 ## Database Schema
 
 ### Users Table

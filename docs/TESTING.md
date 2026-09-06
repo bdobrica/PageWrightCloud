@@ -9,7 +9,7 @@ See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from 
 | UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, zero-warning lint, production build |
 | Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP, worker callbacks, and shared artifact round-trips through worker/gateway/serving in isolated Compose |
 | Images | `docker compose --env-file /dev/null --profile worker build` | Selected service images, including the optional mock worker |
-| Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, auth, site metadata and storage; repeat after container recreation with volumes retained |
+| Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, auth, bootstrap storage; SIGKILL this disposable project's Redis/gateway/manager, recreate with retained volumes, verify history recovery and missing-evidence non-redispatch |
 
 The integration and startup checks use disposable, uniquely named projects and remove only their own test volumes. They do not require your development stack or `.env`. The image-build command only builds images; it does not start or remove containers. Startup needs Node as well as Docker. No paid AI credentials are needed.
 
@@ -39,7 +39,11 @@ use its real extractor, not nginx activation or the publish workflow.
 required private-log writes, hidden partial/legacy versions, safe retry,
 backend restart and worker callback gating. Integration uses the actual worker
 metadata client and checks committed-version visibility through gateway.
-Startup smoke also checks private metadata after container recreation.
+Startup smoke also checks bootstrap private metadata after container recreation.
+M2.9 additionally runs the packaged read-only recovery audit, verifies an
+acknowledged manager job survives AOF restart, reconciles its PostgreSQL lifecycle
+history, and preserves a gateway claimed-before-send fixture as uncertain.
+See [durability acceptance and operator limits](JOB_DURABILITY.md).
 
 [M1.5 immutability checks](IMMUTABLE_VERSIONS.md) add concurrent instance/process
 writes, retries, conflict preservation, failed-stream cleanup and disabled

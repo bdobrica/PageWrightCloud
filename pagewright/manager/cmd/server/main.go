@@ -91,7 +91,15 @@ func main() {
 	handler := api.NewHandler(queueBackend, lockMgr)
 	router := handler.SetupRoutes()
 	dispatchQueue := queueBackend.(queue.DispatchBackend)
-	initialization, endInitialization := context.WithTimeout(context.Background(), 10*time.Second)
+	initialization, endInitialization := context.WithTimeout(context.Background(), 60*time.Second)
+	if _, testOnly := testSpawners[cfg.WorkerSpawner]; !testOnly {
+		if err := queueBackend.(*queueRedis.RedisBackend).ValidateDurability(initialization); err != nil {
+			log.Fatalf("Unsafe Redis persistence: %v", err)
+		}
+	}
+	if err := queueBackend.(*queueRedis.RedisBackend).ProtectReservations(initialization); err != nil {
+		log.Fatalf("Reservation migration failed: %v", err)
+	}
 	if err := dispatchQueue.InitializeDispatch(initialization, cfg.DispatchConcurrency); err != nil {
 		log.Fatalf("Queue initialization failed: %v", err)
 	}
@@ -99,6 +107,11 @@ func main() {
 	dispatcherContext, stopDispatch := context.WithCancel(context.Background())
 	dispatcherDone := make(chan struct{})
 	leasesDone := make(chan struct{})
+	historyDone := make(chan struct{})
+	go func() {
+		defer close(historyDone)
+		queueBackend.(*queueRedis.RedisBackend).MaintainHistory(dispatcherContext)
+	}()
 	recoveryDone := make(chan struct{})
 	go func() {
 		defer close(recoveryDone)
@@ -142,6 +155,7 @@ func main() {
 	log.Println("Shutting down server...")
 	stopDispatch()
 	<-leasesDone
+	<-historyDone
 	<-recoveryDone
 	select {
 	case <-dispatcherDone:

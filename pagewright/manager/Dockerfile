@@ -14,6 +14,7 @@ COPY . .
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o manager-server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o recovery-audit ./cmd/recovery-audit
 
 # Final stage
 FROM alpine:latest
@@ -24,6 +25,7 @@ WORKDIR /app
 
 # Copy the binary from builder
 COPY --from=builder /build/manager-server .
+COPY --from=builder /build/recovery-audit .
 
 # Expose the port
 EXPOSE 8081

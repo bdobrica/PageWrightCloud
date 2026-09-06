@@ -47,45 +47,38 @@ assert.ok(initial.includes('content/site.json') && initial.includes('content/hom
 assert.equal((await (await request(storage, initialPath + '/manifest')).json()).compiled, false);
 const retriedSite = await (await request(gateway, '/sites', json({ fqdn: 'smoke.example.test', template_id: 'starter' }, auth.token), 201)).json();
 assert.equal(retriedSite.id, sites.data[0].id);
-const artifactPath = `/sites/${sites.data[0].id}/artifacts/smoke-v1`;
-const marker = 'M0 persistent artifact smoke check';
-const privateLog = { content: 'M1.4 private execution output\n' };
-const manifest = { site_id: sites.data[0].id, build_id: 'smoke-v1', created_at: '2026-09-05T12:00:00Z', checks_passed: false, prompt: 'private smoke prompt' };
+// Bootstrap is the only intentionally unfenced write. Normal worker writes
+// require a live attempt; those paths are covered by the service integration suite.
+const artifactPath = initialPath;
+const archive = Buffer.from(await (await request(storage, artifactPath)).arrayBuffer());
+const metadata = {};
+for (const part of ['logs', 'manifest']) metadata[part] = await (await request(storage, `${artifactPath}/${part}`)).text();
 const versionsPath = `/sites/${sites.data[0].id}/versions`;
-if (stage === 'fresh') {
-  await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync(marker) }, 201);
-  await request(storage, artifactPath + '/manifest', json(manifest), 409);
-  assert.equal((await (await request(storage, versionsPath)).json()).count, 1);
-  await request(storage, artifactPath + '/logs', json(privateLog), 201);
-  assert.equal((await (await request(storage, versionsPath)).json()).count, 1);
-  await request(storage, artifactPath + '/manifest', json(manifest), 201);
-}
 // The same checks run before and after recreation: retries are idempotent,
 // replacements conflict, and neither API exposes destructive version deletion.
-await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync(marker) }, 201);
-await request(storage, artifactPath + '/logs', json(privateLog), 201);
-await request(storage, artifactPath + '/manifest', json(manifest), 201);
+await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: archive }, 201);
+for (const part of ['logs', 'manifest']) await request(storage, `${artifactPath}/${part}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: metadata[part] }, 201);
 await request(storage, artifactPath, { method: 'PUT', headers: { 'Content-Type': 'application/gzip' }, body: gzipSync('replacement') }, 409);
 await request(storage, artifactPath + '/logs', json({ content: 'replacement' }), 409);
-await request(storage, artifactPath + '/manifest', json({ ...manifest, prompt: 'replacement' }), 409);
+await request(storage, artifactPath + '/manifest', json({ ...JSON.parse(metadata.manifest), prompt: 'replacement' }), 409);
 await request(storage, artifactPath, { method: 'DELETE' }, 405);
 await request(gateway, '/sites/smoke.example.test/versions/smoke-v1', { method: 'DELETE', headers: { Authorization: `Bearer ${auth.token}` } }, 501);
 const artifact = await request(storage, artifactPath);
-assert.equal(gunzipSync(Buffer.from(await artifact.arrayBuffer())).toString(), marker);
-for (const [suffix, expected] of [['logs', privateLog], ['manifest', manifest]]) {
+assert.deepEqual(Buffer.from(await artifact.arrayBuffer()), archive);
+for (const [suffix, expected] of Object.entries(metadata)) {
   const response = await request(storage, `${artifactPath}/${suffix}`);
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await response.json(), expected);
+  assert.equal(await response.text(), expected);
 }
 const versions = await (await request(storage, versionsPath)).json();
-assert.equal(versions.count, 2);
-assert.equal(versions.versions.find(version => version.build_id === 'smoke-v1').status, 'completed');
+assert.equal(versions.count, 1);
+assert.equal(versions.versions[0].status, 'completed');
 assert.ok(!JSON.stringify(versions).includes('private'));
 // Persist an acknowledged job across full Redis/container recreation. The smoke
 // stack deliberately selects a missing image, so no worker or provider executes.
 const submission = {
   job_id: '692982f4-3a86-45f6-a84a-c749081c0b22',
-  owner_id: 'smoke-owner', site_id: sites.data[0].id,
+  owner_id: sites.data[0].user_id, site_id: sites.data[0].id,
   source_version: 'initial', target_version: 'smoke-dispatch', prompt: 'Smoke dispatch',
 };
 if (stage === 'fresh') {
@@ -103,4 +96,7 @@ assert.equal(job.error_code, 'spawn_failed');
 for (const [key, value] of Object.entries(submission)) assert.equal(job[key], value);
 await request(manager, '/jobs', json(submission), 502);
 assert.deepEqual(await (await request(manager, `/jobs/${submission.job_id}`)).json(), job);
+if (stage === 'restored') {
+  await request(manager, '/jobs/692982f4-3a86-45f6-a84a-c749081c0b23', {}, 404);
+}
 console.log(`${stage}: health, UI, theme registry, auth, site, artifact, private metadata and acknowledged job persistence passed`);

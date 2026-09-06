@@ -72,7 +72,7 @@ func execSQL(t *testing.T, db *DB, sql string) {
 func assertSchema(t *testing.T, db *DB) {
 	t.Helper()
 	var versions int
-	if err := db.Get(&versions, "SELECT count(*) FROM schema_migrations"); err != nil || versions != 8 {
+	if err := db.Get(&versions, "SELECT count(*) FROM schema_migrations"); err != nil || versions != 9 {
 		t.Fatalf("migration count = %d, error = %v", versions, err)
 	}
 	for _, table := range []string{"users", "sites", "site_aliases", "versions", "password_reset_tokens", "build_submissions"} {

@@ -42,11 +42,34 @@ url() {
 verify() {
     node scripts/smoke-stack.mjs "$1" "$(url gateway 8085)" "$(url storage 8080)" "$(url ui 80)" "$(url themes 80)" "$(url manager 8081)"
     compose exec -T nginx nginx -t
+    compose exec -T manager ./recovery-audit
 }
 compose up -d --build --wait --wait-timeout 180
 verify fresh
-# Recreate containers and network while retaining this run's named volumes.
+# Persist gateway crash-window fixtures without calling a provider. The first
+# manager job is already terminal; the second was claimed but never received.
+compose exec -T postgres psql -v ON_ERROR_STOP=1 -U pagewright -d pagewright <<'SQL'
+INSERT INTO versions(site_id,build_id,status)
+ SELECT id,v.build,'pending' FROM sites CROSS JOIN (VALUES ('smoke-dispatch'),('smoke-missing')) v(build) WHERE fqdn='smoke.example.test';
+INSERT INTO build_submissions(job_id,site_id,owner_id,source_version,target_version,prompt,request_key,request_hash,dispatch_state,updated_at)
+ SELECT v.job::uuid,id,user_id,'initial',v.build,'Smoke dispatch',v.job::uuid,repeat('a',64),'dispatching',now()-interval '2 minutes'
+ FROM sites CROSS JOIN (VALUES
+ ('692982f4-3a86-45f6-a84a-c749081c0b22','smoke-dispatch'),
+ ('692982f4-3a86-45f6-a84a-c749081c0b23','smoke-missing')) v(job,build)
+ WHERE fqdn='smoke.example.test';
+SQL
+# Abruptly stop only this generated project's writers/Redis, then recreate with
+# the same volumes. This exercises AOF recovery, not just graceful shutdown.
+compose kill -s SIGKILL gateway manager redis
 compose down
 compose up -d --wait --wait-timeout 180
 verify restored
-echo "Fresh startup and persistent-volume recreation checks passed."
+for attempt in $(seq 1 40); do
+    recovered=$(compose exec -T postgres psql -At -U pagewright -d pagewright -c "SELECT count(*) FROM build_submissions WHERE (job_id='692982f4-3a86-45f6-a84a-c749081c0b22' AND status='failed') OR (job_id='692982f4-3a86-45f6-a84a-c749081c0b23' AND dispatch_state='dispatching' AND status='pending' AND recovery_error='manager_evidence_missing_operator_required')")
+    if [ "$recovered" = 2 ]; then break; fi
+    sleep 2
+done
+[ "$recovered" = 2 ] || { echo 'Durable history reconciliation failed' >&2; exit 1; }
+history=$(compose exec -T postgres psql -At -U pagewright -d pagewright -c "SELECT count(*) FROM job_history WHERE job_id='692982f4-3a86-45f6-a84a-c749081c0b22' AND status='failed'")
+[ "$history" = 1 ] || { echo 'Terminal history missing or duplicated' >&2; exit 1; }
+echo "Fresh startup, abrupt Redis/gateway/manager restart, durable history and missing-evidence checks passed."

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
@@ -61,6 +64,10 @@ func main() {
 	aliasesHandler := handlers.NewAliasesHandler(db, servingClient)
 	versionsHandler := handlers.NewVersionsHandler(db, storageClient, servingClient, cfg.DefaultPageSize)
 	buildHandler := handlers.NewBuildHandler(db, llmClient, managerClient, storageClient)
+	recoveryContext, stopRecovery := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopRecovery()
+	recoveryDone := make(chan struct{})
+	go func() { defer close(recoveryDone); buildHandler.RunRecovery(recoveryContext) }()
 	wsHandler := handlers.NewWebSocketHandler(wsHub)
 
 	// Setup router
@@ -127,7 +134,15 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
+	go func() {
+		<-recoveryContext.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdown)
+	}()
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server failed: %v", err)
 	}
+	stopRecovery()
+	<-recoveryDone
 }

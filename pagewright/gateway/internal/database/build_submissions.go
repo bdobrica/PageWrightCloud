@@ -11,21 +11,23 @@ import (
 var ErrSubmissionConflict = errors.New("build submission conflict")
 
 type BuildSubmission struct {
-	JobID          string    `db:"job_id"`
-	SiteID         string    `db:"site_id"`
-	OwnerID        string    `db:"owner_id"`
-	SourceVersion  string    `db:"source_version"`
-	TargetVersion  string    `db:"target_version"`
-	Prompt         string    `db:"prompt"`
-	RequestKey     string    `db:"request_key"`
-	RequestHash    string    `db:"request_hash"`
-	DispatchState  string    `db:"dispatch_state"`
-	Status         string    `db:"status"`
-	ErrorMessage   string    `db:"error_message"`
-	ErrorCode      string    `db:"error_code"`
-	ResponseStatus int       `db:"response_status"`
-	CreatedAt      time.Time `db:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at"`
+	JobID             string    `db:"job_id"`
+	SiteID            string    `db:"site_id"`
+	OwnerID           string    `db:"owner_id"`
+	SourceVersion     string    `db:"source_version"`
+	TargetVersion     string    `db:"target_version"`
+	Prompt            string    `db:"prompt"`
+	RequestKey        string    `db:"request_key"`
+	RequestHash       string    `db:"request_hash"`
+	DispatchState     string    `db:"dispatch_state"`
+	Status            string    `db:"status"`
+	ErrorMessage      string    `db:"error_message"`
+	ErrorCode         string    `db:"error_code"`
+	ResponseStatus    int       `db:"response_status"`
+	CreatedAt         time.Time `db:"created_at"`
+	UpdatedAt         time.Time `db:"updated_at"`
+	RecoveryCheckedAt time.Time `db:"recovery_checked_at"`
+	RecoveryError     string    `db:"recovery_error"`
 }
 
 func (db *DB) FindBuildSubmission(ctx context.Context, ownerID, siteID, key string) (*BuildSubmission, error) {
@@ -80,6 +82,9 @@ func (db *DB) ReserveBuildSubmission(ctx context.Context, proposal *BuildSubmiss
 	if err != nil {
 		return nil, false, err
 	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO job_history(job_id,status) VALUES($1,'pending')`, result.JobID); err != nil {
+		return nil, false, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, false, err
 	}
@@ -132,6 +137,9 @@ func (db *DB) RecordBuildOutcome(ctx context.Context, jobID, state, status, erro
 	}
 	if count != 1 {
 		return fmt.Errorf("submission version missing")
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO job_history(job_id,status,error_code,error_message) VALUES($1,$2,$3,$4) ON CONFLICT(job_id,status) DO NOTHING`, jobID, status, errorCode, errorMessage); err != nil {
+		return err
 	}
 	return tx.Commit()
 }
