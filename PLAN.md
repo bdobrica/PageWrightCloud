@@ -17,11 +17,11 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1–M2.10 implement Docker launch, bounded dispatch, pinned CLI/compiler, isolation, fenced commits, durable history, recovery and verified resource retention. M2.11 (`bb5f877`) adds actual runner fault and fresh-manager recovery acceptance. Selected worker: `pagewright-worker:m2.11`; Kubernetes remains a historical logging stub. | Explicitly cost-bounded real-provider acceptance remains M2.12. Missing evidence stays quarantined, never speculatively redispatched or deleted. Drain/reconcile before coordinated upgrades, including all storage writers; internal services require trusted operation. |
+| Execution | M2.1–M2.11 implement isolated Docker execution, trusted compilation, fenced persistence, recovery, retention and fault acceptance. M2.12 (`4f17a3c`) verifies a budget-guarded real Luna edit in compiled HTML. Selected worker: `pagewright-worker:m2.12`; Kubernetes remains a historical logging stub. | M2 items complete; browser history/publishing and pilot security remain M3/M4. Missing evidence stays quarantined, never replayed or speculatively deleted. Drain/reconcile before coordinated upgrades, including storage writers; internal services require trusted operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
-| Compilation | M1.8 (`6bc86f1`) adds [compiler fixtures and filesystem checks](docs/COMPILER_CONTRACT.md). M2.4 integrates trusted compilation and named static checks; M2.5 verifies two accumulated edits through the production runner. Serving validates compiled archive structure. | Browser checks and paid-provider acceptance remain unverified; static checks do not establish safe HTML for remote multi-user hosting. |
+| Compilation | M1.8 adds compiler fixtures; M2.4 integrates trusted compilation/static checks; M2.5 verifies accumulated edits. M2.12 verifies a paid Luna edit through the actual sandboxed CLI and compiler. Serving validates archive structure. | Browser checks remain unperformed; one synthetic paid edit and static checks do not establish safe HTML for remote multi-user hosting. |
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
 | Version state | M1.2 persists the job/target mapping before dispatch. M1.9 normalizes storage versions for UI. M2.9 adds PostgreSQL lifecycle history and atomically reconciles verified manager outcomes into submission/version status. | Owner-checked history retrieval, browser refresh and combined DB/storage views remain M3.1. Conservative terminal outcomes must not be reopened by late materialization. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
@@ -32,7 +32,10 @@ There is useful implementation across all services, but the application is still
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. Site links assume HTTPS without the local port. | Ship only working controls, configure returned hosting URLs, and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
-The compiler is a useful trusted build component, but its presence and the worker's instruction file do not themselves enforce an execution security boundary. The worker currently runs a command with its inherited environment and has no integrated trusted-output validation.
+The worker now has tested namespace/sandbox boundaries, an environment allowlist,
+resource ceilings and integrated trusted-output validation. Instructions alone are
+not a security boundary; internal-service authorization and combined deployment
+hardening remain M4. The smoke-only budget gateway is not a production quota system.
 
 ## Initial assessment baseline (before M0 implementation)
 
@@ -454,6 +457,43 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.12 completed (2026-09-06) in `4f17a3c`. Selected worker is now
+`pagewright-worker:m2.12`. [Provider smoke evidence](docs/PROVIDER_SMOKE.md) records
+an actual manager-launched, sandboxed CLI edit using user-selected `gpt-5.6-luna`,
+trusted compilation, fenced storage and terminal callback. Only the requested
+source file changed; both source and compiled HTML contained the exact new heading,
+and initial artifact bytes were unchanged. No browser publication was performed.
+
+Optional model configuration is forwarded explicitly without changing the default
+when unset. A separately invoked smoke gateway holds the real API key; the worker
+receives a run-local token on an internal network. The guard pins the model/default
+tier, limits output to 8,192 tokens and three requests, rejects hosted tools and
+persists worst-case reservations before submission. Full-context reservations include
+Luna's cache-write and long-context rates, are never refunded within a run, and
+survive uncertainty; restarting the same journal is refused. No paid run is part
+of normal tests or CI. Later invocations require new explicit authorization and
+price review, including accounting for prior uncertain reservations.
+
+The successful run used three requests, 21,572 input and 209 output tokens. Its
+usage-derived model-token cost was **$0.00236171**, including reported cache writes.
+Two earlier Codex Mini attempts each stopped on a 404 (confirmed model_not_found
+despite model-list presence) and returned no usage. Conservatively retaining both
+$0.116384 reservations puts the combined maximum reservation envelope at
+**$1.8520048**, below the authorized $2. No GPT-5.4 Mini paid request was sent.
+The amount calculated from usage is not an account invoice.
+
+Acceptance passed: offline spending-guard tests and full installed-CLI smoke,
+repository packages, full race-enabled service integration, manager/worker race and
+vet, selected worker image build, installed CLI/compiler and real-Docker checks,
+followed by the successful paid Luna test. Two unrelated serving skips remain.
+Disposable services/networks/worker and temporary key files were removed; non-secret
+evidence was retained. The user's `.env`, application data and isolation policy
+were unchanged. No remote deployment or push occurred.
+
+All M2 items are complete. Next: **M3.1**, owner-scoped job/history retrieval and
+browser-refresh recovery. Full UI preview/publish/rollback acceptance remains M3;
+internal authorization, production quotas and pilot hardening remain M4.
 
 M2.11 completed (2026-09-06) in `bb5f877`. Selected worker is now
 `pagewright-worker:m2.11`. The [runner acceptance matrix](docs/RUNNER_ACCEPTANCE.md)
