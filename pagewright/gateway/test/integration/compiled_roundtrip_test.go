@@ -193,6 +193,13 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		t.Fatalf("layout: %+v", layout)
 	}
 	listing := request("GET", base+"/versions", "", 200)
+	if bytes.Contains(listing, []byte(job.TargetVersion)) {
+		t.Fatal("unreconciled version advertised as completed")
+	}
+	if err := testDB.ObserveBuildJob(context.Background(), completed); err != nil {
+		t.Fatal(err)
+	}
+	listing = request("GET", base+"/versions", "", 200)
 	if !bytes.Contains(listing, []byte(job.TargetVersion)) {
 		t.Fatalf("compiled version absent: %s", listing)
 	}
@@ -201,8 +208,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	if !bytes.Equal(archive, request("GET", base+"/versions/"+job.TargetVersion+"/download", "", 200)) || !bytes.Equal(initial, request("GET", base+"/versions/initial/download", "", 200)) {
 		t.Fatal("immutable bytes changed")
 	}
-	// A second build is submitted without publishing or synchronizing gateway DB
-	// job status. It must inherit the manifest-committed first draft.
+	// A second build without publishing inherits the confirmed first draft.
 	var second types.BuildResponse
 	decode(request("POST", base+"/build", `{"message":"Append a second unpublished edit."}`, 200), &second)
 	if second.JobAccepted == nil || second.SourceVersion != job.TargetVersion {

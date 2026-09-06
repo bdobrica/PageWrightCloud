@@ -115,6 +115,8 @@ func main() {
 
 	// Build (chat interface)
 	api.HandleFunc("/sites/{fqdn}/build", buildHandler.Build).Methods("POST", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/jobs", buildHandler.Jobs).Methods("GET", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/jobs/{job_id}", buildHandler.Jobs).Methods("GET", "OPTIONS")
 
 	// Health check
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

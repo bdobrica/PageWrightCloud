@@ -66,6 +66,19 @@ func (h *VersionsHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply pagination
+	unconfirmed, err := h.db.UnconfirmedBuilds(r.Context(), site.ID)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "failed to reconcile versions")
+		return
+	}
+	confirmed := versions[:0]
+	for _, version := range versions {
+		if !unconfirmed[version.BuildID] {
+			confirmed = append(confirmed, version)
+		}
+	}
+	versions = confirmed
+
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1

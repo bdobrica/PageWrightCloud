@@ -1,4 +1,34 @@
-import type { AcceptedBuildResponse, BuildResponse, JobSnapshot, JobStatus, Version, PaginatedResponse } from '../types/api.ts';
+import type { AcceptedBuildResponse, BuildResponse, BuildHistoryItem, JobSnapshot, JobStatus, Version, PaginatedResponse } from '../types/api.ts';
+
+export function parseBuildHistoryItem(input: unknown): BuildHistoryItem {
+  const v = object(input);
+  const state = v.dispatch_state;
+  if (state !== 'ready' && state !== 'dispatching' && state !== 'accepted' && state !== 'rejected') throw new Error('Invalid dispatch state');
+  const item: BuildHistoryItem = {
+    job_id: stringField(v, 'job_id'), site_id: stringField(v, 'site_id'),
+    source_version: stringField(v, 'source_version'), target_version: stringField(v, 'target_version'),
+    status: statusField(v.status), dispatch_state: state,
+    created_at: timestampField(v, 'created_at'), updated_at: timestampField(v, 'updated_at'),
+  };
+  for (const key of ['error_code', 'recovery_error'] as const) {
+    if (key in v) item[key] = stringField(v, key, true);
+  }
+  return item;
+}
+
+export function parseBuildHistory(input: unknown): PaginatedResponse<BuildHistoryItem> {
+  const v = object(input);
+  for (const key of ['page', 'page_size', 'total_count', 'total_pages']) {
+    if (!Number.isSafeInteger(v[key]) || (v[key] as number) < (key.startsWith('total') ? 0 : 1)) throw new Error('Invalid history pagination');
+  }
+  const page = v.page as number, page_size = v.page_size as number;
+  const total_count = v.total_count as number, total_pages = v.total_pages as number;
+  if (page_size > 100 || total_pages !== Math.ceil(total_count / page_size) || !Array.isArray(v.data)) throw new Error('Invalid history pagination');
+  const data = v.data.map(parseBuildHistoryItem);
+  const expected = page > total_pages ? 0 : Math.min(page_size, total_count - (page - 1) * page_size);
+  if (data.length !== expected || new Set(data.map(j => j.job_id)).size !== data.length || new Set(data.map(j => j.site_id)).size > 1) throw new Error('Invalid history page');
+  return { data, page, page_size, total_count, total_pages };
+}
 
 export function parseVersionPage(input: unknown): PaginatedResponse<Version> {
   const value = object(input);

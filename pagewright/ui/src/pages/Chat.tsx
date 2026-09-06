@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { VersionsList } from '../components/VersionsList';
 import { ChatMessage } from '../components/ChatMessage';
+import { BuildHistory } from '../components/BuildHistory';
 import { FileAttachment } from '../components/FileAttachment';
 import { apiClient } from '../api/client';
 import { createSubmissionIdentity, isRejectedSubmission } from '../api/submission';
@@ -130,6 +131,7 @@ export const Chat: React.FC = () => {
       ]);
     } finally {
       setIsLoading(false);
+      setVersionRefresh(prev => prev + 1);
     }
   };
 
@@ -149,6 +151,7 @@ export const Chat: React.FC = () => {
         </div>
 
         <div className="chat-messages">
+          <BuildHistory key={fqdn} fqdn={fqdn!} refresh={versionRefresh} />
           {messages.length === 0 && (
             <div className="empty-chat">
               <p>Start building your site! Describe what you'd like to change.</p>

@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, AxiosError } from 'axios';
 import { config } from '../config';
-import { parseBuildResponse, parseVersionPage } from './contracts';
+import { parseBuildResponse, parseVersionPage, parseBuildHistory, parseBuildHistoryItem } from './contracts';
 import type {
   AuthResponse,
   RegisterRequest,
@@ -145,6 +145,18 @@ class ApiClient {
   }
 
   // Build endpoint
+  async listJobs(fqdn: string, page = 1) {
+    const response = await this.client.get<unknown>(`/sites/${encodeURIComponent(fqdn)}/jobs`, { params: { page, page_size: 25 } });
+    return parseBuildHistory(response.data);
+  }
+
+  async getJob(fqdn: string, jobId: string) {
+    const response = await this.client.get<unknown>(`/sites/${encodeURIComponent(fqdn)}/jobs/${encodeURIComponent(jobId)}`);
+    const job = parseBuildHistoryItem(response.data);
+    if (job.job_id !== jobId) throw new Error('Unexpected job identity');
+    return job;
+  }
+
   async build(fqdn: string, data: BuildRequest & { files?: File[]; requestKey: string }): Promise<BuildResponse> {
     // Legacy attachment path is still unsupported by Gateway; tracked in M3.9.
     if (data.files && data.files.length > 0) {

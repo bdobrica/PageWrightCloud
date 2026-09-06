@@ -50,6 +50,19 @@ export interface PaginatedResponse<T> {
 
 export type JobStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+export interface BuildHistoryItem {
+  job_id: string;
+  site_id: string;
+  source_version: string;
+  target_version: string;
+  status: JobStatus;
+  dispatch_state: 'ready' | 'dispatching' | 'accepted' | 'rejected';
+  error_code?: string;
+  recovery_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AcceptedBuildResponse {
   job_id: string;
   site_id: string;

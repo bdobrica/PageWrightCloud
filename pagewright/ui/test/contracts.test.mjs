@@ -1,7 +1,25 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { parseBuildResponse, parseJobSnapshot, parseVersionPage } from '../src/api/contracts.ts';
+import { parseBuildResponse, parseJobSnapshot, parseVersionPage, parseBuildHistory, parseBuildHistoryItem } from '../src/api/contracts.ts';
+
+test('durable history restores all lifecycle states with strict pagination and a public allowlist', () => {
+ const job = {job_id:'job',site_id:'site',source_version:'initial',target_version:'version',status:'pending',dispatch_state:'ready',created_at:'2026-09-06T12:00:00Z',updated_at:'2026-09-06T12:00:00Z'};
+ for (const status of ['pending','running','completed','failed']) {
+  const data = {...job,status};
+  assert.deepEqual(parseBuildHistoryItem({...data,prompt:'private',request_key:'private'}),data);
+  assert.deepEqual(parseBuildHistory({data:[data],page:1,page_size:25,total_count:1,total_pages:1}).data,[data]);
+ }
+ for (const bad of [{status:'success'},{dispatch_state:'unknown'},{updated_at:'invalid'},{job_id:''}]) assert.throws(()=>parseBuildHistoryItem({...job,...bad}));
+ const page = {data:[job],page:1,page_size:25,total_count:1,total_pages:1};
+ for (const bad of [{page:0},{page_size:101},{total_pages:2},{data:[]},{data:[job,job]}]) assert.throws(()=>parseBuildHistory({...page,...bad}));
+ assert.deepEqual(parseBuildHistory({...page,page:2,data:[]}).data,[]);
+ const component = readFileSync(new URL('../src/components/BuildHistory.tsx',import.meta.url),'utf8');
+ assert.match(component,/apiClient.listJobs\(fqdn, page\)/);
+ assert.match(component,/cancelled = true/);
+ const chat = readFileSync(new URL('../src/pages/Chat.tsx',import.meta.url),'utf8');
+ assert.match(chat,/<BuildHistory key=\{fqdn\}/);
+});
 import { CHAT_ROUTE, chatPath } from '../src/routes.ts';
 import { matchRoutes } from 'react-router-dom';
 
