@@ -22,11 +22,24 @@ func execute() error {
 		return nil
 	}
 	prompt, err := io.ReadAll(os.Stdin)
-	if err != nil || len(os.Args) < 3 || os.Args[1] != "exec" || string(prompt) != "Set the homepage heading to Deterministic M1 round trip." {
+	if err != nil || len(os.Args) < 3 || os.Args[1] != "exec" {
 		return fmt.Errorf("unsupported fixture request")
 	}
 	// Edit source only: all public bytes must come from the real compiler.
-	if err := os.WriteFile("content/home/index.md", []byte("# Deterministic M1 round trip\n\nCompiled from bootstrapped source.\n"), 0644); err != nil {
+	var source []byte
+	switch string(prompt) {
+	case "Set the homepage heading to Deterministic M1 round trip.":
+		source = []byte("# Deterministic M1 round trip\n\nCompiled from bootstrapped source.\n")
+	case "Append a second unpublished edit.":
+		source, err = os.ReadFile("content/home/index.md")
+		if err != nil {
+			return err
+		}
+		source = append(source, []byte("\nSecond unpublished edit preserved.\n")...)
+	default:
+		return fmt.Errorf("unsupported fixture request")
+	}
+	if err := os.WriteFile("content/home/index.md", source, 0644); err != nil {
 		return err
 	}
 	fmt.Println("SUMMARY: Deterministic source edit completed")

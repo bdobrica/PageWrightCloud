@@ -5,6 +5,13 @@ import { parseBuildResponse, parseJobSnapshot, parseVersionPage } from '../src/a
 import { CHAT_ROUTE, chatPath } from '../src/routes.ts';
 import { matchRoutes } from 'react-router-dom';
 
+test('chat exposes the accepted immutable source version', () => {
+ const chat = readFileSync(new URL('../src/pages/Chat.tsx', import.meta.url), 'utf8');
+ assert.match(chat, /Building from version \$\{response.source_version\}/);
+ assert.match(chat, /Based on \$\{response.source_version\}/);
+ assert.match(chat, /Based on \$\{update.source_version\}/);
+});
+
 test('chat route and links use the FQDN consumed by Chat',()=>{
  const app=readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
  const chat=readFileSync(new URL('../src/pages/Chat.tsx',import.meta.url),'utf8');

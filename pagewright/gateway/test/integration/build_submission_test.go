@@ -26,6 +26,10 @@ import (
 
 type submissionProvider struct{ calls atomic.Int32 }
 
+type emptyCompletedVersions struct{}
+
+func (emptyCompletedVersions) ListVersions(string) ([]clients.StorageVersion, error) { return nil, nil }
+
 func (p *submissionProvider) EvaluateRequest(string) (*clients.EvaluationResponse, error) {
 	p.calls.Add(1)
 	return &clients.EvaluationResponse{IsClear: true}, nil
@@ -158,7 +162,13 @@ func submissionSite(t *testing.T) (*types.Site, string) {
 }
 func submissionGateway(t *testing.T, store submissionStore, provider *submissionProvider, managerURL string) *httptest.Server {
 	t.Helper()
-	h := handlers.NewBuildHandler(store, provider, clients.NewManagerClient(managerURL))
+	return submissionGatewayWithVersions(t, store, provider, managerURL, emptyCompletedVersions{})
+}
+func submissionGatewayWithVersions(t *testing.T, store submissionStore, provider *submissionProvider, managerURL string, versions interface {
+	ListVersions(string) ([]clients.StorageVersion, error)
+}) *httptest.Server {
+	t.Helper()
+	h := handlers.NewBuildHandler(store, provider, clients.NewManagerClient(managerURL), versions)
 	r := mux.NewRouter()
 	r.Handle("/sites/{fqdn}/build", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(h.Build))).Methods("POST")
 	server := httptest.NewServer(middleware.CORS(r))
@@ -225,6 +235,46 @@ func TestBuildSubmissionPersistenceAndReplay(t *testing.T) {
 	status, _ = submit(t, restarted, site, token, key, "different input")
 	if status != 409 || m.posts.Load() != 1 || p2.calls.Load() != 0 {
 		t.Fatalf("key conflict=%d posts=%d", status, m.posts.Load())
+	}
+	assertSubmissionRows(t, site, 1, "running")
+}
+
+type fixedCompletedVersions struct {
+	versions []clients.StorageVersion
+	err      error
+}
+
+func (s fixedCompletedVersions) ListVersions(string) ([]clients.StorageVersion, error) {
+	return s.versions, s.err
+}
+
+func TestBuildBaseIsPinnedAcrossRestartAndStorageFailure(t *testing.T) {
+	site, token := submissionSite(t)
+	key := uuid.NewString()
+	m := &submissionManager{t: t, key: key}
+	manager := httptest.NewServer(m)
+	defer manager.Close()
+	versions := fixedCompletedVersions{versions: []clients.StorageVersion{{BuildID: "draft-one", Status: "completed", Timestamp: time.Now().UTC()}}}
+	server := submissionGatewayWithVersions(t, testDB, &submissionProvider{}, manager.URL, versions)
+	status, first := submit(t, server, site, token, key, "change title")
+	if status != 200 || first["source_version"] != "draft-one" {
+		t.Fatalf("first=%d %+v", status, first)
+	}
+	// Even newer content cannot change the source of this same accepted request.
+	versions.versions = []clients.StorageVersion{{BuildID: "draft-two", Status: "completed", Timestamp: time.Now().UTC()}}
+	restarted := submissionGatewayWithVersions(t, testDB, &submissionProvider{}, manager.URL, versions)
+	status, replay := submit(t, restarted, site, token, key, "change title")
+	if status != 200 || replay["source_version"] != "draft-one" || replay["target_version"] != first["target_version"] {
+		t.Fatalf("replay=%d %+v", status, replay)
+	}
+	offline := submissionGatewayWithVersions(t, testDB, &submissionProvider{}, manager.URL, fixedCompletedVersions{err: errors.New("offline")})
+	status, replay = submit(t, offline, site, token, key, "change title")
+	if status != 200 || replay["source_version"] != "draft-one" {
+		t.Fatalf("offline replay=%d %+v", status, replay)
+	}
+	status, _ = submit(t, offline, site, token, uuid.NewString(), "new edit")
+	if status != 502 || m.posts.Load() != 1 {
+		t.Fatalf("unsafe storage failure fallback: %d posts=%d", status, m.posts.Load())
 	}
 	assertSubmissionRows(t, site, 1, "running")
 }

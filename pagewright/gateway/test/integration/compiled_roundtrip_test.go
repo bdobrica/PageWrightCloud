@@ -43,6 +43,9 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 			return
 		}
 		content := prompt
+		if strings.Contains(request.Messages[0].Content, "Append a second unpublished edit.") {
+			content = "Append a second unpublished edit."
+		}
 		if strings.Contains(request.Messages[0].Content, "Determine if this request") {
 			content = "CLEAR: Update homepage heading"
 		}
@@ -53,7 +56,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	manager := clients.NewManagerClient(os.Getenv("TEST_MANAGER_URL"))
 	serving := clients.NewServingClient(os.Getenv("TEST_SERVING_URL"))
 	sites := handlers.NewSitesHandler(testDB, serving, storage, 25)
-	builds := handlers.NewBuildHandler(testDB, clients.NewLLMClient("test-only", provider.URL), manager)
+	builds := handlers.NewBuildHandler(testDB, clients.NewLLMClient("test-only", provider.URL), manager, storage)
 	versions := handlers.NewVersionsHandler(testDB, storage, serving, 25)
 	router := mux.NewRouter()
 	auth := handlers.NewAuthHandler(testDB, testJWTManager, nil)
@@ -197,6 +200,58 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	request("PUT", os.Getenv("TEST_STORAGE_URL")+"/sites/"+site.ID+"/artifacts/"+job.TargetVersion, string(initial), 409)
 	if !bytes.Equal(archive, request("GET", base+"/versions/"+job.TargetVersion+"/download", "", 200)) || !bytes.Equal(initial, request("GET", base+"/versions/initial/download", "", 200)) {
 		t.Fatal("immutable bytes changed")
+	}
+	// A second build is submitted without publishing or synchronizing gateway DB
+	// job status. It must inherit the manifest-committed first draft.
+	var second types.BuildResponse
+	decode(request("POST", base+"/build", `{"message":"Append a second unpublished edit."}`, 200), &second)
+	if second.JobAccepted == nil || second.SourceVersion != job.TargetVersion {
+		t.Fatalf("second edit lost first draft base: %+v", second)
+	}
+	secondJob := waitForDispatch(t, manager, second.JobID)
+	secondPayload := request("GET", os.Getenv("TEST_MANAGER_URL")+"/jobs/"+secondJob.JobID, "", 200)
+	secondWorker := exec.CommandContext(ctx, "/usr/local/bin/worker-contract.test", "-test.run=^TestDeterministicWorkerEntrypoint$", "-test.v")
+	secondWorker.Env = append(os.Environ(), "TEST_DETERMINISTIC_JOB="+string(secondPayload))
+	if output, err := secondWorker.CombinedOutput(); err != nil {
+		t.Fatalf("second worker: %v\n%s", err, output)
+	}
+	secondArchive := request("GET", base+"/versions/"+second.TargetVersion+"/download", "", 200)
+	secondGzip, err := gzip.NewReader(bytes.NewReader(secondArchive))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secondGzip.Close()
+	secondTar := tar.NewReader(secondGzip)
+	found := 0
+	for {
+		header, err := secondTar.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if header.Name != "content/home/index.md" && header.Name != "public/index.html" {
+			continue
+		}
+		data, err := io.ReadAll(secondTar)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(data, []byte("Deterministic M1 round trip")) || !bytes.Contains(data, []byte("Second unpublished edit preserved.")) {
+			t.Fatalf("edits did not accumulate in %s", header.Name)
+		}
+		found++
+	}
+	if found != 2 {
+		t.Fatal("second archive missing source/output")
+	}
+	unchanged, err := testDB.GetSiteByFQDN(fqdn)
+	if err != nil || unchanged.LiveVersionID != nil {
+		t.Fatalf("unpublished edits changed live: %+v, %v", unchanged, err)
+	}
+	if !bytes.Equal(archive, request("GET", base+"/versions/"+job.TargetVersion+"/download", "", 200)) {
+		t.Fatal("second edit mutated first draft")
 	}
 	request("POST", base+"/versions/"+job.TargetVersion+"/deploy", `{"target":"live"}`, 200)
 	hosted := func(path string) (int, []byte) {

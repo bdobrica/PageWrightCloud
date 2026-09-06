@@ -35,7 +35,7 @@ export const Chat: React.FC = () => {
         ...prev,
         {
           id: Date.now().toString(),
-          text: `✓ Build completed! Version ${update.target_version} is ready.`,
+          text: `✓ Build completed! Version ${update.target_version} is ready. Based on ${update.source_version}.`,
           sender: 'agent',
           timestamp: new Date(),
         },
@@ -105,10 +105,10 @@ export const Chat: React.FC = () => {
           {
             id: Date.now().toString() + '-j',
             text: response.status === 'failed'
-              ? `✗ Build failed: ${response.error_message}`
+              ? `✗ Build failed: ${response.error_message}. Based on ${response.source_version}.`
               : response.status === 'completed'
-                ? `✓ Build completed! Version ${response.target_version} is ready.`
-                : 'Building your site... This may take a moment.',
+                ? `✓ Build completed! Version ${response.target_version} is ready. Based on ${response.source_version}.`
+                : `Building from version ${response.source_version}... This may take a moment.`,
             sender: 'agent',
             timestamp: new Date(),
           },

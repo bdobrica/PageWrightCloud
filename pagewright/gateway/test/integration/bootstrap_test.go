@@ -110,7 +110,7 @@ func TestSiteBootstrapHTTPRecovery(t *testing.T) {
 				if err != nil || site == nil || site.InitializationStatus != "pending" {
 					t.Fatalf("missing pending site: %v %v", site, err)
 				}
-				build := handlers.NewBuildHandler(testDB, nil, nil)
+				build := handlers.NewBuildHandler(testDB, nil, nil, nil)
 				router := mux.NewRouter()
 				router.Handle("/sites/{fqdn}/build", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(build.Build)))
 				req := httptest.NewRequest("POST", "/sites/"+fqdn+"/build", strings.NewReader(`{"message":"edit"}`))

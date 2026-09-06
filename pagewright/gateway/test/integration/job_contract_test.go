@@ -65,7 +65,7 @@ func TestGatewayManagerJobContract(t *testing.T) {
 	}))
 	defer provider.Close()
 	manager := clients.NewManagerClient(managerURL)
-	build := handlers.NewBuildHandler(testDB, clients.NewLLMClient("test-only", provider.URL), manager)
+	build := handlers.NewBuildHandler(testDB, clients.NewLLMClient("test-only", provider.URL), manager, emptyCompletedVersions{})
 	router := mux.NewRouter()
 	router.Handle("/sites/{fqdn}/build", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(build.Build))).Methods("POST")
 	server := httptest.NewServer(router)

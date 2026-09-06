@@ -60,7 +60,7 @@ func main() {
 	sitesHandler := handlers.NewSitesHandler(db, servingClient, storageClient, cfg.DefaultPageSize)
 	aliasesHandler := handlers.NewAliasesHandler(db, servingClient)
 	versionsHandler := handlers.NewVersionsHandler(db, storageClient, servingClient, cfg.DefaultPageSize)
-	buildHandler := handlers.NewBuildHandler(db, llmClient, managerClient)
+	buildHandler := handlers.NewBuildHandler(db, llmClient, managerClient, storageClient)
 	wsHandler := handlers.NewWebSocketHandler(wsHub)
 
 	// Setup router

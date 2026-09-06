@@ -3,6 +3,8 @@
 The gateway commits a job-to-artifact mapping before calling the manager. The
 pending version uses `target_version`, never the execution's `job_id`.
 See [JOB_CONTRACT.md](JOB_CONTRACT.md) for wire shapes.
+M2.5 selects [the latest completed draft, then live, then bootstrap](BUILD_SOURCE.md)
+for each new submission and exposes the persisted base in chat.
 
 ## Retry identity
 

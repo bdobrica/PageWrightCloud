@@ -22,6 +22,11 @@ type BuildHandler struct {
 	db            buildStore
 	llmClient     instructionProvider
 	managerClient *clients.ManagerClient
+	storageClient completedVersionStore
+}
+
+type completedVersionStore interface {
+	ListVersions(string) ([]clients.StorageVersion, error)
 }
 
 type buildStore interface {
@@ -37,11 +42,12 @@ type instructionProvider interface {
 	GenerateJobInstructions(string, string) (string, error)
 }
 
-func NewBuildHandler(db buildStore, llmClient instructionProvider, managerClient *clients.ManagerClient) *BuildHandler {
+func NewBuildHandler(db buildStore, llmClient instructionProvider, managerClient *clients.ManagerClient, storageClient completedVersionStore) *BuildHandler {
 	return &BuildHandler{
 		db:            db,
 		llmClient:     llmClient,
 		managerClient: managerClient,
+		storageClient: storageClient,
 	}
 }
 
@@ -187,10 +193,12 @@ func (h *BuildHandler) enqueueJob(w http.ResponseWriter, r *http.Request, site *
 		return
 	}
 
-	// Get current live version as base
-	baseBuildID := "initial"
-	if site.LiveVersionID != nil {
-		baseBuildID = *site.LiveVersionID
+	// Storage's manifest-last list is authoritative for completed artifacts;
+	// gateway version rows can still say pending after a worker completes.
+	baseBuildID, err := h.selectBuildSource(site)
+	if err != nil {
+		respondError(w, http.StatusBadGateway, "failed to determine latest completed build; no job was dispatched")
+		return
 	}
 
 	// Persist independent execution/artifact IDs and the version row together,
