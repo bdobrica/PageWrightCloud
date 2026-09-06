@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -18,12 +19,14 @@ type Executor struct {
 	workDir    string
 	llmKey     string
 	llmBaseURL string
+	isolate    bool
 
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	cancel  context.CancelFunc
-	running bool
-	output  strings.Builder
+	mu             sync.Mutex
+	cmd            *exec.Cmd
+	cancel         context.CancelFunc
+	running        bool
+	output         strings.Builder
+	outputExceeded bool
 }
 
 // NewExecutor creates a new Codex executor
@@ -33,6 +36,7 @@ func NewExecutor(binaryPath, workDir, llmKey, llmBaseURL string) *Executor {
 		workDir:    workDir,
 		llmKey:     llmKey,
 		llmBaseURL: llmBaseURL,
+		isolate:    isolateCLI,
 	}
 }
 
@@ -45,6 +49,10 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 	}
 	e.running = true
 	e.output.Reset()
+	e.outputExceeded = false
+	// Publish cancellation atomically with running, including preflight/startup.
+	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	e.cancel = cancel
 	e.mu.Unlock()
 
 	defer func() {
@@ -55,11 +63,6 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 		e.mu.Unlock()
 	}()
 
-	// Create cancellable context
-	cmdCtx, cancel := context.WithCancel(ctx)
-	e.mu.Lock()
-	e.cancel = cancel
-	e.mu.Unlock()
 	defer cancel()
 
 	if e.llmKey == "" {
@@ -86,7 +89,14 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 		"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true", "--", "/bin/true")
 	preflight.Dir = e.workDir
 	preflight.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + runtimeDir, "CODEX_HOME=" + runtimeDir}
+	if e.isolate {
+		// Fail before provider contact if PATH bypasses the tool-only filter.
+		// Require the actual EPERM result, not merely a missing/failed binary.
+		preflight.Args = append(preflight.Args[:len(preflight.Args)-1], "node", "-e", `const r=require('child_process').spawnSync('/usr/bin/unshare',['-U','/bin/true'],{encoding:'utf8'});process.exit(r.status===1 && r.stderr.includes('Operation not permitted') ? 0 : 1)`)
+		wrapCLI(preflight, e.workDir, runtimeDir)
+	}
 	preflight.WaitDelay = 2 * time.Second
+	confineProcess(preflight)
 	if err := preflight.Run(); err != nil {
 		return fmt.Errorf("worker sandbox unavailable; verify Docker host with make test-worker-cli: %w", err)
 	}
@@ -113,11 +123,15 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 		"-c", "developer_instructions="+strconv.Quote(string(instructions)), "-")
 	cmd.Dir = e.workDir
 	cmd.WaitDelay = 2 * time.Second
+	confineProcess(cmd)
 	cmd.Stdin = strings.NewReader(prompt)
 
 	// Deliberately exclude job JSON, callbacks, management credentials and host auth.
 	cmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8",
 		"HOME=" + runtimeDir, "CODEX_HOME=" + runtimeDir, "CODEX_API_KEY=" + e.llmKey}
+	if e.isolate {
+		wrapCLI(cmd, e.workDir, runtimeDir)
+	}
 
 	e.mu.Lock()
 	e.cmd = cmd
@@ -133,6 +147,17 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 
 	// Wait for command to complete
 	err = cmd.Wait()
+	// Normal exit also kills background children that retained no output pipes.
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	e.mu.Lock()
+	exceeded := e.outputExceeded
+	e.mu.Unlock()
+	if exceeded {
+		return fmt.Errorf("codex output exceeded 1 MiB limit")
+	}
+	if cmdCtx.Err() != nil {
+		return fmt.Errorf("codex execution stopped: %w", cmdCtx.Err())
+	}
 
 	if err != nil {
 		if cmdCtx.Err() == context.Canceled {
@@ -151,6 +176,12 @@ func (w outputWriter) Write(p []byte) (int, error) {
 	defer w.executor.mu.Unlock()
 	// Continue draining even after the capture limit, avoiding pipe deadlocks.
 	remaining := 1024*1024 - w.executor.output.Len()
+	if len(p) > remaining {
+		w.executor.outputExceeded = true
+		if w.executor.cancel != nil {
+			w.executor.cancel()
+		}
+	}
 	if remaining > len(p) {
 		remaining = len(p)
 	}
@@ -169,20 +200,25 @@ func (e *Executor) Kill() error {
 	}
 
 	cancel := e.cancel
-	cmd := e.cmd
 	e.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
 	}
 
-	if cmd != nil && cmd.Process != nil {
-		if err := cmd.Process.Kill(); err != nil && !strings.Contains(err.Error(), "already finished") {
-			return fmt.Errorf("failed to kill codex process: %w", err)
-		}
-	}
-
 	return nil
+}
+
+// Linux worker: cancellation terminates the process group, not just its leader.
+func confineProcess(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.Cancel = func() error {
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if err == syscall.ESRCH {
+			return os.ErrProcessDone
+		}
+		return err
+	}
 }
 
 // IsRunning returns whether codex is currently executing

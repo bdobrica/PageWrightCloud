@@ -25,3 +25,17 @@ When updating, review upstream changes and the delta, regenerate the worker JSON
 and run both daemon and installed-CLI negative acceptance tests. Never substitute
 `seccomp=unconfined`. See [Docker's seccomp model](https://docs.docker.com/engine/security/seccomp/)
 and [worker operations](../../../../../docs/WORKER_CLI.md).
+
+M2.6 retains this container filter unchanged. The worker image additionally
+installs `cmd/sandbox-bwrap`, a PATH wrapper that stacks a tool-only classic BPF
+filter after distribution bubblewrap finishes setup. That filter denies further
+namespace creation/entry, mount APIs and root changes, preserves ordinary clone
+threads and returns ENOSYS for clone3 fallback. Its amd64/arm64 policy and branch
+offsets have unit tests; installed acceptance verifies actual tool denial.
+
+The separate `security/pagewright-worker-proc.apparmor` derives from the same
+AppArmor template and adds explicit Docker-protected proc path denies. Only that
+fixed profile opts into replacing Docker's proc overmounts; non-proc masks remain.
+The shared launch policy and image compatibility guard are in `policy.go`.
+See [the boundary and kernel review](../../../../../docs/WORKER_ISOLATION.md)
+and [host evidence](../../../../../docs/M2_6_HOST_ACCEPTANCE.md).

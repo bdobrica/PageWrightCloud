@@ -68,6 +68,8 @@ func TestSpawnWireContract(t *testing.T) {
 				Env        []string
 				Labels     map[string]string
 				HostConfig struct {
+					NanoCpus, Memory, MemorySwap, PidsLimit int64
+					ReadonlyRootfs, Init                    bool
 					NetworkMode                             string
 					Privileged, PublishAllPorts, AutoRemove bool
 					Binds                                   []string
@@ -95,6 +97,9 @@ func TestSpawnWireContract(t *testing.T) {
 				t.Error("wrong environment allowlist")
 			}
 			hc := body.HostConfig
+			if hc.NanoCpus != 1000000000 || hc.Memory != 1073741824 || hc.MemorySwap != hc.Memory || hc.PidsLimit != 128 || !hc.ReadonlyRootfs || !hc.Init {
+				t.Error("missing resource ceilings")
+			}
 			if body.Image != "pagewright-worker:m2.1" || body.User != "1000:1000" || hc.NetworkMode != "test-network" || hc.Privileged || hc.PublishAllPorts || hc.AutoRemove || len(hc.Binds) != 0 || hc.RestartPolicy.Name != "no" || !strings.Contains(hc.Tmpfs["/work"], "uid=1000,gid=1000") || body.Labels["io.pagewright.job_id"] != job.JobID || len(hc.SecurityOpt) != 2 || len(hc.CapDrop) != 1 || hc.CapDrop[0] != "ALL" {
 				t.Errorf("unsafe container configuration: %+v", body)
 			}

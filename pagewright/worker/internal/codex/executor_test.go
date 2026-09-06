@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,7 +34,7 @@ exit 0
 	require.NoError(t, os.MkdirAll(filepath.Join(workDir, ".codex"), 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, ".codex", "instructions.md"), []byte("trusted instructions"), 0600))
 
-	executor := NewExecutor(mockCodex, workDir, "test-key", "https://api.test.com")
+	executor := newTestExecutor(mockCodex, workDir, "test-key", "https://api.test.com")
 
 	// Test execution
 	ctx := context.Background()
@@ -53,7 +54,6 @@ exit 0
 }
 
 func TestExecutorKill(t *testing.T) {
-	t.Skip("Skipping kill test due to race conditions")
 
 	workDir, err := os.MkdirTemp("", "codex-test-*")
 	require.NoError(t, err)
@@ -61,21 +61,27 @@ func TestExecutorKill(t *testing.T) {
 
 	// Create mock codex that sleeps
 	mockCodex := filepath.Join(workDir, "mock-codex-slow")
+	require.NoError(t, os.MkdirAll(filepath.Join(workDir, ".codex"), 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(workDir, ".codex", "instructions.md"), []byte("trusted"), 0600))
 	mockScript := `#!/bin/sh
-sleep 10
+if [ "$1" = sandbox ]; then exit 0; fi
+(sleep 2; touch escaped-child) &
+echo READY
+wait
 `
 	require.NoError(t, os.WriteFile(mockCodex, []byte(mockScript), 0755))
 
-	executor := NewExecutor(mockCodex, workDir, "test-key", "https://api.test.com")
+	executor := newTestExecutor(mockCodex, workDir, "test-key", "https://api.test.com")
 
 	// Start execution in background
+	done := make(chan error, 1)
 	go func() {
 		ctx := context.Background()
-		executor.Execute(ctx, "Long running task")
+		done <- executor.Execute(ctx, "Long running task")
 	}()
 
 	// Wait for it to start
-	time.Sleep(100 * time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(executor.GetOutput(), "READY") }, 3*time.Second, 10*time.Millisecond)
 	assert.True(t, executor.IsRunning())
 
 	// Kill it
@@ -83,13 +89,21 @@ sleep 10
 	require.NoError(t, err)
 
 	// Wait a bit and verify it stopped
-	time.Sleep(200 * time.Millisecond)
+	select {
+	case err := <-done:
+		require.Error(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("cancellation did not finish")
+	}
 	assert.False(t, executor.IsRunning())
+	time.Sleep(2100 * time.Millisecond)
+	_, err = os.Stat(filepath.Join(workDir, "escaped-child"))
+	require.True(t, os.IsNotExist(err), "child survived cancellation")
 }
 
 func TestParseOutput(t *testing.T) {
 
-	executor := NewExecutor("", "", "", "")
+	executor := newTestExecutor("", "", "", "")
 
 	// Simulate output
 	executor.mu.Lock()

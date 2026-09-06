@@ -15,6 +15,7 @@ COPY pagewright/worker/ .
 
 # Build the runner
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o runner ./cmd/runner
+RUN CGO_ENABLED=0 GOOS=linux go build -o sandbox-bwrap ./cmd/sandbox-bwrap
 
 FROM golang:1.24.10-alpine AS compiler-builder
 WORKDIR /compiler
@@ -25,6 +26,8 @@ RUN CGO_ENABLED=0 go build -o /pagewrightc ./cmd/pagewrightc
 
 # Runtime stage
 FROM node:24.11.1-bookworm-slim AS runtime
+
+LABEL io.pagewright.sandbox-policy="proc-v1"
 
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git bubblewrap \
     && rm -rf /var/lib/apt/lists/*
@@ -39,6 +42,7 @@ WORKDIR /app
 
 # Copy the runner binary
 COPY --from=builder /build/runner .
+COPY --from=builder /build/sandbox-bwrap /usr/local/bin/bwrap
 COPY --from=compiler-builder /pagewrightc /usr/local/bin/pagewrightc
 COPY pagewright/themes/starter/ /opt/pagewright/themes/starter-1.0.0/
 RUN test "$(pagewrightc version)" = 'pagewrightc version 0.1.0' \

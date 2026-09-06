@@ -3,6 +3,7 @@
 package codex
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -20,6 +21,10 @@ import (
 
 // Runs against the installed production binary, never a real provider.
 func TestInstalledCLI(t *testing.T) {
+	private := filepath.Join(t.TempDir(), "management-secret")
+	if err := os.WriteFile(private, []byte("management-canary"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	version, err := exec.Command("/usr/local/bin/codex", "--version").Output()
 	if err != nil || strings.TrimSpace(string(version)) != "codex-cli 0.153.4" {
 		t.Fatalf("version: %s %v", version, err)
@@ -47,7 +52,9 @@ func TestInstalledCLI(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		message := map[string]any{"id": "msg_fixture", "type": "message", "role": "assistant", "status": "completed", "content": []any{map[string]any{"type": "output_text", "text": "SUMMARY: Installed CLI fixture completed"}}}
 		if first {
-			message = map[string]any{"id": "fc_fixture", "type": "function_call", "call_id": "call_fixture", "name": "exec_command", "arguments": "{\"cmd\":\"test -z \\\"$CODEX_API_KEY\\\" && touch CLI_WRITE_SENTINEL\",\"max_output_tokens\":1000}"}
+			command := "test -z \"$CODEX_API_KEY\" && test ! -e " + private + " && test ! -e /var/run/docker.sock && test ! -e /opt/pagewright/themes && ! grep -aq fixture-key /proc/[0-9]*/environ 2>/dev/null && touch CLI_WRITE_SENTINEL"
+			arguments, _ := json.Marshal(map[string]any{"cmd": command, "max_output_tokens": 1000})
+			message = map[string]any{"id": "fc_fixture", "type": "function_call", "call_id": "call_fixture", "name": "exec_command", "arguments": string(arguments)}
 		}
 		for _, event := range []map[string]any{
 			{"type": "response.created", "response": map[string]any{"id": "resp_fixture", "status": "in_progress", "output": []any{}}},
@@ -140,8 +147,115 @@ func TestInstalledSandbox(t *testing.T) {
 	if output, err := network.CombinedOutput(); err != nil {
 		t.Fatalf("sandbox network denial failed: %v %s", err, output)
 	}
+	// A tool must not create a mount alias that bypasses path-based protections.
+	namespace := exec.CommandContext(ctx, "/usr/local/bin/codex", "sandbox", "-c", "sandbox_mode=\"workspace-write\"", "--", "sh", "-c", "touch namespace-probe-started; unshare -U /bin/true")
+	namespace.Dir, namespace.Env = inside, cmd.Env
+	output, err = namespace.CombinedOutput()
+	if _, startErr := os.Stat(filepath.Join(inside, "namespace-probe-started")); startErr != nil {
+		t.Fatalf("namespace probe did not start: %v %s", startErr, output)
+	}
+	if err == nil || !strings.Contains(string(output), "Operation not permitted") {
+		t.Fatalf("tool user namespace was not denied: %v %s", err, output)
+	}
 	mount := exec.CommandContext(ctx, "mount", "-t", "tmpfs", "none", inside)
 	if err := mount.Run(); err == nil {
 		t.Fatal("outer container acquired mount authority")
+	}
+}
+
+func TestInstalledOuterNamespaceLifecycle(t *testing.T) {
+	for _, mode := range []string{"exit", "cancel"} {
+		t.Run(mode, func(t *testing.T) {
+			site, runtime := t.TempDir(), t.TempDir()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			script := "setsid sh -c 'touch started; sleep 2; touch escaped' >/dev/null 2>&1 & while [ ! -e started ]; do sleep 0.01; done; "
+			if mode == "cancel" {
+				script += "echo READY; sleep 20"
+			} else {
+				script += "exit 0"
+			}
+			cmd := exec.CommandContext(ctx, "/bin/sh", "-c", script)
+			cmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
+			wrapCLI(cmd, site, runtime)
+			confineProcess(cmd)
+			var diagnostics bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &diagnostics, &diagnostics
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			started := false
+			for ctx.Err() == nil {
+				if _, err := os.Stat(filepath.Join(site, "started")); err == nil {
+					started = true
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if mode == "cancel" || !started {
+				cancel()
+			}
+			err := cmd.Wait()
+			if !started {
+				t.Fatalf("namespace never started child: %v %s", err, diagnostics.String())
+			}
+			if mode == "exit" && err != nil {
+				t.Fatalf("namespace exit: %v %s", err, diagnostics.String())
+			}
+			if mode == "cancel" && err == nil {
+				t.Fatal("cancellation succeeded unexpectedly")
+			}
+			time.Sleep(2200 * time.Millisecond)
+			if _, err := os.Stat(filepath.Join(site, "escaped")); !os.IsNotExist(err) {
+				t.Fatal("detached child survived namespace teardown")
+			}
+		})
+	}
+}
+
+func TestInstalledResourceLimits(t *testing.T) {
+	if expected := os.Getenv("PAGEWRIGHT_EXPECT_APPARMOR"); expected != "" {
+		profile, err := os.ReadFile("/proc/self/attr/current")
+		if err != nil || strings.TrimSpace(string(profile)) != expected+" (enforce)" {
+			t.Fatalf("AppArmor not enforcing: %s %v", profile, err)
+		}
+		probe := "/tmp/pagewright-apparmor-probe"
+		if err := os.WriteFile(probe, []byte("probe"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(probe)
+		if _, err := os.ReadFile(probe); !os.IsPermission(err) {
+			t.Fatalf("AppArmor read rule not enforced: %v", err)
+		}
+		if expected == "pagewright-worker-proc" {
+			for _, path := range []string{"/proc/interrupts", "/proc/keys", "/proc/timer_list", "/proc/kcore"} {
+				file, err := os.Open(path)
+				if err == nil {
+					file.Close()
+					t.Errorf("protected proc read allowed: %s", path)
+				} else if !os.IsPermission(err) {
+					t.Errorf("proc denial not proven for %s: %v", path, err)
+				}
+			}
+			// Opening without truncation or writing cannot change a sysctl even
+			// if the protection under test is broken.
+			file, err := os.OpenFile("/proc/sys/kernel/hostname", os.O_WRONLY, 0)
+			if err == nil {
+				file.Close()
+				t.Fatal("protected proc write-open allowed")
+			}
+			if !os.IsPermission(err) {
+				t.Fatalf("proc write denial not proven: %v", err)
+			}
+		}
+	}
+	for file, want := range map[string]string{"memory.max": "1073741824", "memory.swap.max": "0", "pids.max": "128", "cpu.max": "100000 100000"} {
+		data, err := os.ReadFile(filepath.Join("/sys/fs/cgroup", file))
+		if err != nil || strings.TrimSpace(string(data)) != want {
+			t.Fatalf("cgroup %s: %q %v", file, data, err)
+		}
+	}
+	if err := os.WriteFile("/etc/worker-write-test", []byte("denied"), 0600); err == nil {
+		t.Fatal("root filesystem writable")
 	}
 }

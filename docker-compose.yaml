@@ -89,7 +89,7 @@ services:
       - PAGEWRIGHT_REDIS_DB=${PAGEWRIGHT_REDIS_DB:-0}
       - PAGEWRIGHT_LOCK_TTL=${PAGEWRIGHT_LOCK_TTL:-5m}
       - PAGEWRIGHT_LOCK_RENEW_INTERVAL=${PAGEWRIGHT_LOCK_RENEW_INTERVAL:-1m}
-      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.4}
+      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.6}
       - PAGEWRIGHT_WORKER_APPARMOR_PROFILE=${PAGEWRIGHT_WORKER_APPARMOR_PROFILE:-}
       - PAGEWRIGHT_WORKER_NETWORK=${COMPOSE_PROJECT_NAME:-pagewrightcloud}_pagewright
       - PAGEWRIGHT_WORKER_WORK_DIR=/work
@@ -219,7 +219,20 @@ services:
 
   # Worker (optional - use with --profile worker)
   worker:
-    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.4}
+    cpus: 1.0
+    mem_limit: 1g
+    memswap_limit: 1g
+    pids_limit: 128
+    read_only: true
+    init: true
+    shm_size: 16m
+    ulimits:
+      nofile: {soft: 1024, hard: 1024}
+      core: 0
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "2"}
+    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.6}
     user: "1000:1000"
     cap_drop: [ALL]
     security_opt:
@@ -227,6 +240,7 @@ services:
       - seccomp=./pagewright/manager/internal/spawner/docker/seccomp-worker.json
     tmpfs:
       - /work:rw,nosuid,nodev,size=268435456,mode=0700,uid=1000,gid=1000
+      - /tmp:rw,nosuid,nodev,noexec,size=67108864,mode=1777
     build:
       context: .
       dockerfile: pagewright/worker/Dockerfile

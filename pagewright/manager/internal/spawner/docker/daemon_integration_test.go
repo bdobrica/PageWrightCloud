@@ -48,10 +48,12 @@ func TestRealDockerCreateStart(t *testing.T) {
 			ExitCode int
 		}
 		HostConfig struct {
-			NetworkMode                  string
-			Binds                        []string
-			Privileged                   bool
-			SecurityOpt, CapDrop, CapAdd []string
+			NanoCpus, Memory, MemorySwap, PidsLimit int64
+			ReadonlyRootfs, Init                    bool
+			NetworkMode                             string
+			Binds                                   []string
+			Privileged                              bool
+			SecurityOpt, CapDrop, CapAdd            []string
 		}
 		Config struct {
 			Image string
@@ -81,6 +83,10 @@ func TestRealDockerCreateStart(t *testing.T) {
 	}
 	if state.HostConfig.NetworkMode != cfg.Network || len(state.HostConfig.Binds) != 0 || state.Config.Image != cfg.Image {
 		t.Fatal("incorrect Docker configuration")
+	}
+	hc := state.HostConfig
+	if hc.NanoCpus != 1000000000 || hc.Memory != 1073741824 || hc.MemorySwap != hc.Memory || hc.PidsLimit != 128 || !hc.ReadonlyRootfs || !hc.Init {
+		t.Fatal("daemon did not apply resource ceilings")
 	}
 	if state.Config.User != "1000:1000" || state.HostConfig.Privileged || len(state.HostConfig.CapAdd) != 0 || len(state.HostConfig.CapDrop) != 1 || len(state.HostConfig.SecurityOpt) != 2 {
 		t.Fatal("worker confinement missing from daemon inspect")

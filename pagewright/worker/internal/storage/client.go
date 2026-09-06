@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,22 @@ import (
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
+	ctx        context.Context
+}
+
+// A per-job copy keeps cancellation scoped without mutating a shared client.
+func (c *Client) WithContext(ctx context.Context) *Client {
+	copy := *c
+	copy.ctx = ctx
+	return &copy
+}
+
+func (c *Client) request(method, url string, body io.Reader) (*http.Request, error) {
+	ctx := c.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return http.NewRequestWithContext(ctx, method, url, body)
 }
 
 func NewClient(baseURL string) *Client {
@@ -44,7 +61,7 @@ func (c *Client) FetchArtifact(siteID, versionID, destPath string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := c.request(http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create artifact request: %w", err)
 	}
@@ -81,8 +98,10 @@ func (c *Client) FetchArtifact(siteID, versionID, destPath string) error {
 	defer os.Remove(out.Name())
 
 	// Copy content
-	if _, err := io.Copy(out, resp.Body); err != nil {
+	if n, err := io.Copy(out, io.LimitReader(resp.Body, (64<<20)+1)); err != nil {
 		return fmt.Errorf("failed to write artifact: %w", err)
+	} else if n > 64<<20 {
+		return fmt.Errorf("compressed artifact exceeds 64 MiB")
 	}
 	if err := resp.Body.Close(); err != nil {
 		return fmt.Errorf("failed to close artifact response: %w", err)
@@ -112,7 +131,7 @@ func (c *Client) UploadArtifact(siteID, versionID, artifactPath string) error {
 	defer file.Close()
 
 	// Stream the file directly; the wire body is exactly the archive bytes.
-	req, err := http.NewRequest(http.MethodPut, url, file)
+	req, err := c.request(http.MethodPut, url, file)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -146,7 +165,7 @@ func (c *Client) UploadManifest(siteID, versionID string, manifest interface{}) 
 		return fmt.Errorf("failed to marshal manifest: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := c.request("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -159,7 +178,7 @@ func (c *Client) UploadManifest(siteID, versionID string, manifest interface{}) 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		return fmt.Errorf("failed to upload manifest: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -183,7 +202,7 @@ func (c *Client) UploadLog(siteID, versionID, logContent string) error {
 		return fmt.Errorf("failed to marshal log: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := c.request("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -196,7 +215,7 @@ func (c *Client) UploadLog(siteID, versionID, logContent string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		return fmt.Errorf("failed to upload log: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 

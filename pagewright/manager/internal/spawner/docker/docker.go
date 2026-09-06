@@ -44,8 +44,8 @@ func workerSecurityOptions() []string {
 }
 
 func NewDockerSpawner(cfg Config) (*DockerSpawner, error) {
-	if cfg.AppArmorProfile != "" && cfg.AppArmorProfile != "pagewright-worker" {
-		return nil, fmt.Errorf("only the reviewed pagewright-worker AppArmor profile is supported")
+	if cfg.AppArmorProfile != "" && cfg.AppArmorProfile != "pagewright-worker" && cfg.AppArmorProfile != "pagewright-worker-proc" {
+		return nil, fmt.Errorf("only reviewed PageWright worker AppArmor profiles are supported")
 	}
 	tagged := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*$`)
 	if !tagged.MatchString(cfg.Image) || strings.HasSuffix(cfg.Image, ":latest") {
@@ -90,15 +90,16 @@ func (d *DockerSpawner) Spawn(ctx context.Context, job *types.Job, managerURL st
 	if err != nil {
 		return "", fmt.Errorf("%w: launch snapshot is not valid JSON", spawner.ErrNotStarted)
 	}
+	image, err := d.checkedWorkerImage(ctx, d.cfg.Image)
+	if err != nil {
+		return "", err
+	}
 	body := map[string]any{
-		"Image":      d.cfg.Image,
+		"Image":      image,
 		"User":       "1000:1000",
 		"Env":        []string{"PAGEWRIGHT_JOB=" + string(payload), "PAGEWRIGHT_WORKER_ID=" + name, "PAGEWRIGHT_WORK_DIR=" + d.cfg.WorkDir, "PAGEWRIGHT_MANAGER_URL=" + managerURL, "PAGEWRIGHT_STORAGE_URL=" + d.cfg.StorageURL, "PAGEWRIGHT_LLM_KEY=" + d.cfg.LLMKey, "PAGEWRIGHT_LLM_URL=" + d.cfg.LLMURL},
 		"Labels":     map[string]string{"io.pagewright.role": "worker", "io.pagewright.job_id": job.JobID, "io.pagewright.site_id": job.SiteID, "io.pagewright.network": d.cfg.Network},
-		"HostConfig": map[string]any{"NetworkMode": d.cfg.Network, "RestartPolicy": map[string]string{"Name": "no"}, "AutoRemove": false, "Privileged": false, "PublishAllPorts": false, "CapDrop": []string{"ALL"}, "SecurityOpt": workerSecurityOptions(), "Tmpfs": map[string]string{d.cfg.WorkDir: "rw,nosuid,nodev,size=268435456,mode=0700,uid=1000,gid=1000"}},
-	}
-	if d.cfg.AppArmorProfile != "" {
-		body["HostConfig"].(map[string]any)["SecurityOpt"] = append(workerSecurityOptions(), "apparmor="+d.cfg.AppArmorProfile)
+		"HostConfig": workerHostConfig(d.cfg),
 	}
 	data, _ := json.Marshal(body)
 	status, response, err := d.call(ctx, "POST", "/containers/create?name="+url.QueryEscape(name), data)

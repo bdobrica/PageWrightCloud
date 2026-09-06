@@ -1,6 +1,6 @@
-# Worker CLI and sandbox contract (M2.3)
+# Worker CLI and sandbox contract (M2.3–M2.6)
 
-`pagewright-worker:m2.4` packages Codex CLI **0.153.4**, replacing the production
+`pagewright-worker:m2.6` packages Codex CLI **0.153.4**, replacing the production
 mock. The npm lockfile pins both the wrapper and native platform packages with
 integrity hashes; the image checks the installed version. The worker invokes the
 native executable directly so cancellation does not merely kill an npm launcher.
@@ -29,10 +29,10 @@ are disabled and secret-name exclusions are explicit: installed-binary testing
 showed that inheritance configuration alone was insufficient. The shell fixture
 checks that the provider key is absent while the API fixture confirms bearer auth.
 
-CLI output is drained with a 1 MiB capture limit and exact-key redaction, without
-streaming raw output to container logs. This is not comprehensive secret isolation
-or redaction. Provider-key access by the worker/CLI, process access, full resource
-limits, cleanup and per-job authorization still require M2.6/M2.10/M4. The CLI's
+The [M2.6 isolation policy](WORKER_ISOLATION.md) cancels execution at
+the 1 MiB capture limit and adds outer PID/filesystem isolation and resource caps.
+Exact-key redaction is not comprehensive secret detection. Cleanup/recovery and
+per-job authorization remain open. The CLI's
 bundled default model is used; paid account/model availability is not established
 by offline fixtures. Real-provider acceptance remains M2.12.
 
@@ -51,7 +51,8 @@ is needed. The kernel denies mounts by the outer capability-free user. See the
 [audited delta and provenance](../pagewright/manager/internal/spawner/docker/PROFILE_PROVENANCE.md).
 
 This adds kernel attack surface for user namespaces; it is not protection against
-kernel vulnerabilities or full M2.6 isolation. No privileged container, added
+kernel vulnerabilities. M2.6 adds a tool-only seccomp filter after sandbox setup,
+blocking further namespace/mount operations. No privileged container, added
 host capability, unconfined profile, global sysctl change or sandbox bypass is
 used. A bounded local sandbox preflight fails **before any provider request** if
 the host cannot enforce the required policy.
@@ -65,22 +66,28 @@ It is only safe with the non-root, zero-capability settings above. Review it and
 load it on the Docker daemon host, then select the fixed profile name:
 
 ```sh
-sudo apparmor_parser -r security/pagewright-worker.apparmor
-export PAGEWRIGHT_WORKER_APPARMOR_PROFILE=pagewright-worker
+sudo apparmor_parser -r security/pagewright-worker-proc.apparmor
+export PAGEWRIGHT_WORKER_APPARMOR_PROFILE=pagewright-worker-proc
 make test-worker-cli
+make test-worker-compiler
 ```
 
 Set that variable in the manager's deployment environment as well. Unreviewed
 profile names, including `unconfined`, are rejected. Missing profiles fail Docker
-creation rather than falling back. The optional manually started worker service
-has an explicit `docker-compose.worker-apparmor.yaml` overlay; manager-created
-workers use the variable instead. Normally only build the optional worker image,
-and let the manager launch jobs.
+creation rather than falling back. The separate proc profile replaces Docker's
+proc overmounts with explicit AppArmor denials; non-proc masks remain. The manager
+requires the image's `proc-v1` compatibility label and resolves it to an immutable
+image ID before creating the container. The runner verifies tool namespace denial
+before contacting the provider. See the isolation document for the trust model.
+The legacy `docker-compose.worker-apparmor.yaml` overlay does not implement this
+Engine API proc policy. Build the optional worker image and let the manager launch
+jobs; do not use a privileged/unconfined Compose workaround.
 
-The profile was parser-checked without loading it on the WSL host (which does not
-enable AppArmor); AppArmor enforcement is **not locally verified**. CI loads only
-this named profile when its Docker host advertises AppArmor, then runs the same
-negative acceptance tests. Hosted CI has not been run here. Other LSMs/kernel
+The WSL daemon does not enable AppArmor. The supplied Debian host passes the
+complete installed CLI/compiler suite with the new enforcing profile and shared
+manager launch policy; see [host evidence](M2_6_HOST_ACCEPTANCE.md). CI requires
+AppArmor and runs the same negative acceptance tests. Hosted CI has not been run
+here. Other LSMs/kernel
 restrictions require operator review and must fail closed, not be disabled.
 Official guidance explains [Codex's Linux prerequisites](https://learn.chatgpt.com/docs/sandboxing).
 
@@ -102,6 +109,6 @@ uses no external network or real credentials, and checks:
 container configuration, endpoint reachability and writable workspace. Package,
 race/vet and full service integration cover preflight failure, argv/environment,
 redaction/capture limits and existing deterministic build contracts. Two old
-executor/parsing skips were restored; the kill test and two serving skips remain.
+executor/parsing skips and the kill test were restored; two serving skips remain.
 No paid API call or real AI edit was performed. Test containers/data are disposable;
-test images/build caches may remain. M2.4 is the next milestone.
+test images/build caches may remain. M2.7 is the next milestone.

@@ -12,10 +12,17 @@ import (
 )
 
 type Server struct {
-	port     int
-	executor *codex.Executor
-	status   *types.WorkerStatus
-	mu       sync.RWMutex
+	port      int
+	executor  *codex.Executor
+	status    *types.WorkerStatus
+	mu        sync.RWMutex
+	cancelJob func()
+}
+
+func (s *Server) SetJobCancel(cancel func()) {
+	s.mu.Lock()
+	s.cancelJob = cancel
+	s.mu.Unlock()
 }
 
 func NewServer(port int, executor *codex.Executor) *Server {
@@ -65,7 +72,12 @@ func (s *Server) GetStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) KillCodex(w http.ResponseWriter, r *http.Request) {
-	if err := s.executor.Kill(); err != nil {
+	s.mu.RLock()
+	cancel := s.cancelJob
+	s.mu.RUnlock()
+	if cancel != nil {
+		cancel()
+	} else if err := s.executor.Kill(); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to kill codex: %v", err), http.StatusInternalServerError)
 		return
 	}

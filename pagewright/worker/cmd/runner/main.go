@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/artifact"
@@ -22,6 +24,10 @@ import (
 )
 
 func main() {
+	// Last-resort whole-container ceiling, including blocked I/O and callbacks.
+	// PID 1/init exits with runner, so Docker tears down remaining processes.
+	watchdog := time.AfterFunc(16*time.Minute, func() { os.Exit(124) })
+	defer watchdog.Stop()
 	cfg := config.LoadConfig()
 
 	// Parse job from environment
@@ -69,7 +75,13 @@ func main() {
 }
 
 func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, executor *codex.Executor, srv *server.Server) error {
-	ctx := context.Background()
+	signals, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stopSignals()
+	ctx, cancel := context.WithTimeout(signals, 15*time.Minute)
+	defer cancel()
+	srv.SetJobCancel(cancel)
+	defer srv.SetJobCancel(nil)
+	storageClient = storageClient.WithContext(ctx)
 
 	// Step 1: Fetch artifact
 	srv.UpdateStatus("fetching", "Downloading artifact from storage", 10)
@@ -155,6 +167,9 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 	}
 
 	// Step 8: Upload artifact and manifest
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("job stopped before upload: %w", err)
+	}
 	srv.UpdateStatus("uploading", "Uploading results to storage", 90)
 	if err := persistAndReport(storageClient, cfg.ManagerURL, job, outputArtifact, manifest, executor.GetOutput()); err != nil {
 		return err
