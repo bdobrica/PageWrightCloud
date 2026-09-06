@@ -39,11 +39,12 @@ or activation responses, URL validation, deferred navigation, modal closure and
 existing nginx policy preservation. No manual HTML seeding or database edits are
 used for the first-preview journey.
 
-The integration topology co-locates nginx with serving. **The production root
-Compose reload lifecycle is not fixed by M3.4**: its separate nginx container still
-requires M3.5's supervised/config-validated/controlled reload and rollback design.
-An unavailable reload correctly fails activation instead of opening a success URL.
-Atomic symlink replacement/config staging and full rollback remain M3.5/M3.8;
+At M3.4 handoff, production root Compose still lacked reload coordination. M3.5
+now supplies the [supervised hosting lifecycle](HOSTING_LIFECYCLE.md), config
+validation, acknowledged reloads, rollback and restart recovery. Integration uses
+that production supervisor and fixed public proxy. Routing is confirmed before
+changing an artifact pointer; unavailable reloads fail without opening a success URL.
+Atomic symlink replacement and deployment-wide rollback remain M3.7/M3.8;
 preview nested links/assets and configured URLs across all UI entry points remain
 M3.6. Full rendered-browser acceptance remains M3.12. No private preview access
 control or safe-generated-content claim is made; pilot hardening remains M4.

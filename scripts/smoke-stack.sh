@@ -19,6 +19,7 @@ export PAGEWRIGHT_WORKER_LLM_KEY= PAGEWRIGHT_WORKER_LLM_URL=https://api.openai.c
 # A unique missing image exercises durable dispatch failure without executing AI.
 export PAGEWRIGHT_WORKER_IMAGE="pagewright-missing-smoke:$smoke_project"
 export PAGEWRIGHT_WWW_ROOT=/var/www PAGEWRIGHT_NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
+export PAGEWRIGHT_NGINX_RELOAD_COMMAND='nginx -s reload'
 export PAGEWRIGHT_POSTGRES_PORT=0 PAGEWRIGHT_REDIS_PORT=0 PAGEWRIGHT_GATEWAY_PORT=0
 export PAGEWRIGHT_MANAGER_PORT=0 PAGEWRIGHT_STORAGE_PORT=0 PAGEWRIGHT_SERVING_PORT=0
 export PAGEWRIGHT_UI_PORT=0 PAGEWRIGHT_THEMES_PORT=0 PAGEWRIGHT_NGINX_PORT=0
@@ -40,12 +41,27 @@ url() {
     printf 'http://127.0.0.1:%s' "${address##*:}"
 }
 verify() {
-    node scripts/smoke-stack.mjs "$1" "$(url gateway 8085)" "$(url storage 8080)" "$(url ui 80)" "$(url themes 80)" "$(url manager 8081)"
+    node scripts/smoke-stack.mjs "$1" "$(url gateway 8085)" "$(url storage 8080)" "$(url ui 80)" "$(url themes 80)" "$(url manager 8081)" "$(url nginx 80)"
     compose exec -T nginx nginx -t
+    compose exec -T serving nginx -t
     compose exec -T manager ./recovery-audit
 }
 compose up -d --build --wait --wait-timeout 180
 verify fresh
+# Fault only this disposable container's nginx master. The supervisor must stop
+# its API sibling and exit; Compose must restart a healthy pair from saved config.
+serving_container=$(compose ps -q serving)
+restart_before=$(docker inspect -f '{{.RestartCount}}' "$serving_container")
+compose exec -T serving sh -c 'kill -KILL "$(cat /run/nginx.pid)"'
+supervised_recovery=no
+for attempt in $(seq 1 40); do
+    restart_after=$(docker inspect -f '{{.RestartCount}}' "$serving_container")
+    serving_health=$(docker inspect -f '{{.State.Health.Status}}' "$serving_container")
+    if [ "$restart_after" -gt "$restart_before" ] && [ "$serving_health" = healthy ]; then supervised_recovery=yes; break; fi
+    sleep 1
+done
+[ "$supervised_recovery" = yes ] || { echo 'Hosting supervisor recovery failed' >&2; exit 1; }
+compose exec -T serving nginx -t
 # Persist gateway crash-window fixtures without calling a provider. The first
 # manager job is already terminal; the second was claimed but never received.
 compose exec -T postgres psql -v ON_ERROR_STOP=1 -U pagewright -d pagewright <<'SQL'
@@ -60,7 +76,7 @@ INSERT INTO build_submissions(job_id,site_id,owner_id,source_version,target_vers
 SQL
 # Abruptly stop only this generated project's writers/Redis, then recreate with
 # the same volumes. This exercises AOF recovery, not just graceful shutdown.
-compose kill -s SIGKILL gateway manager redis
+compose kill -s SIGKILL gateway manager redis serving
 compose down
 compose up -d --wait --wait-timeout 180
 verify restored

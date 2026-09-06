@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/config"
@@ -24,6 +28,7 @@ func main() {
 	// Initialize components
 	artifactMgr := artifact.NewManager(cfg.WWWRoot, cfg.MaxVersionsPerSite)
 	nginxMgr := nginx.NewManager(cfg.NginxSitesEnabled, cfg.NginxReloadCommand, cfg.MaintenancePagePath)
+	nginxMgr.SetLifecycle("nginx -t", "http://127.0.0.1:8089/")
 	storageCli := storage.NewClient(cfg.StorageURL)
 
 	// Create maintenance page if it doesn't exist
@@ -38,10 +43,23 @@ func main() {
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	fmt.Printf("Server listening on %s\n", addr)
 
-	if err := http.ListenAndServe(addr, router); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	server := &http.Server{Addr: addr, Handler: router, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 60 * time.Second}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		<-ctx.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdown)
+	}()
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		fmt.Printf("Server failed: %v\n", err)
 		os.Exit(1)
 	}
+	stop()
+	<-done
 }
 
 func ensureMaintenancePage(path string) error {

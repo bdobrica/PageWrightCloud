@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { gzipSync, gunzipSync } from 'node:zlib';
+import { get } from 'node:http';
 
-const [stage, gateway, storage, ui, themes, manager] = process.argv.slice(2);
+const [stage, gateway, storage, ui, themes, manager, hosting] = process.argv.slice(2);
 assert.ok(['fresh', 'restored'].includes(stage));
 async function request(base, path, options = {}, expected = 200) {
   const response = await fetch(base + path, {
@@ -12,6 +13,17 @@ async function request(base, path, options = {}, expected = 200) {
   return response;
 }
 const credentials = { email: 'smoke@example.test', password: 'SmokeTestPassword123!' };
+async function hostingStatus(expected) {
+  // Node fetch ignores a custom Host header; the hosting contract needs one.
+  const status = await new Promise((resolve,reject) => {
+    const req = get(hosting + '/', {headers:{Host:'smoke.example.test'}}, response => {
+      response.resume(); response.on('end',()=>resolve(response.statusCode));
+    });
+    req.setTimeout(15000,()=>req.destroy(new Error('hosting timeout')));
+    req.on('error',reject);
+  });
+  assert.equal(status,expected,'production host routing');
+}
 const json = (value, token) => ({
   method: 'POST',
   headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -51,6 +63,12 @@ const sites = await (await request(gateway, '/sites', {
 assert.equal(sites.total_count, 1);
 assert.equal(sites.data[0].fqdn, 'smoke.example.test');
 assert.equal(sites.data[0].initialization_status, 'ready');
+// Production proxy -> supervised hosting nginx, with an acknowledged reload.
+// A disabled site's 503 differs from the unknown-host 404 fallback.
+await request(gateway, '/sites/smoke.example.test/disable', json({},auth.token));
+await hostingStatus(503);
+await request(gateway, '/sites/smoke.example.test/enable', json({},auth.token));
+await hostingStatus(404);
 const initialPath = `/sites/${sites.data[0].id}/artifacts/initial`;
 const initial = gunzipSync(Buffer.from(await (await request(storage, initialPath)).arrayBuffer())).toString();
 assert.ok(initial.includes('content/site.json') && initial.includes('content/home/index.md'));

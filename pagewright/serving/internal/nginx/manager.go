@@ -3,7 +3,6 @@ package nginx
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -15,6 +14,8 @@ type Manager struct {
 	reloadCommand       string
 	maintenancePagePath string
 	maintenanceEnabled  bool
+	validationCommand   string
+	probeURL            string
 	mu                  sync.RWMutex
 }
 
@@ -29,19 +30,12 @@ func NewManager(sitesEnabledDir, reloadCommand, maintenancePagePath string) *Man
 
 // CreateSiteConfig generates and writes nginx config for a site
 func (m *Manager) CreateSiteConfig(fqdn string, sitePath string, aliases []string, enabled bool) error {
-	configPath := filepath.Join(m.sitesEnabledDir, fqdn)
-
-	config := m.generateSiteConfig(fqdn, sitePath, aliases, enabled)
-
-	if err := os.MkdirAll(m.sitesEnabledDir, 0755); err != nil {
-		return fmt.Errorf("failed to create sites-enabled directory: %w", err)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := validateSite(fqdn, sitePath, aliases); err != nil {
+		return err
 	}
-
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return m.Reload()
+	return m.change(fqdn, []byte(m.generateSiteConfig(fqdn, sitePath, aliases, enabled)), false)
 }
 
 // EnsureSiteConfig provisions first-preview routing without replacing an existing
@@ -49,44 +43,28 @@ func (m *Manager) CreateSiteConfig(fqdn string, sitePath string, aliases []strin
 func (m *Manager) EnsureSiteConfig(fqdn, sitePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := os.MkdirAll(m.sitesEnabledDir, 0755); err != nil {
+	if err := validateSite(fqdn, sitePath, nil); err != nil {
 		return err
 	}
 	path := filepath.Join(m.sitesEnabledDir, fqdn)
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if os.IsExist(err) {
-		info, statErr := os.Lstat(path)
-		if statErr != nil {
-			return statErr
-		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("site config is not a regular file")
-		}
-		return m.Reload()
-	}
+	before, exists, err := readConfig(path)
 	if err != nil {
 		return err
 	}
-	_, writeErr := f.WriteString(m.generateSiteConfig(fqdn, sitePath, nil, true))
-	closeErr := f.Close()
-	if writeErr != nil {
-		return writeErr
+	if exists {
+		return m.change(fqdn, before, false)
 	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return m.Reload()
+	return m.change(fqdn, []byte(m.generateSiteConfig(fqdn, sitePath, nil, true)), false)
 }
 
 // RemoveSiteConfig removes nginx config for a site.
 func (m *Manager) RemoveSiteConfig(fqdn string) error {
-	configPath := filepath.Join(m.sitesEnabledDir, fqdn)
-
-	if err := os.Remove(configPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove config file: %w", err)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !configName.MatchString(fqdn) {
+		return fmt.Errorf("invalid config name")
 	}
-
-	return m.Reload()
+	return m.change(fqdn, nil, true)
 }
 
 // UpdateAliases updates server_name aliases in config
@@ -97,45 +75,30 @@ func (m *Manager) UpdateAliases(fqdn string, sitePath string, aliases []string, 
 // SetMaintenanceMode enables/disables global maintenance mode
 func (m *Manager) SetMaintenanceMode(enabled bool) error {
 	m.mu.Lock()
-	m.maintenanceEnabled = enabled
-	m.mu.Unlock()
-
-	// Create or remove maintenance config
-	maintenanceConfigPath := filepath.Join(m.sitesEnabledDir, "000-maintenance")
-
-	if enabled {
-		config := m.generateMaintenanceConfig()
-		if err := os.WriteFile(maintenanceConfigPath, []byte(config), 0644); err != nil {
-			return fmt.Errorf("failed to write maintenance config: %w", err)
-		}
-	} else {
-		os.Remove(maintenanceConfigPath)
+	defer m.mu.Unlock()
+	if err := m.change("000-maintenance", []byte(m.generateMaintenanceConfig()), !enabled); err != nil {
+		return err
 	}
-
-	return m.Reload()
+	m.maintenanceEnabled = enabled
+	return nil
 }
 
 // IsMaintenanceMode returns current maintenance mode status
 func (m *Manager) IsMaintenanceMode() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.maintenanceEnabled
+	_, err := os.Stat(filepath.Join(m.sitesEnabledDir, "000-maintenance"))
+	return err == nil
 }
 
 // Reload sends SIGHUP to nginx to reload configuration
 func (m *Manager) Reload() error {
-	parts := strings.Fields(m.reloadCommand)
-	if len(parts) == 0 {
-		return fmt.Errorf("invalid reload command")
+	if m.validationCommand != "" {
+		if err := runCommand(m.validationCommand); err != nil {
+			return err
+		}
 	}
-
-	cmd := exec.Command(parts[0], parts[1:]...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to reload nginx: %w, output: %s", err, string(output))
-	}
-
-	return nil
+	return runCommand(m.reloadCommand)
 }
 
 func (m *Manager) generateSiteConfig(fqdn string, sitePath string, aliases []string, enabled bool) string {

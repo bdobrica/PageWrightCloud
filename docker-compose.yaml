@@ -143,6 +143,7 @@ services:
       start_period: 10s
 
   serving:
+    stop_grace_period: 20s
     build:
       context: ./pagewright/serving
       dockerfile: Dockerfile
@@ -163,8 +164,6 @@ services:
     depends_on:
       storage:
         condition: service_healthy
-      nginx:
-        condition: service_started
     networks:
       - pagewright
     restart: unless-stopped
@@ -196,10 +195,10 @@ services:
     ports:
       - "${PAGEWRIGHT_NGINX_PORT:-8084}:80"
     volumes:
-      - www_data:/var/www:ro
-      - nginx_config:/etc/nginx/sites-enabled:ro
-      - pagewright_config:/etc/pagewright:ro
-      - ./pagewright/serving/test/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./pagewright/serving/edge.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      serving:
+        condition: service_healthy
     networks:
       - pagewright
     restart: unless-stopped

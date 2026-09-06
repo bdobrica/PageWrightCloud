@@ -4,7 +4,3 @@ services:
       args:
         VITE_PAGEWRIGHT_API_URL: http://pagewright.io:8085
         VITE_PAGEWRIGHT_DEFAULT_DOMAIN: pagewright.io
-
-  serving:
-    environment:
-      PAGEWRIGHT_NGINX_RELOAD_COMMAND: "true"

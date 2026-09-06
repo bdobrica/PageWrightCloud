@@ -17,5 +17,5 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 compose build
-compose up -d --wait --wait-timeout 120 postgres redis manager storage serving
+compose up -d --wait --wait-timeout 120 postgres redis manager storage serving nginx
 compose run --rm tests

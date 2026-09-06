@@ -50,6 +50,10 @@ func (h *Handler) SetupRoutes() *mux.Router {
 }
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
+	if err := h.nginxMgr.Ready(); err != nil {
+		http.Error(w, "hosting unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":      "healthy",
@@ -105,15 +109,14 @@ func (h *Handler) ActivatePublic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.artifactMgr.ActivateVersion(fqdn, req.Version, false); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to activate version: %v", err), http.StatusInternalServerError)
-		return
-	}
-
 	// Ensure nginx config exists
 	sitePath := h.artifactMgr.GetSitePath(fqdn)
 	if err := h.nginxMgr.CreateSiteConfig(fqdn, sitePath, nil, true); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to update nginx config: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if err := h.artifactMgr.ActivateVersion(fqdn, req.Version, false); err != nil {
+		http.Error(w, "Failed to activate version", http.StatusInternalServerError)
 		return
 	}
 
@@ -135,12 +138,12 @@ func (h *Handler) ActivatePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.artifactMgr.ActivateVersion(fqdn, req.Version, true); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to activate preview: %v", err), http.StatusInternalServerError)
-		return
-	}
 	if err := h.nginxMgr.EnsureSiteConfig(fqdn, h.artifactMgr.GetSitePath(fqdn)); err != nil {
 		http.Error(w, "Failed to provision preview routing", http.StatusInternalServerError)
+		return
+	}
+	if err := h.artifactMgr.ActivateVersion(fqdn, req.Version, true); err != nil {
+		http.Error(w, "Failed to activate preview", http.StatusInternalServerError)
 		return
 	}
 

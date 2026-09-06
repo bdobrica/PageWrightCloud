@@ -1,5 +1,5 @@
 FROM golang:1.24.10-alpine
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc musl-dev nginx
 WORKDIR /workspace
 COPY pagewright/gateway/go.mod pagewright/gateway/go.sum pagewright/gateway/
 COPY pagewright/manager/go.mod pagewright/manager/go.sum pagewright/manager/

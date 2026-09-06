@@ -47,6 +47,13 @@ PAGEWRIGHT_STORAGE_PORT=18080 docker compose up -d --build --wait
 
 If you change the gateway host port, update browser-facing `VITE_PAGEWRIGHT_API_URL` and rebuild the UI. The MVP uses bounded job polling; WebSockets and the former socket URL setting are disabled. See [.env.example](.env.example) for defaults. Historical per-service Compose files are not the supported root-stack startup path.
 
+Hosting uses a [supervised serving API/nginx pair](docs/HOSTING_LIFECYCLE.md) behind
+the fixed public nginx proxy. Site changes are validated, acknowledged and rolled
+back on reload failure; interrupted config transactions recover before startup.
+Remove legacy no-op reload overrides and upgrade serving/proxy together without
+deleting their data volumes. Preview assets/remaining URL wiring and pilot security
+are still tracked in `TODO.md`.
+
 ### Inspect, stop and resume
 
 ```bash
