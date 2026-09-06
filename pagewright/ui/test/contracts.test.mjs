@@ -15,19 +15,21 @@ test('durable history restores all lifecycle states with strict pagination and a
  for (const bad of [{page:0},{page_size:101},{total_pages:2},{data:[]},{data:[job,job]}]) assert.throws(()=>parseBuildHistory({...page,...bad}));
  assert.deepEqual(parseBuildHistory({...page,page:2,data:[]}).data,[]);
  const component = readFileSync(new URL('../src/components/BuildHistory.tsx',import.meta.url),'utf8');
- assert.match(component,/apiClient.listJobs\(fqdn, page\)/);
- assert.match(component,/cancelled = true/);
+ assert.match(component,/apiClient.listJobs\(fqdn, page, signal\)/);
+ assert.match(component,/useEffect\(\(\) => startJobPolling/);
  const chat = readFileSync(new URL('../src/pages/Chat.tsx',import.meta.url),'utf8');
- assert.match(chat,/<BuildHistory key=\{fqdn\}/);
+ assert.match(chat,/<ChatSession key=\{fqdn\}/);
+ assert.match(chat,/<BuildHistory key=\{historyRefresh\}/);
 });
 import { CHAT_ROUTE, chatPath } from '../src/routes.ts';
 import { matchRoutes } from 'react-router-dom';
 
 test('chat exposes the accepted immutable source version', () => {
  const chat = readFileSync(new URL('../src/pages/Chat.tsx', import.meta.url), 'utf8');
- assert.match(chat, /Building from version \$\{response.source_version\}/);
+ assert.match(chat, /Build submitted from version \$\{response.source_version\}/);
  assert.match(chat, /Based on \$\{response.source_version\}/);
- assert.match(chat, /Based on \$\{update.source_version\}/);
+ const history = readFileSync(new URL('../src/components/BuildHistory.tsx', import.meta.url), 'utf8');
+ assert.match(history, /based on \{job.source_version\}/);
 });
 
 test('chat route and links use the FQDN consumed by Chat',()=>{

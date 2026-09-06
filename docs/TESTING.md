@@ -6,7 +6,7 @@ See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from 
 | --- | --- | --- |
 | Go packages | `make test-all` | Six Go modules; no running infrastructure required |
 | Compiler fixture | `make test-compiler-smoke` | Starter theme produces three pages and required assets in a temporary directory |
-| UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, zero-warning lint, production build |
+| UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, deterministic bounded polling/lifecycle/cleanup tests, zero-warning lint, production build |
 | Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP, worker callbacks, and shared artifact round-trips through worker/gateway/serving in isolated Compose |
 | Images | `docker compose --env-file /dev/null --profile worker build` | Selected service images, including the optional mock worker |
 | Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, auth, bootstrap storage; SIGKILL this disposable project's Redis/gateway/manager, recreate with retained volumes, verify history recovery and missing-evidence non-redispatch |

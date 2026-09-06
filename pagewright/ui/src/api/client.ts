@@ -93,8 +93,8 @@ class ApiClient {
     return response.data;
   }
 
-  async getSite(fqdn: string): Promise<Site> {
-    const response = await this.client.get<Site>(`/sites/${fqdn}`);
+  async getSite(fqdn: string, signal?: AbortSignal): Promise<Site> {
+    const response = await this.client.get<Site>(`/sites/${encodeURIComponent(fqdn)}`, { signal, timeout: 10000 });
     return response.data;
   }
 
@@ -145,13 +145,15 @@ class ApiClient {
   }
 
   // Build endpoint
-  async listJobs(fqdn: string, page = 1) {
-    const response = await this.client.get<unknown>(`/sites/${encodeURIComponent(fqdn)}/jobs`, { params: { page, page_size: 25 } });
-    return parseBuildHistory(response.data);
+  async listJobs(fqdn: string, page = 1, signal?: AbortSignal) {
+    const response = await this.client.get<unknown>(`/sites/${encodeURIComponent(fqdn)}/jobs`, { params: { page, page_size: 25 }, signal, timeout: 10000 });
+    const history = parseBuildHistory(response.data);
+    if (history.page !== page || history.page_size !== 25) throw new Error('Unexpected history page');
+    return history;
   }
 
-  async getJob(fqdn: string, jobId: string) {
-    const response = await this.client.get<unknown>(`/sites/${encodeURIComponent(fqdn)}/jobs/${encodeURIComponent(jobId)}`);
+  async getJob(fqdn: string, jobId: string, signal?: AbortSignal) {
+    const response = await this.client.get<unknown>(`/sites/${encodeURIComponent(fqdn)}/jobs/${encodeURIComponent(jobId)}`, { signal, timeout: 10000 });
     const job = parseBuildHistoryItem(response.data);
     if (job.job_id !== jobId) throw new Error('Unexpected job identity');
     return job;

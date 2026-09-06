@@ -46,7 +46,7 @@ Chat mounts a site-keyed history component and loads this endpoint after a brows
 refresh, independently of its ephemeral message list. Pagination and manual retry
 are available; stale responses after navigation/unmount are ignored. Submission
 completion triggers a history refresh, including uncertain/rejected responses.
-No automatic job polling was added (M3.2); the pre-existing socket remains M3.3.
+M3.2 adds the bounded polling behavior described below; socket removal remains M3.3.
 Clarification/input drafts and session-expiry recovery remain M3.10.
 
 Acceptance: gateway integration tests exercise fresh-handler reads for every
@@ -55,3 +55,44 @@ public-field allowlisting, unavailable upstreams and conservative late artifacts
 The deterministic worker round trip verifies that a version appears only after
 verified manager observation. UI contract tests, type checking, lint and production
 build cover the client/history wiring; actual browser acceptance remains M3.12.
+
+## Bounded UI polling (M3.2)
+
+The current history page is the polling scope (up to 25 jobs). The UI resolves
+the owner-checked site's ID, loads a validated page and retrieves only its
+pending/running jobs by exact ID. Every update must match site, job, source and
+target identity. Older timestamps and running-to-pending regressions are ignored;
+terminal outcomes are never revised. Other pages are checked when opened, not
+crawled in the background. New submissions reset history to page one, including
+uncertain/rejected submissions. Builds submitted in another tab require a history
+refresh to discover them; there is no indefinite discovery timer for an idle page.
+
+Checks use a single sequential request chain, with waits of 2, 4, 8, then at most
+15 seconds between rounds. Each site/history/job request has a 10-second transport
+timeout. Polling stops when all loaded jobs are terminal, after 60 scheduled rounds,
+after 15 minutes of elapsed time, or after five consecutive failed rounds. The
+elapsed budget is checked before starting further job requests; a request already
+in flight may finish within its transport timeout. Hidden/suspended tabs never
+catch up by launching overlapping requests. 401/403/404 pause immediately; normal
+401 session handling still redirects to login. Pausing never cancels a build or
+turns missing evidence into a failure. Manual refresh/resume starts a new budget.
+
+Transient failures retain observed job states and diagnostic codes. Failed builds
+display a safe code explanation and their job ID for operator investigation;
+private worker/provider messages remain private. Navigating pages/sites, retrying
+or unmounting aborts requests and clears the scheduled timer. Late responses from
+disposed instances are ignored. Chat is keyed by site so an old submission's
+response cannot alter the next site's conversation or history.
+
+Completed observations refresh the version sidebar without restarting history
+polling. Completed history on initial load also refreshes it to cover a race with
+gateway reconciliation. Chat submission messages identify themselves as submission
+acknowledgments and direct users to current history status. Unscoped legacy socket
+messages no longer update Chat; the unused connection is removed separately in
+M3.3. This milestone changes no gateway/manager recovery or dispatch behavior.
+
+`npm run test:contracts` includes deterministic scheduler/request tests for all
+four lifecycle states, backoff/round/elapsed/error bounds, completion notifications,
+initial/outage recovery, retained failure details, identity and monotonicity checks,
+non-overlap, aborts and stale-response suppression. These exercise the actual
+controller used by React; full rendered-browser acceptance remains M3.12.

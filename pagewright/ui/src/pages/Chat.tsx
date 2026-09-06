@@ -1,5 +1,5 @@
 import { getErrorMessage } from '../utils/errors';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { VersionsList } from '../components/VersionsList';
@@ -9,7 +9,6 @@ import { FileAttachment } from '../components/FileAttachment';
 import { apiClient } from '../api/client';
 import { createSubmissionIdentity, isRejectedSubmission } from '../api/submission';
 import { useWebSocket } from '../hooks/useWebSocket';
-import type { JobSnapshot } from '../types/api';
 import './Chat.css';
 
 interface Message {
@@ -21,41 +20,24 @@ interface Message {
 
 export const Chat: React.FC = () => {
   const { fqdn } = useParams<{ fqdn: string }>();
+  return <ChatSession key={fqdn} fqdn={fqdn!} />;
+};
+
+const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const [versionRefresh, setVersionRefresh] = useState(0);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const submission = useRef(createSubmissionIdentity());
 
-  const handleJobUpdate = (update: JobSnapshot) => {
-    if (update.status === 'completed') {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          text: `✓ Build completed! Version ${update.target_version} is ready. Based on ${update.source_version}.`,
-          sender: 'agent',
-          timestamp: new Date(),
-        },
-      ]);
-      setVersionRefresh((prev) => prev + 1);
-    } else if (update.status === 'failed') {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          text: `✗ Build failed: ${update.error_message || 'Unknown error'}`,
-          sender: 'agent',
-          timestamp: new Date(),
-        },
-      ]);
-    }
-  };
-
-  useWebSocket(handleJobUpdate);
+  const refreshCompletedVersions = useCallback(() => setVersionRefresh(n => n + 1), []);
+  // Only owner-checked polling can update build state. Removing the legacy
+  // connection itself remains M3.3; unscoped socket messages are not authoritative.
+  useWebSocket(() => {});
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -109,7 +91,7 @@ export const Chat: React.FC = () => {
               ? `✗ Build failed: ${response.error_message}. Based on ${response.source_version}.`
               : response.status === 'completed'
                 ? `✓ Build completed! Version ${response.target_version} is ready. Based on ${response.source_version}.`
-                : `Building from version ${response.source_version}... This may take a moment.`,
+                : `Build submitted from version ${response.source_version}. Follow Build history for its current status.`,
             sender: 'agent',
             timestamp: new Date(),
           },
@@ -132,6 +114,7 @@ export const Chat: React.FC = () => {
     } finally {
       setIsLoading(false);
       setVersionRefresh(prev => prev + 1);
+      setHistoryRefresh(prev => prev + 1);
     }
   };
 
@@ -151,7 +134,7 @@ export const Chat: React.FC = () => {
         </div>
 
         <div className="chat-messages">
-          <BuildHistory key={fqdn} fqdn={fqdn!} refresh={versionRefresh} />
+          <BuildHistory key={historyRefresh} fqdn={fqdn} onCompleted={refreshCompletedVersions} />
           {messages.length === 0 && (
             <div className="empty-chat">
               <p>Start building your site! Describe what you'd like to change.</p>
