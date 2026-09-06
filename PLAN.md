@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 pins CLI 0.153.4; M2.4 adds trusted compiler/theme, and M2.5 accumulates unpublished edits. M2.6 (`9fceb7c`) selects `pagewright-worker:m2.6` with resource/cancellation limits and tested nested isolation, including enforcing-AppArmor host acceptance. Kubernetes remains a historical logging stub. | Lock fencing/recovery, retention and real-provider acceptance remain M2.7 onward. Manager-only Docker access requires trusted operation; AppArmor proc mode is explicit opt-in after profile loading. |
+| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3–M2.6 add pinned CLI, trusted compilation, edit accumulation and tested worker isolation. M2.7 (`9740d79`) selects `pagewright-worker:m2.7` with bounded lease renewal and attempt-fenced storage/result commits. Kubernetes remains a historical logging stub. | Uncertain-result recovery, retention and real-provider acceptance remain M2.8 onward. Drain/reconcile before coordinated manager/storage/worker upgrades; manager Docker access and internal APIs require trusted operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -454,6 +454,41 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.7 completed (2026-09-06) in `9740d79`. Selected image/build defaults now use
+`pagewright-worker:m2.7`. The existing random lock token is the attempt identity;
+per-site fence allocation and lease acquisition are atomic. Redis-clock renewal
+checks running attempts, active/site reservations and live tokens/fences, never
+reacquiring an expired lease. All replicas can renew authoritative attempts up
+to the configured lifetime. Startup validates TTL/renewal/lifetime relationships.
+
+Storage stages and syncs complete request bytes before obtaining an atomic Redis
+digest reservation tied to the live attempt and target version. That reservation
+is the logical write commit; a no-replace filesystem link materializes the exact
+approved bytes. This deliberately does not claim a transaction spans Redis and
+the filesystem. Manifests require artifact/log prerequisites and matching fencing.
+Completion callbacks require the manifest reservation. Outcome, lock removal and
+site/capacity release are atomic; stale/superseded and duplicate terminal callbacks
+return 409 without mutation. Admission retries remain idempotent. See
+[commit semantics and upgrade requirements](docs/FENCED_COMMITS.md).
+
+Acceptance passed: six-module package suite, full race-enabled service
+integration, manager/storage/worker race and vet, selected production image build,
+installed CLI/compiler regressions and real-Docker launch. New tests cover two
+concurrent jobs beyond two original TTLs, expired-lease non-resurrection,
+monotonic replacement fences, stale/changed-byte writes, missing-manifest and
+duplicate terminal rejection, and an upload expiring before publication. The
+compiled worker round-trip uses the actual fenced storage and callback path.
+Two existing serving skips remain. Disposable test containers/networks were
+removed; caches may remain. No paid-provider/browser/hosted-CI/production-deployment
+acceptance or push. AppArmor policy is unchanged; no host administrative action
+was required for M2.7.
+
+Next: **M2.8**, bounded result delivery and reconciliation of uncertain outcomes.
+Drain/reconcile active jobs before upgrading manager, storage and worker together;
+do not mix old unfenced workers, reset fences or delete digest reservations.
+Reserved-but-not-materialized writes and lost acknowledgements require M2.8/M2.9
+reconciliation; retention remains M2.10 and service authentication remains M4.
 
 M2.6 completed (2026-09-06) in `9fceb7c`. Selected image defaults and build
 targets now use `pagewright-worker:m2.6`. Fixed CPU/memory/PID/storage/FD/log
