@@ -23,7 +23,7 @@ There is useful implementation across all services, but the application is still
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
 | Compilation | M1.8 adds compiler fixtures; M2.4 integrates trusted compilation/static checks; M2.5 verifies accumulated edits. M2.12 verifies a paid Luna edit through the actual sandboxed CLI and compiler. Serving validates archive structure. | Browser checks remain unperformed; one synthetic paid edit and static checks do not establish safe HTML for remote multi-user hosting. |
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
-| Version state | M1.2 persists the job/target mapping before dispatch. M1.9 normalizes storage versions for UI. M2.9 adds PostgreSQL lifecycle history and atomically reconciles verified manager outcomes into submission/version status. | Owner-checked history retrieval, browser refresh and combined DB/storage views remain M3.1. Conservative terminal outcomes must not be reopened by late materialization. |
+| Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped durable history and refresh loading, and intersects known completed submissions with committed storage versions. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; automatic polling remains M3.2 and actual browser acceptance M3.12. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
@@ -491,7 +491,7 @@ Disposable services/networks/worker and temporary key files were removed; non-se
 evidence was retained. The user's `.env`, application data and isolation policy
 were unchanged. No remote deployment or push occurred.
 
-All M2 items are complete. Next: **M3.1**, owner-scoped job/history retrieval and
+All M2 items are complete. At M2 handoff, next was **M3.1**, owner-scoped job/history retrieval and
 browser-refresh recovery. Full UI preview/publish/rollback acceptance remains M3;
 internal authorization, production quotas and pilot hardening remain M4.
 
@@ -873,6 +873,40 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 **Exit:** one real text request visibly changes a new site's HTML, two successive edits preserve each other, a concurrent same-site build is handled predictably, and worker failure/timeout/restart produces a recoverable terminal status without affecting live content.
 
 ### M3 — Complete browser journey and publishing (3–5 days)
+
+M3.1 completed (2026-09-06) in `38e908e`.
+[Owner-scoped history contract](docs/JOB_HISTORY_API.md) documents the authenticated
+single-job and paginated site-history endpoints, public allowlisted fields and
+diagnostic codes, and last-observed-state semantics. Count and rows share a
+read-only PostgreSQL snapshot; reads never contact upstream services or enqueue
+work. Both HTTP authorization and SQL owner/site scoping are tested.
+
+Chat now loads durable build history on mounting/refresh, separately from its
+ephemeral conversation. It supports older/newer pages and manual retry, ignores
+responses after navigation/unmount, and reloads after submissions. Pending,
+running, completed, failed and uncertain dispatch states survive loss of browser
+or gateway memory. This does not persist clarification transcripts or input drafts.
+
+Version listings exclude known submissions until their durable status is completed,
+even when storage has materialized their artifacts. Completed manager observations
+still need committed storage before appearing; late artifacts cannot revive failed
+jobs. Existing M2.9 background recovery remains the identity-verifying transaction
+writer. No migration, deletion, redispatch, source-selection or deployment-policy
+change was introduced. Legacy artifacts without submissions retain existing behavior.
+
+Verification passed: six-module package baseline, full race-enabled isolated service
+integration, gateway race/vet, UI contracts, lint and production build. New tests
+exercise fresh-handler reads for all lifecycle states, cross-owner/cross-site
+denial, upstream-independent retrieval, pagination, private-field exclusion and
+late-terminal non-regression. The deterministic worker round trip verifies version
+visibility before/after authoritative manager observation. The first integration
+attempt exposed a new test-fixture response-format error; the corrected run passed.
+Two existing serving skips remain. Disposable services/data were removed; no paid
+calls, remote deployment, application-data migration or push occurred.
+
+Next: **M3.2**, bounded active-job polling. M3.1's UI checks cover contracts and
+build wiring, not a real browser journey (M3.12). The existing socket remains
+unchanged pending M3.3, and drafts/session-expiry recovery remains M3.10.
 
 Connect persisted job status to chat and version history; normalize timestamps/statuses. Fix preview activation and URL construction, first-preview nginx provisioning, atomic promotion/rollback, pointer preservation and deployment error reconciliation. Preserve user input across auth expiry and report actionable errors. Hide attachments, arbitrary domains and unsupported authentication choices. Verify dashboard/chat/modal use at desktop and mobile sizes.
 
