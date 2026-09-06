@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1–M2.8 implement Docker launch, bounded dispatch, pinned CLI/compiler, isolation, fenced commits and result recovery. M2.9 (`25dcf08`) adds durable gateway history, Redis startup checks and restart recovery. Worker remains `pagewright-worker:m2.8`; Kubernetes remains a historical logging stub. | Container/log retention and real-provider acceptance remain M2.10 onward. Missing evidence follows the conservative operator runbook, never speculative redispatch. Drain/reconcile before coordinated upgrades; internal services require trusted operation. |
+| Execution | M2.1–M2.9 implement Docker launch, bounded dispatch, pinned CLI/compiler, isolation, fenced commits, durable history and restart recovery. M2.10 (`ddbb163`) adds verified terminal cleanup, staging retention and bounded redacted diagnostics. Selected worker: `pagewright-worker:m2.10`; Kubernetes remains a historical logging stub. | Broader runner fault and real-provider acceptance remain M2.11/M2.12. Missing evidence stays quarantined, never speculatively redispatched or deleted. Drain/reconcile before coordinated upgrades, including all storage writers; internal services require trusted operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -454,6 +454,40 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.10 completed (2026-09-06) in `ddbb163`. Selected worker is now
+`pagewright-worker:m2.10`; sandbox isolation and pinned CLI/compiler are unchanged.
+The [retention runbook](docs/WORKER_RETENTION.md) documents one-hour terminal
+container grace and seven-day operational diagnostics/staging retention. Cleanup
+requires full Docker launch identity, unchanged canonical terminal evidence and
+no active/site reservation. Diagnostics must be saved before kill/removal; running
+terminal workers require a later fresh inspection before non-forced deletion.
+Unknown, legacy or conflicting orphans remain quarantined for operator review.
+
+Storage removes only old regular `.upload-*` files under an exclusive root lock;
+all immutable writers hold a shared lock through publication. Passes have deletion,
+entry and time limits. Published objects, durable identities and receipts remain
+untouched. Reserved-but-unpublished staging bytes can expire after seven days;
+this cannot reopen a terminal attempt. New private log records are bounded to
+4 KiB and withhold all arbitrary executor output, while preserving site/job/version
+correlation and output byte count. Historical immutable logs are not rewritten,
+and per-version logs have no independent TTL because receipt verification needs
+their bytes. This is not general artifact/content sanitization or a total-disk bound.
+
+Acceptance passed: repository package suite, full race-enabled service integration
+twice, manager/storage/worker race and vet, selected worker image build, installed
+CLI/compiler checks, real-Docker identity/non-force removal and isolated root-stack
+restart smoke. Coverage includes active-upload exclusion, final-file/symlink and
+receipt preservation, terminal/reservation guards, diagnostic-storage failure,
+retry TTL preservation and secret-sentinel omission. Two existing serving skips
+remain. No paid calls, remote deployment/cleanup, privileged containers, isolation
+relaxation or push occurred. Only disposable test resources were removed.
+
+Next: **M2.11**, broader actual runner failure/restart acceptance; M2.12 remains
+the explicitly cost-bounded provider run. Drain all storage writers before upgrade
+because older writers lack the lock protocol. Never replace `.uploads.lock` during
+operation. Busy writers, unavailable evidence and oversized trees may defer
+cleanup; use backed-up offline maintenance when required, not broad pruning.
 
 M2.9 completed (2026-09-06) in `25dcf08`. Worker execution and isolation remain
 unchanged on `pagewright-worker:m2.8`. Migration 009 adds PostgreSQL lifecycle
