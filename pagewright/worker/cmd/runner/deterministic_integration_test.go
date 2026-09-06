@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/codex"
@@ -51,7 +52,11 @@ func TestDeterministicWorkerEntrypoint(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&manifest); err != nil {
 		t.Fatal(err)
 	}
-	if !manifest.ChecksPassed || manifest.BrowserChecksPerformed || len(manifest.ValidationChecks) != 4 || manifest.CompilerVersion != "0.1.0" || manifest.ThemeVersion != "1.0.0" || len(manifest.FilesChanged) != 1 || manifest.FilesChanged[0] != "content/home/index.md" {
+	wantChanged := []string{"content/home/index.md"}
+	if job.Prompt == "Set the homepage heading to Deterministic M1 round trip." {
+		wantChanged = []string{"content/guide/nested/assets/pixel.svg", "content/guide/nested/index.md", "content/home/index.md"}
+	}
+	if !manifest.ChecksPassed || manifest.BrowserChecksPerformed || len(manifest.ValidationChecks) != 4 || manifest.CompilerVersion != "0.1.0" || manifest.ThemeVersion != "1.0.0" || !reflect.DeepEqual(manifest.FilesChanged, wantChanged) {
 		t.Fatalf("untruthful compilation manifest: %+v", manifest)
 	}
 }

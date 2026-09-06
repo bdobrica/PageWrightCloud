@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -24,8 +22,7 @@ type VersionsHandler struct {
 	storageClient   *clients.StorageClient
 	servingClient   *clients.ServingClient
 	defaultPageSize int
-	hostingScheme   string
-	hostingPort     string
+	hostingAddress
 }
 
 func NewVersionsHandler(db *database.DB, storageClient *clients.StorageClient, servingClient *clients.ServingClient, defaultPageSize int) *VersionsHandler {
@@ -37,38 +34,8 @@ func NewVersionsHandler(db *database.DB, storageClient *clients.StorageClient, s
 		storageClient:   storageClient,
 		servingClient:   servingClient,
 		defaultPageSize: defaultPageSize,
-		hostingScheme:   "http",
-		hostingPort:     "8084",
+		hostingAddress:  hostingAddress{"http", "8084"},
 	}
-}
-
-// Configure once at startup; never infer public URLs from request/proxy headers.
-func (h *VersionsHandler) SetHostingAddress(scheme, port string) {
-	h.hostingScheme, h.hostingPort = scheme, port
-}
-
-var hostingNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$`)
-
-func (h *VersionsHandler) deploymentURL(fqdn, target string) (string, error) {
-	if h.hostingScheme != "http" && h.hostingScheme != "https" {
-		return "", fmt.Errorf("invalid hosting scheme")
-	}
-	port, err := strconv.Atoi(h.hostingPort)
-	if err != nil || port < 1 || port > 65535 {
-		return "", fmt.Errorf("invalid hosting port")
-	}
-	if len(fqdn) > 253 || !hostingNamePattern.MatchString(fqdn) {
-		return "", fmt.Errorf("invalid hosting name")
-	}
-	host := fqdn
-	if !(h.hostingScheme == "http" && port == 80) && !(h.hostingScheme == "https" && port == 443) {
-		host = net.JoinHostPort(fqdn, h.hostingPort)
-	}
-	path := "/"
-	if target == "preview" {
-		path = "/preview/"
-	}
-	return (&url.URL{Scheme: h.hostingScheme, Host: host, Path: path}).String(), nil
 }
 
 // ListVersions lists all versions for a site (from storage service)

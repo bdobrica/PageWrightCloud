@@ -1,6 +1,7 @@
 package nginx
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -32,28 +33,59 @@ func TestCreateSiteConfig(t *testing.T) {
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "server_name blog.example.com www.example.com;")
 	assert.Contains(t, contentStr, "root /var/www/example.com/blog.example.com/public;")
-	assert.Contains(t, contentStr, "location /preview/")
+	assert.Contains(t, contentStr, "server_name preview.blog.example.com;")
+	assert.NotContains(t, contentStr, "location /preview/")
 	assert.Contains(t, contentStr, "# Security headers")
 }
 
 func TestEnsurePreviewRoutingPreservesExistingPolicy(t *testing.T) {
 	dir := t.TempDir()
 	mgr := NewManager(dir, "true", "/tmp/503.html")
-	require.NoError(t, mgr.EnsureSiteConfig("preview.example.test", "/var/www/site"))
-	path := filepath.Join(dir, "preview.example.test")
+	require.NoError(t, mgr.EnsureSiteConfig("draft.example.test", "/var/www/site"))
+	path := filepath.Join(dir, "draft.example.test")
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "location /preview/")
-	require.NoError(t, mgr.CreateSiteConfig("preview.example.test", "/var/www/site", []string{"alias.example.test"}, false))
+	assert.Contains(t, string(content), "root /var/www/site/preview;")
+	require.NoError(t, mgr.CreateSiteConfig("draft.example.test", "/var/www/site", []string{"alias.example.test"}, false))
 	before, err := os.ReadFile(path)
 	require.NoError(t, err)
-	require.NoError(t, mgr.EnsureSiteConfig("preview.example.test", "/different/path"))
+	require.NoError(t, mgr.EnsureSiteConfig("draft.example.test", "/different/path"))
 	after, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
 	mgr.reloadCommand = "false"
-	require.Error(t, mgr.EnsureSiteConfig("preview.example.test", "/var/www/site"))
+	require.Error(t, mgr.EnsureSiteConfig("draft.example.test", "/var/www/site"))
 	require.Error(t, mgr.EnsureSiteConfig("new.example.test", "/var/www/new"))
+}
+
+func TestLegacyHostingMigrationAndReservedNamespace(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
+			dir := t.TempDir()
+			mgr := NewManager(dir, "true", "/tmp/503.html")
+			path := filepath.Join(dir, "site.example.test")
+			legacy := mgr.generateLegacySiteConfig("site.example.test", "/var/www/site", []string{"alias.example.test"}, enabled)
+			require.NoError(t, os.WriteFile(path, []byte(legacy), 0644))
+			require.NoError(t, mgr.EnsureSiteConfig("site.example.test", "/var/www/site"))
+			data, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, mgr.generateSiteConfig("site.example.test", "/var/www/site", []string{"alias.example.test"}, enabled), string(data))
+			require.NotContains(t, string(data), "location /preview/")
+			require.NoError(t, os.WriteFile(path, []byte(legacy+"# custom policy\n"), 0644))
+			require.Error(t, mgr.EnsureSiteConfig("site.example.test", "/var/www/site"))
+			data, err = os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, legacy+"# custom policy\n", string(data))
+		})
+	}
+	dir := t.TempDir()
+	mgr := NewManager(dir, "true", "/tmp/503.html")
+	require.Error(t, mgr.CreateSiteConfig("Preview.site.example.test", "/var/www/site", nil, true))
+	require.Error(t, mgr.CreateSiteConfig("site.example.test", "/var/www/site", []string{"preview.other.test"}, true))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "legacy.example.test"), []byte("server { server_name preview.site.example.test; }"), 0644))
+	require.Error(t, mgr.EnsureSiteConfig("site.example.test", "/var/www/site"))
+	require.Error(t, mgr.CreateSiteConfig("site.example.test", "/var/www/site", nil, true))
+	require.NoFileExists(t, filepath.Join(dir, "site.example.test"))
 }
 
 func TestUpdateAliases(t *testing.T) {

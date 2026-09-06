@@ -56,6 +56,7 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(db, jwtManager, oauthManager)
 	sitesHandler := handlers.NewSitesHandler(db, servingClient, storageClient, cfg.DefaultPageSize)
+	sitesHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
 	aliasesHandler := handlers.NewAliasesHandler(db, servingClient)
 	versionsHandler := handlers.NewVersionsHandler(db, storageClient, servingClient, cfg.DefaultPageSize)
 	versionsHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)

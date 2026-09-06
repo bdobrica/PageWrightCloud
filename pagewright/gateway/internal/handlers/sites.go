@@ -21,6 +21,7 @@ type SitesHandler struct {
 	servingClient   *clients.ServingClient
 	storageClient   *clients.StorageClient
 	defaultPageSize int
+	hostingAddress
 }
 
 func NewSitesHandler(db *database.DB, servingClient *clients.ServingClient, storageClient *clients.StorageClient, defaultPageSize int) *SitesHandler {
@@ -29,7 +30,21 @@ func NewSitesHandler(db *database.DB, servingClient *clients.ServingClient, stor
 		servingClient:   servingClient,
 		storageClient:   storageClient,
 		defaultPageSize: defaultPageSize,
+		hostingAddress:  hostingAddress{"http", "8084"},
 	}
+}
+
+type hostedSite struct {
+	*types.Site
+	LiveURL    string `json:"live_url"`
+	PreviewURL string `json:"preview_url"`
+}
+
+func (h *SitesHandler) publicSite(site *types.Site) hostedSite {
+	// Invalid configuration/legacy domains expose no clickable destination.
+	live, _ := h.deploymentURL(site.FQDN, "live")
+	preview, _ := h.deploymentURL(site.FQDN, "preview")
+	return hostedSite{site, live, preview}
 }
 
 // CreateSite creates a new site
@@ -80,13 +95,13 @@ func (h *SitesHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	respondJSON(w, site)
+	respondJSON(w, h.publicSite(site))
 }
 
 var domainLabel = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 
 func validSiteFQDN(fqdn string) bool {
-	if len(fqdn) > 253 || !strings.Contains(fqdn, ".") {
+	if len(fqdn) > 245 || strings.HasPrefix(fqdn, "preview.") || !strings.Contains(fqdn, ".") {
 		return false
 	}
 	for _, label := range strings.Split(fqdn, ".") {
@@ -120,9 +135,13 @@ func (h *SitesHandler) ListSites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	totalPages := (totalCount + pageSize - 1) / pageSize
+	publicSites := make([]hostedSite, 0, len(sites))
+	for i := range sites {
+		publicSites = append(publicSites, h.publicSite(&sites[i]))
+	}
 
 	respondJSON(w, types.PaginatedResponse{
-		Data:       sites,
+		Data:       publicSites,
 		Page:       page,
 		PageSize:   pageSize,
 		TotalCount: totalCount,
@@ -153,7 +172,7 @@ func (h *SitesHandler) GetSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respondJSON(w, site)
+	respondJSON(w, h.publicSite(site))
 }
 
 // DeleteSite deletes a site

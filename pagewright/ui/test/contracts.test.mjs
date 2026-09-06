@@ -1,27 +1,41 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { parseBuildResponse, parseJobSnapshot, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from '../src/api/contracts.ts';
+import { parseSiteHosting, parseBuildResponse, parseJobSnapshot, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from '../src/api/contracts.ts';
 import { openActivatedPreview } from '../src/api/preview.ts';
 
 test('preview opens only after confirmed activation and ignores a closed modal', async () => {
  let resolve;
  const opened=[];
  const pending=openActivatedPreview(()=>new Promise(r=>{resolve=r;}),url=>opened.push(url),()=>true);
- assert.deepEqual(opened,[]);resolve('http://site.example.test:8084/preview/');
+ assert.deepEqual(opened,[]);resolve('http://preview.site.example.test:8084/');
  assert.equal(await pending,opened[0]);
  await assert.rejects(openActivatedPreview(async()=>{throw new Error('activation failed');},url=>opened.push(url),()=>true));
- await openActivatedPreview(async()=> 'http://site.example.test/preview/',url=>opened.push(url),()=>false);
+ await openActivatedPreview(async()=> 'http://preview.site.example.test/',url=>opened.push(url),()=>false);
  assert.equal(opened.length,1);
- assert.equal(await openActivatedPreview(async()=> 'http://site.example.test/preview/',()=>{throw new Error('popup blocked');},()=>true),'http://site.example.test/preview/');
+ assert.equal(await openActivatedPreview(async()=> 'http://preview.site.example.test/',()=>{throw new Error('popup blocked');},()=>true),'http://preview.site.example.test/');
 });
 
 test('deployment responses bind target/version and reject unsafe or wrong-host URLs', () => {
- const response={status:'deployed',version_id:'v1',target:'preview',url:'http://site.example.test:8084/preview/'};
+ const response={status:'deployed',version_id:'v1',target:'preview',url:'http://preview.site.example.test:8084/'};
  assert.equal(parseDeployment(response,'site.example.test','v1','preview').url,response.url);
  for (const changed of [{version_id:'v2'},{target:'live'},{status:'pending'},{url:'javascript:alert(1)'},{url:'https://other.test/preview/'},{url:'https://user:password@site.example.test/preview/'},{url:'https://site.example.test/preview/v1'}]) assert.throws(()=>parseDeployment({...response,...changed},'site.example.test','v1','preview'));
  const versions=readFileSync(new URL('../src/components/VersionsList.tsx',import.meta.url),'utf8');
  assert.match(versions,/target: 'preview'/);assert.doesNotMatch(versions,/window.open|preview\/\$\{/);
+});
+
+test('site entry points use validated configured hosting URLs', () => {
+ const site={fqdn:'site.example.test',live_url:'https://site.example.test:8443/',preview_url:'https://preview.site.example.test:8443/'};
+ assert.deepEqual(parseSiteHosting(site,site.fqdn),site);
+ assert.equal(parseSiteHosting({...site,live_url:'',preview_url:''}).preview_url,'');
+ for (const preview_url of ['https://site.example.test/preview/','https://preview.other.test/','https://preview.site.example.test/?token=x','javascript:alert(1)','https://u:p@preview.site.example.test/','https://preview.site.example.test/#fragment']) assert.throws(()=>parseSiteHosting({...site,preview_url}));
+ assert.throws(()=>parseSiteHosting(site,'other.example.test'));
+ for (const file of ['../src/components/SiteCard.tsx','../src/pages/Chat.tsx']) {
+  const source=readFileSync(new URL(file,import.meta.url),'utf8');
+  assert.match(source, /HostingLinks site=/); assert.doesNotMatch(source,/https:\/\/|\/preview/);
+ }
+ const links=readFileSync(new URL('../src/components/HostingLinks.tsx',import.meta.url),'utf8');
+ assert.match(links,/site\?\.enabled/); assert.match(links,/version_id/); assert.match(links,/href=\{url\}/);
 });
 
 test('polling MVP has no socket transport or socket URL configuration', () => {

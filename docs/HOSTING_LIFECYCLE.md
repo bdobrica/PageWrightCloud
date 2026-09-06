@@ -47,6 +47,12 @@ further writes and report unhealthy. Readiness requires nginx and no pending
 transaction. Brief health failures during a configuration transaction are expected.
 First-preview routing preserves existing aliases/disabled policy.
 
+M3.6 uses distinct live/preview virtual hosts; see the [DNS/TLS and existing-config
+migration guide](PREVIEW_ACTIVATION.md). Generation acknowledgment proves new
+workers are ready, not that all old connections/workers have finished draining.
+The production smoke uses fresh connections and bounded convergence checks on
+both hosts after enable/disable; it does not claim instantaneous global cutover.
+
 Activation routes establish confirmed routing **before** changing an artifact
 pointer. Therefore validation/reload failure does not switch that pointer. This
 does not make activation atomic with the gateway database: M3.7 still owns that

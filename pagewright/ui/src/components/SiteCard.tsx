@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { chatPath } from '../routes';
 import { useNavigate } from 'react-router-dom';
 import { ManageAliasesModal } from './ManageAliasesModal';
+import { HostingLinks } from './HostingLinks';
 import type { Site } from '../types/api';
 import './SiteCard.css';
 
@@ -34,12 +35,7 @@ export const SiteCard: React.FC<SiteCardProps> = ({ site, onDelete, onToggleEnab
         </div>
 
         <div className="site-card-actions">
-          <a href={`https://${site.fqdn}`} target="_blank" rel="noopener noreferrer" className="pure-button">
-            Live
-          </a>
-          <a href={`https://${site.fqdn}/preview`} target="_blank" rel="noopener noreferrer" className="pure-button">
-            Preview
-          </a>
+          <HostingLinks site={site} />
           <button onClick={() => setShowAliases(true)} className="pure-button">
             Aliases
           </button>

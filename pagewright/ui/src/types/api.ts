@@ -13,6 +13,8 @@ export interface AuthResponse {
 }
 
 export interface Site {
+	live_url: string;
+	preview_url: string;
 	initialization_status: 'legacy' | 'pending' | 'ready';
   id: string;
   fqdn: string;

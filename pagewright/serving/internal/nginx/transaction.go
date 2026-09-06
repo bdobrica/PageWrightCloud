@@ -42,11 +42,11 @@ func AcquireWriter(dir string) (*os.File, error) {
 }
 
 func validateSite(name, path string, aliases []string) error {
-	if !configName.MatchString(name) || !strings.Contains(name, ".") || !safePath.MatchString(path) || len(aliases) > 100 {
+	if !configName.MatchString(name) || len(name) > 245 || strings.HasPrefix(strings.ToLower(name), "preview.") || !strings.Contains(name, ".") || !safePath.MatchString(path) || len(aliases) > 100 {
 		return fmt.Errorf("invalid nginx site parameters")
 	}
 	for _, alias := range aliases {
-		if !configName.MatchString(alias) {
+		if !configName.MatchString(alias) || strings.HasPrefix(strings.ToLower(alias), "preview.") {
 			return fmt.Errorf("invalid alias")
 		}
 	}

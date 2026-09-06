@@ -1,11 +1,25 @@
-import type { AcceptedBuildResponse, BuildResponse, BuildHistoryItem, JobSnapshot, JobStatus, Version, PaginatedResponse } from '../types/api.ts';
+import type { Site, AcceptedBuildResponse, BuildResponse, BuildHistoryItem, JobSnapshot, JobStatus, Version, PaginatedResponse } from '../types/api.ts';
+
+function hostingURL(input: string, fqdn: string, target: 'live' | 'preview'): string {
+  const address = new URL(input);
+  const host = target === 'preview' ? `preview.${fqdn.toLowerCase()}` : fqdn.toLowerCase();
+  if (!['http:', 'https:'].includes(address.protocol) || address.hostname !== host || address.username || address.password || address.search || address.hash || address.pathname !== '/') throw new Error('Invalid hosting URL');
+  return address.href;
+}
+
+// Reject unsafe/foreign destinations before rendering anchors. Empty URLs mean
+// the server cannot advertise hosting for this configuration or legacy domain.
+export function parseSiteHosting(site: Site, expectedFQDN?: string): Site {
+  if (typeof site.fqdn !== 'string' || (expectedFQDN !== undefined && site.fqdn !== expectedFQDN)) throw new Error('Unexpected site identity');
+  const live = stringField(object(site), 'live_url', true);
+  const preview = stringField(object(site), 'preview_url', true);
+  return { ...site, live_url: live ? hostingURL(live, site.fqdn, 'live') : '', preview_url: preview ? hostingURL(preview, site.fqdn, 'preview') : '' };
+}
 
 export function parseDeployment(input: unknown, fqdn: string, version: string, target: 'live' | 'preview') {
   const value = object(input);
   if (value.status !== 'deployed' || value.target !== target || value.version_id !== version) throw new Error('Unexpected deployment identity');
-  const address = new URL(stringField(value, 'url'));
-  if (!['http:', 'https:'].includes(address.protocol) || address.hostname !== fqdn.toLowerCase() || address.username || address.password || address.search || address.hash || address.pathname !== (target === 'preview' ? '/preview/' : '/')) throw new Error('Invalid deployment URL');
-  return { url: address.href, version_id: version, target };
+  return { url: hostingURL(stringField(value, 'url'), fqdn, target), version_id: version, target };
 }
 
 export function parseBuildHistoryItem(input: unknown): BuildHistoryItem {

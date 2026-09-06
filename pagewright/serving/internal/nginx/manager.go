@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"text/template"
@@ -35,6 +36,9 @@ func (m *Manager) CreateSiteConfig(fqdn string, sitePath string, aliases []strin
 	if err := validateSite(fqdn, sitePath, aliases); err != nil {
 		return err
 	}
+	if err := m.previewHostAvailable(fqdn); err != nil {
+		return err
+	}
 	return m.change(fqdn, []byte(m.generateSiteConfig(fqdn, sitePath, aliases, enabled)), false)
 }
 
@@ -46,12 +50,36 @@ func (m *Manager) EnsureSiteConfig(fqdn, sitePath string) error {
 	if err := validateSite(fqdn, sitePath, nil); err != nil {
 		return err
 	}
+	if err := m.previewHostAvailable(fqdn); err != nil {
+		return err
+	}
 	path := filepath.Join(m.sitesEnabledDir, fqdn)
 	before, exists, err := readConfig(path)
 	if err != nil {
 		return err
 	}
 	if exists {
+		if !strings.HasPrefix(string(before), "# pagewright hosting v2\n") {
+			// Only migrate byte-exact generated legacy configs; never guess at
+			// custom nginx policy. Preserve aliases and disabled state.
+			names := regexp.MustCompile(`server_name ([^;]+);`).FindSubmatch(before)
+			if len(names) != 2 {
+				return fmt.Errorf("unrecognized legacy hosting config")
+			}
+			fields := strings.Fields(string(names[1]))
+			if len(fields) == 0 || fields[0] != fqdn {
+				return fmt.Errorf("legacy hosting identity mismatch")
+			}
+			aliases := fields[1:]
+			enabled := !strings.Contains(string(before), "# Site disabled - return 503")
+			if err := validateSite(fqdn, sitePath, aliases); err != nil {
+				return err
+			}
+			if string(before) != m.generateLegacySiteConfig(fqdn, sitePath, aliases, enabled) {
+				return fmt.Errorf("custom legacy hosting config requires operator migration")
+			}
+			before = []byte(m.generateSiteConfig(fqdn, sitePath, aliases, enabled))
+		}
 		return m.change(fqdn, before, false)
 	}
 	return m.change(fqdn, []byte(m.generateSiteConfig(fqdn, sitePath, nil, true)), false)
@@ -101,7 +129,53 @@ func (m *Manager) Reload() error {
 	return runCommand(m.reloadCommand)
 }
 
-func (m *Manager) generateSiteConfig(fqdn string, sitePath string, aliases []string, enabled bool) string {
+// Refuse legacy site/alias collisions before nginx can silently ignore a host.
+func (m *Manager) previewHostAvailable(fqdn string) error {
+	entries, err := os.ReadDir(m.sitesEnabledDir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.Name() == fqdn || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(m.sitesEnabledDir, entry.Name()))
+		if err != nil {
+			return err
+		}
+		for _, match := range regexp.MustCompile(`server_name\s+([^;]+);`).FindAllSubmatch(data, -1) {
+			for _, name := range strings.Fields(string(match[1])) {
+				if strings.EqualFold(name, "preview."+fqdn) {
+					return fmt.Errorf("preview hostname conflicts with existing config")
+				}
+			}
+		}
+	}
+	return nil
+}
+
+const legacyPreviewLocation = `    # Preview site
+    location /preview/ {
+        alias {{.SitePath}}/preview/;
+        try_files $uri $uri/ =404;
+    }
+
+`
+
+func (m *Manager) generateSiteConfig(fqdn, sitePath string, aliases []string, enabled bool) string {
+	live := m.generateLegacySiteConfig(fqdn, sitePath, aliases, enabled)
+	block := strings.ReplaceAll(legacyPreviewLocation, "{{.SitePath}}", sitePath)
+	live = strings.Replace(live, block, "", 1)
+	preview := m.generateLegacySiteConfig("preview."+fqdn, sitePath, nil, enabled)
+	preview = strings.Replace(preview, block, "", 1)
+	preview = strings.Replace(preview, "root "+sitePath+"/public;", "root "+sitePath+"/preview;", 1)
+	// Relative redirects retain the external scheme/port behind the public edge.
+	return "# pagewright hosting v2\n" + strings.ReplaceAll(live+preview, "    listen 80;", "    listen 80;\n    absolute_redirect off;")
+}
+
+// Keep the legacy rendering stable: migration compares its complete bytes before
+// replacing it, so custom/unknown configuration is never interpreted as managed.
+func (m *Manager) generateLegacySiteConfig(fqdn string, sitePath string, aliases []string, enabled bool) string {
 	tmpl := `server {
     listen 80;
     server_name {{.FQDN}}{{if .Aliases}} {{.Aliases}}{{end}};

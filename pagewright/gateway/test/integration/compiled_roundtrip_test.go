@@ -11,8 +11,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -64,6 +66,8 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	protected := router.PathPrefix("/sites").Subrouter()
 	protected.Use(middleware.AuthMiddleware(testJWTManager))
 	protected.HandleFunc("", sites.CreateSite).Methods("POST")
+	protected.HandleFunc("", sites.ListSites).Methods("GET")
+	protected.HandleFunc("/{fqdn}", sites.GetSite).Methods("GET")
 	protected.HandleFunc("/{fqdn}/build", builds.Build).Methods("POST")
 	protected.HandleFunc("/{fqdn}/versions", versions.ListVersions).Methods("GET")
 	protected.HandleFunc("/{fqdn}/versions/{version_id}/download", versions.DownloadVersion).Methods("GET")
@@ -114,6 +118,18 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		t.Fatalf("wrong created site: %+v", site)
 	}
 	base := gateway.URL + "/sites/" + fqdn
+	var siteWire map[string]any
+	decode(request("GET", base, "", 200), &siteWire)
+	if siteWire["live_url"] != "http://"+fqdn+":8084/" || siteWire["preview_url"] != "http://preview."+fqdn+":8084/" {
+		t.Fatalf("wrong site hosting URLs: %+v", siteWire)
+	}
+	var page struct {
+		Data []map[string]any `json:"data"`
+	}
+	decode(request("GET", gateway.URL+"/sites", "", 200), &page)
+	if len(page.Data) != 1 || page.Data[0]["preview_url"] != siteWire["preview_url"] {
+		t.Fatalf("wrong listing hosting URLs: %+v", page)
+	}
 	initial := request("GET", base+"/versions/initial/download", "", 200)
 	// Source-only bootstrap must never be published as HTML.
 	request("POST", base+"/versions/initial/deploy", `{"target":"live"}`, 500)
@@ -228,6 +244,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	}
 	defer secondGzip.Close()
 	secondTar := tar.NewReader(secondGzip)
+	secondFiles := map[string][]byte{}
 	found := 0
 	for {
 		header, err := secondTar.Next()
@@ -237,12 +254,15 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if header.Name != "content/home/index.md" && header.Name != "public/index.html" {
-			continue
-		}
 		data, err := io.ReadAll(secondTar)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if !header.FileInfo().IsDir() && strings.HasPrefix(header.Name, "public/") {
+			secondFiles[header.Name] = data
+		}
+		if header.Name != "content/home/index.md" && header.Name != "public/index.html" {
+			continue
 		}
 		if !bytes.Contains(data, []byte("Deterministic M1 round trip")) || !bytes.Contains(data, []byte("Second unpublished edit preserved.")) {
 			t.Fatalf("edits did not accumulate in %s", header.Name)
@@ -259,13 +279,16 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	if !bytes.Equal(archive, request("GET", base+"/versions/"+job.TargetVersion+"/download", "", 200)) {
 		t.Fatal("second edit mutated first draft")
 	}
-	hosted := func(path string) (int, []byte) {
+	hosted := func(path string, previewHost ...bool) (int, []byte) {
 		t.Helper()
 		req, err := http.NewRequest("GET", os.Getenv("TEST_HOSTING_URL")+path, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Host = fqdn
+		req.Host = fqdn + ":8084"
+		if len(previewHost) > 0 && previewHost[0] {
+			req.Host = "preview." + fqdn + ":8084"
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -277,17 +300,71 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		}
 		return resp.StatusCode, data
 	}
+	checkNavigation := func(previewHost bool) {
+		t.Helper()
+		for _, path := range []string{"/", "/guide/nested/"} {
+			status, data := hosted(path, previewHost)
+			if status != 200 {
+				t.Fatalf("nested route %s preview=%v: %d", path, previewHost, status)
+			}
+			origin, _ := url.Parse("http://" + fqdn + ":8084" + path)
+			if previewHost {
+				origin.Host = "preview." + fqdn + ":8084"
+			}
+			for _, match := range regexp.MustCompile(`(?:href|src)="([^"]+)"`).FindAllSubmatch(data, -1) {
+				ref, err := url.Parse(string(match[1]))
+				if err != nil {
+					t.Fatal(err)
+				}
+				resolved := origin.ResolveReference(ref)
+				if resolved.Host != origin.Host {
+					t.Fatalf("cross-host generated reference %s", resolved)
+				}
+				path := resolved.Path
+				// Compiler navigation uses slashless page URLs. Assert redirect
+				// separately below, then compare the final response to its artifact.
+				name := "public/" + strings.TrimPrefix(path, "/")
+				if strings.HasSuffix(path, "/") {
+					name += "index.html"
+				} else if _, ok := files[name+"/index.html"]; ok {
+					path += "/"
+					name += "/index.html"
+				}
+				if status, body := hosted(path, previewHost); status != 200 || !bytes.Equal(body, files[name]) {
+					t.Fatalf("linked resource %s preview=%v differs: %d", path, previewHost, status)
+				}
+			}
+		}
+		req, _ := http.NewRequest("GET", os.Getenv("TEST_HOSTING_URL")+"/guide/nested", nil)
+		req.Host = fqdn + ":8084"
+		if previewHost {
+			req.Host = "preview." + req.Host
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 301 || resp.Header.Get("Location") != "/guide/nested/" {
+			t.Fatalf("redirect loses external origin: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+		}
+		for _, path := range []string{"/missing", "/preview/build-id", "/content/site.json", "/manifest.json", "/.env", "/execution.log", "/.archive-sha256"} {
+			if status, _ := hosted(path, previewHost); status != 404 {
+				t.Fatalf("private/missing path %s preview=%v: %d", path, previewHost, status)
+			}
+		}
+	}
 	var preview struct {
 		URL     string `json:"url"`
 		Version string `json:"version_id"`
 	}
 	decode(request("POST", base+"/versions/"+job.TargetVersion+"/deploy", `{"target":"preview"}`, 200), &preview)
-	if preview.URL != "http://"+fqdn+":8084/preview/" || preview.Version != job.TargetVersion {
+	if preview.URL != "http://preview."+fqdn+":8084/" || preview.Version != job.TargetVersion {
 		t.Fatalf("preview response %+v", preview)
 	}
 	previewDeadline := time.Now().Add(5 * time.Second)
 	for {
-		status, data := hosted("/preview/index.html")
+		status, data := hosted("/index.html", true)
 		if status == 200 && bytes.Equal(data, html) {
 			break
 		}
@@ -299,11 +376,20 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	if status, _ := hosted("/index.html"); status != 404 {
 		t.Fatalf("preview unexpectedly published live: %d", status)
 	}
+	for name, expected := range files {
+		if strings.HasPrefix(name, "public/") && !strings.HasSuffix(name, "/") {
+			if status, data := hosted("/"+strings.TrimPrefix(name, "public/"), true); status != 200 || !bytes.Equal(data, expected) {
+				t.Errorf("preview file differs from artifact: %s (status %d)", name, status)
+			}
+		}
+	}
 	previewSite, err := testDB.GetSiteByFQDN(fqdn)
 	if err != nil || previewSite.LiveVersionID != nil || previewSite.PreviewVersionID == nil || *previewSite.PreviewVersionID != job.TargetVersion {
 		t.Fatalf("first preview DB %+v %v", previewSite, err)
 	}
+	checkNavigation(true)
 	request("POST", base+"/versions/"+job.TargetVersion+"/deploy", `{"target":"live"}`, 200)
+	checkNavigation(false)
 	request("POST", base+"/versions/"+second.TargetVersion+"/deploy", `{"target":"preview"}`, 200)
 	previewSite, err = testDB.GetSiteByFQDN(fqdn)
 	if err != nil || previewSite.LiveVersionID == nil || *previewSite.LiveVersionID != job.TargetVersion || previewSite.PreviewVersionID == nil || *previewSite.PreviewVersionID != second.TargetVersion {
@@ -337,5 +423,24 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	request("POST", base+"/versions/initial/deploy", `{"target":"live"}`, 500)
 	if status, data := hosted("/index.html"); status != 200 || !bytes.Equal(data, html) {
 		t.Fatal("failed deployment changed live HTML")
+	}
+	// Promote the exact second preview artifact, without rebuilding or changing it.
+	_, previewHTML := hosted("/index.html", true)
+	if bytes.Equal(previewHTML, html) || !bytes.Contains(previewHTML, []byte("Second unpublished edit preserved.")) {
+		t.Fatal("preview did not isolate the second draft")
+	}
+	request("POST", base+"/versions/"+second.TargetVersion+"/deploy", `{"target":"live"}`, 200)
+	if status, data := hosted("/index.html"); status != 200 || !bytes.Equal(data, previewHTML) {
+		t.Fatal("promotion changed preview bytes")
+	}
+	if !bytes.Equal(secondArchive, request("GET", base+"/versions/"+second.TargetVersion+"/download", "", 200)) {
+		t.Fatal("promotion changed immutable archive")
+	}
+	for name, expected := range secondFiles {
+		for _, previewHost := range []bool{false, true} {
+			if status, data := hosted("/"+strings.TrimPrefix(name, "public/"), previewHost); status != 200 || !bytes.Equal(data, expected) {
+				t.Fatalf("promoted resource %s preview=%v differs: %d", name, previewHost, status)
+			}
+		}
 	}
 }

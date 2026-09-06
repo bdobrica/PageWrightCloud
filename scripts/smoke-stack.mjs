@@ -13,16 +13,28 @@ async function request(base, path, options = {}, expected = 200) {
   return response;
 }
 const credentials = { email: 'smoke@example.test', password: 'SmokeTestPassword123!' };
-async function hostingStatus(expected) {
+async function hostingStatus(expected, host = 'smoke.example.test') {
   // Node fetch ignores a custom Host header; the hosting contract needs one.
-  const status = await new Promise((resolve,reject) => {
-    const req = get(hosting + '/', {headers:{Host:'smoke.example.test'}}, response => {
-      response.resume(); response.on('end',()=>resolve(response.statusCode));
+  // Generation acknowledgment confirms new workers are ready, not that every
+  // old worker has finished draining. Bound convergence on fresh connections.
+  const statuses = [];
+  const deadline = Date.now() + 5000;
+  do {
+    const status = await new Promise((resolve, reject) => {
+      const req = get(hosting + '/', { agent: false, headers: { Host: host } }, response => {
+        response.resume(); response.on('end', () => resolve(response.statusCode));
+      });
+      req.setTimeout(15000, () => req.destroy(new Error('hosting timeout')));
+      req.on('error', reject);
     });
-    req.setTimeout(15000,()=>req.destroy(new Error('hosting timeout')));
-    req.on('error',reject);
-  });
-  assert.equal(status,expected,'production host routing');
+    statuses.push(status);
+    if (status === expected) {
+      if (statuses.length > 1) console.log(`Hosting ${host} converged: ${statuses.join(' -> ')}`);
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  } while (Date.now() < deadline);
+  assert.fail(`production host routing ${host}: wanted ${expected}, received ${statuses.join(',')}`);
 }
 const json = (value, token) => ({
   method: 'POST',
@@ -67,8 +79,10 @@ assert.equal(sites.data[0].initialization_status, 'ready');
 // A disabled site's 503 differs from the unknown-host 404 fallback.
 await request(gateway, '/sites/smoke.example.test/disable', json({},auth.token));
 await hostingStatus(503);
+await hostingStatus(503, 'preview.smoke.example.test');
 await request(gateway, '/sites/smoke.example.test/enable', json({},auth.token));
 await hostingStatus(404);
+await hostingStatus(404, 'preview.smoke.example.test');
 const initialPath = `/sites/${sites.data[0].id}/artifacts/initial`;
 const initial = gunzipSync(Buffer.from(await (await request(storage, initialPath)).arrayBuffer())).toString();
 assert.ok(initial.includes('content/site.json') && initial.includes('content/home/index.md'));

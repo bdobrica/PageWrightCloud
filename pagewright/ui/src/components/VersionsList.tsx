@@ -8,9 +8,10 @@ import './VersionsList.css';
 interface VersionsListProps {
   fqdn: string;
   refresh: number;
+  onDeployed?: () => void;
 }
 
-export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => {
+export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh, onDeployed }) => {
   const [versions, setVersions] = useState<Version[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -45,12 +46,14 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh }) => 
   const handlePreview = async () => {
     if (!selectedVersion) throw new Error('No version selected');
     const result = await apiClient.deployVersion(fqdn, selectedVersion.build_id, { target: 'preview' });
+    onDeployed?.();
     return result.url;
   };
 
   const handlePromote = async () => {
     if (selectedVersion) {
       await apiClient.deployVersion(fqdn, selectedVersion.build_id, { target: 'live' });
+      onDeployed?.();
       setSelectedVersion(null);
     }
   };

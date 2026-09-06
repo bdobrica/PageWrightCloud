@@ -86,7 +86,7 @@ Integration/startup checks create unique disposable Compose projects and remove 
 
 `make smoke-stack` verifies startup, UI assets, auth, initial-site source, immutable storage and persistence across recreation. It does **not** exercise AI editing, compilation through the worker, preview or publishing.
 
-The optional [local-domain overlay](docker-compose.local-domain.yaml) uses `pagewright.io` as the app hostname. Map `pagewright.io` and a test hostname such as `demo.pagewright.io` to your Docker host in local DNS or your hosts file, then:
+The optional [local-domain overlay](docker-compose.local-domain.yaml) uses `pagewright.io` as the app hostname. Map `pagewright.io`, a test hostname such as `demo.pagewright.io`, and `preview.demo.pagewright.io` to your Docker host in local DNS or your hosts file, then:
 
 ```bash
 make docker-up-local-domain
@@ -96,7 +96,7 @@ make docker-verify-local-domain-strict
 make docker-down-local-domain
 ```
 
-These older diagnostics assume default host ports. The basic check accepts a missing/unavailable site response. The strict check manually seeds files and reloads nginx; it mutates the selected stack and is not an isolated test or evidence of a working build/publish flow. The serving/nginx reload topology still needs M3 work.
+These older diagnostics assume default host ports. The basic check accepts a missing/unavailable site response. The strict check manually seeds files and reloads nginx; it mutates the selected stack and is not an isolated test or evidence of a working build/publish flow. See [preview hosting and upgrade guidance](docs/PREVIEW_ACTIVATION.md) for configured URLs, separate preview DNS/TLS and migration of existing sites.
 
 The actual MVP acceptance journey is create → edit → completed version → preview → publish → second edit → rollback, with failed builds preserving live content. It remains planned in M1–M4.
 

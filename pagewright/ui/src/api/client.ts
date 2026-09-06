@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance, AxiosError } from 'axios';
 import { config } from '../config';
-import { parseBuildResponse, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from './contracts';
+import { parseSiteHosting, parseBuildResponse, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from './contracts';
 import type {
   AuthResponse,
   RegisterRequest,
@@ -83,19 +83,19 @@ class ApiClient {
   // Sites endpoints
   async createSite(data: CreateSiteRequest): Promise<Site> {
     const response = await this.client.post<Site>('/sites', data);
-    return response.data;
+    return parseSiteHosting(response.data);
   }
 
   async listSites(page = 1, pageSize = 25): Promise<PaginatedResponse<Site>> {
     const response = await this.client.get<PaginatedResponse<Site>>('/sites', {
       params: { page, page_size: pageSize },
     });
-    return response.data;
+    return { ...response.data, data: response.data.data.map(site => parseSiteHosting(site)) };
   }
 
   async getSite(fqdn: string, signal?: AbortSignal): Promise<Site> {
     const response = await this.client.get<Site>(`/sites/${encodeURIComponent(fqdn)}`, { signal, timeout: 10000 });
-    return response.data;
+    return parseSiteHosting(response.data, fqdn);
   }
 
   async deleteSite(fqdn: string): Promise<void> {

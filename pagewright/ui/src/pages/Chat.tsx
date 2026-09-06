@@ -5,6 +5,8 @@ import { Layout } from '../components/Layout';
 import { VersionsList } from '../components/VersionsList';
 import { ChatMessage } from '../components/ChatMessage';
 import { BuildHistory } from '../components/BuildHistory';
+import { HostingLinks } from '../components/HostingLinks';
+import type { Site } from '../types/api';
 import { FileAttachment } from '../components/FileAttachment';
 import { apiClient } from '../api/client';
 import { createSubmissionIdentity, isRejectedSubmission } from '../api/submission';
@@ -30,6 +32,17 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [versionRefresh, setVersionRefresh] = useState(0);
   const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [hostingRefresh, setHostingRefresh] = useState(0);
+  const [site, setSite] = useState<Site | null>(null);
+  const refreshHosting = useCallback(() => setHostingRefresh(n => n + 1), []);
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    apiClient.getSite(fqdn, controller.signal).then(value => {
+      if (active) setSite(value);
+    }).catch(() => { if (active) setSite(null); });
+    return () => { active = false; controller.abort(); };
+  }, [fqdn, hostingRefresh]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const submission = useRef(createSubmissionIdentity());
 
@@ -115,17 +128,12 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
   };
 
   return (
-    <Layout sidebar={<VersionsList fqdn={fqdn!} refresh={versionRefresh} />}>
+    <Layout sidebar={<VersionsList fqdn={fqdn!} refresh={versionRefresh} onDeployed={refreshHosting} />}>
       <div className="chat-container">
         <div className="chat-header">
           <h2>{fqdn}</h2>
           <div>
-            <a href={`https://${fqdn}`} target="_blank" rel="noopener noreferrer" className="pure-button">
-              View Live
-            </a>
-            <a href={`https://${fqdn}/preview`} target="_blank" rel="noopener noreferrer" className="pure-button">
-              View Preview
-            </a>
+            <HostingLinks site={site} />
           </div>
         </div>
 

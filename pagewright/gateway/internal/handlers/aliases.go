@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/clients"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
@@ -61,8 +62,9 @@ func (h *AliasesHandler) AddAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Alias == "" {
-		respondError(w, http.StatusBadRequest, "alias is required")
+	req.Alias = strings.ToLower(strings.TrimSpace(req.Alias))
+	if !validSiteFQDN(req.Alias) {
+		respondError(w, http.StatusBadRequest, "valid alias outside the reserved preview namespace is required")
 		return
 	}
 

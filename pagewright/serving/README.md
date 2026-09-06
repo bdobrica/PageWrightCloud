@@ -72,10 +72,13 @@ Updates nginx `server_name` directive and reloads nginx.
 └── preview -> artifacts/v1-20240101120000/public
 ```
 
-**Example for blog.example.com:**
+**Example for blog.example.com (default public hosting configuration):**
+
 - Path: `/var/www/example.com/blog.example.com/`
-- Public URL: `https://blog.example.com/`
-- Preview URL: `https://blog.example.com/preview/`
+- Public URL: `http://blog.example.com:8084/`
+- Preview URL: `http://preview.blog.example.com:8084/`
+
+See [hosting URL configuration, DNS/TLS and migration](../../docs/PREVIEW_ACTIVATION.md).
 
 ## nginx Configuration
 
@@ -86,26 +89,31 @@ Generated at `/etc/nginx/sites-enabled/{fqdn}`:
 ```nginx
 server {
     listen 80;
+    absolute_redirect off;
     server_name blog.example.com www.blog.example.com;
 
     root /var/www/example.com/blog.example.com/public;
     index index.html;
 
-    # Preview path
-    location /preview/ {
-        alias /var/www/example.com/blog.example.com/preview/;
-        try_files $uri $uri/ =404;
-    }
-
     # Main site
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri $uri/ =404;
     }
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
+}
+
+server {
+    listen 80;
+    absolute_redirect off;
+    server_name preview.blog.example.com;
+    root /var/www/example.com/blog.example.com/preview;
+    index index.html;
+    location / { try_files $uri $uri/ =404; }
+    # Same security headers and disabled-site policy as live.
 }
 ```
 
