@@ -16,7 +16,6 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/handlers"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
-	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/websocket"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
@@ -46,10 +45,6 @@ func main() {
 	servingClient := clients.NewServingClient(cfg.ServingURL)
 	llmClient := clients.NewLLMClient(cfg.LLMKey, cfg.LLMURL)
 
-	// Initialize WebSocket hub
-	wsHub := websocket.NewHub()
-	go wsHub.Run()
-
 	// Initialize auth manager
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiration)
 	oauthManager := auth.NewOAuthManager(
@@ -68,7 +63,6 @@ func main() {
 	defer stopRecovery()
 	recoveryDone := make(chan struct{})
 	go func() { defer close(recoveryDone); buildHandler.RunRecovery(recoveryContext) }()
-	wsHandler := handlers.NewWebSocketHandler(wsHub)
 
 	// Setup router
 	r := mux.NewRouter()
@@ -77,6 +71,8 @@ func main() {
 	r.Use(middleware.CORS)
 
 	// Public routes
+	// Explicit retirement response; never accepts credentials or upgrades.
+	r.HandleFunc("/ws", handlers.WebSocketDisabled)
 	r.HandleFunc("/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
 	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	r.HandleFunc("/auth/forgot-password", authHandler.ForgotPassword).Methods("POST", "OPTIONS")
@@ -90,9 +86,6 @@ func main() {
 
 	// Auth
 	api.HandleFunc("/auth/update-password", authHandler.UpdatePassword).Methods("POST", "OPTIONS")
-
-	// WebSocket
-	api.HandleFunc("/ws", wsHandler.HandleWebSocket).Methods("GET", "OPTIONS")
 
 	// Sites
 	api.HandleFunc("/sites", sitesHandler.CreateSite).Methods("POST", "OPTIONS")

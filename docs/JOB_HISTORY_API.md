@@ -46,7 +46,7 @@ Chat mounts a site-keyed history component and loads this endpoint after a brows
 refresh, independently of its ephemeral message list. Pagination and manual retry
 are available; stale responses after navigation/unmount are ignored. Submission
 completion triggers a history refresh, including uncertain/rejected responses.
-M3.2 adds the bounded polling behavior described below; socket removal remains M3.3.
+M3.2 adds the bounded polling behavior below; M3.3 removes the socket transport.
 Clarification/input drafts and session-expiry recovery remain M3.10.
 
 Acceptance: gateway integration tests exercise fresh-handler reads for every
@@ -88,11 +88,40 @@ Completed observations refresh the version sidebar without restarting history
 polling. Completed history on initial load also refreshes it to cover a race with
 gateway reconciliation. Chat submission messages identify themselves as submission
 acknowledgments and direct users to current history status. Unscoped legacy socket
-messages no longer update Chat; the unused connection is removed separately in
-M3.3. This milestone changes no gateway/manager recovery or dispatch behavior.
+messages no longer update Chat; M3.3 removes the unused connection entirely.
+Polling changes no gateway/manager recovery or dispatch behavior.
 
 `npm run test:contracts` includes deterministic scheduler/request tests for all
 four lifecycle states, backoff/round/elapsed/error bounds, completion notifications,
 initial/outage recovery, retained failure details, identity and monotonicity checks,
 non-overlap, aborts and stale-response suppression. These exercise the actual
 controller used by React; full rendered-browser acceptance remains M3.12.
+
+## WebSockets disabled (M3.3)
+
+The UI has no WebSocket hook, socket constructor, token-bearing socket URL or
+reconnect timer. Socket URL configuration/build arguments were removed from the
+supported Compose stack and examples; existing private `.env` values are ignored
+and were not edited. Rebuild/reload the UI to retire older cached clients.
+
+Gateway no longer starts a hub or includes the old upgrader/broadcast pumps.
+`/ws` returns a public, cache-disabled HTTP 501 JSON response directing clients to
+polling. It does not inspect or echo query/header credentials and cannot upgrade,
+regardless of Origin or bearer authentication. Generic CORS preflight handling
+still returns 200 for OPTIONS; this does not enable an upgrade. Old clients may
+continue attempting reconnects until refreshed; the server never accepts them.
+
+There is deliberately no feature flag to re-enable the old implementation.
+Before introducing a new socket transport, require tested browser-compatible
+authentication without reusable bearer tokens in URLs, strict Origin checks,
+owner/site-authorized subscriptions and delivery, an actual durable job-event
+publisher with reconnect/resynchronization semantics, and stable client/server
+cleanup (single reconnect timer, bounded backoff, cancellation and disconnect on
+navigation/logout). Tests must cover cross-owner/site denial, auth expiry,
+duplicate/stale events, missed events and terminal monotonicity. Polling remains
+authoritative until this gate is met. CORS hardening for other APIs remains M4.
+
+Regression tests reject handshake requests with/without bearer credentials and
+with same/foreign/missing Origins, assert no upgrade headers or credential echo,
+and scan UI sources/build wiring for accidental socket reintroduction. Existing
+polling lifecycle/cleanup tests remain in the same UI acceptance command.

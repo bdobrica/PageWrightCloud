@@ -45,7 +45,7 @@ There is no privileged NFS server in the single-host stack. The optional `worker
 PAGEWRIGHT_STORAGE_PORT=18080 docker compose up -d --build --wait
 ```
 
-If you change the gateway host port, update browser-facing `VITE_PAGEWRIGHT_API_URL` and `VITE_PAGEWRIGHT_WS_URL` and rebuild the UI. See [.env.example](.env.example) for defaults. Historical per-service Compose files are not the supported root-stack startup path.
+If you change the gateway host port, update browser-facing `VITE_PAGEWRIGHT_API_URL` and rebuild the UI. The MVP uses bounded job polling; WebSockets and the former socket URL setting are disabled. See [.env.example](.env.example) for defaults. Historical per-service Compose files are not the supported root-stack startup path.
 
 ### Inspect, stop and resume
 

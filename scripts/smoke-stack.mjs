@@ -26,12 +26,22 @@ const entry = html.match(/src="([^"]+\.js)"/);
 assert.ok(entry, 'UI must reference its built JavaScript');
 const script = await request(ui, entry[1]);
 assert.match(script.headers.get('content-type') ?? '', /javascript/);
-assert.ok((await script.text()).length > 100, 'UI bundle must not be empty');
+const bundle = await script.text();
+assert.ok(bundle.length > 100, 'UI bundle must not be empty');
+assert.doesNotMatch(bundle, /\bWebSocket\b|VITE_PAGEWRIGHT_WS_URL/, 'MVP bundle must not contain socket transport');
 const registry = await (await request(themes, '/')).json();
 assert.ok(registry.themes.some(theme => theme.id === 'starter'));
 if (stage === 'fresh') await request(gateway, '/auth/register', json(credentials));
 const auth = await (await request(gateway, '/auth/login', json(credentials))).json();
 assert.ok(auth.token);
+for (const headers of [{}, { Authorization: `Bearer ${auth.token}`, Origin: 'https://foreign.example' }]) {
+  const retired = await request(gateway, '/ws?token=retired-query-token', {headers}, 501);
+  assert.equal(retired.headers.get('cache-control'), 'no-store');
+  assert.equal(retired.headers.get('upgrade'), null);
+  const body = await retired.text();
+  assert.match(body, /polling/);
+  assert.ok(!body.includes(auth.token) && !body.includes('retired-query-token'));
+}
 if (stage === 'fresh') {
   await request(gateway, '/sites', json({ fqdn: 'smoke.example.test', template_id: 'starter' }, auth.token), 201);
 }

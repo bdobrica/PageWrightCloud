@@ -1,7 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { parseBuildResponse, parseJobSnapshot, parseVersionPage, parseBuildHistory, parseBuildHistoryItem } from '../src/api/contracts.ts';
+
+test('polling MVP has no socket transport or socket URL configuration', () => {
+ const root = new URL('../src/', import.meta.url);
+ for (const file of readdirSync(root, {recursive:true}).filter(file => /\.(ts|tsx)$/.test(file))) {
+  const source = readFileSync(new URL(file, root), 'utf8');
+  assert.doesNotMatch(source, /\bWebSocket\b|useWebSocket|wsUrl|VITE_PAGEWRIGHT_WS_URL/, file);
+ }
+ const chat = readFileSync(new URL('../src/pages/Chat.tsx', import.meta.url), 'utf8');
+ assert.match(chat, /<BuildHistory/);
+ const gateway = readFileSync(new URL('../../gateway/cmd/gateway/main.go', import.meta.url), 'utf8');
+ assert.match(gateway, /HandleFunc\("\/ws", handlers.WebSocketDisabled\)/);
+ assert.doesNotMatch(gateway, /wsHub|NewWebSocketHandler|internal\/websocket/);
+ for (const file of ['../Dockerfile','../../../docker-compose.yaml','../../../docker-compose.local-domain.yaml','../../../.env.example']) {
+  assert.doesNotMatch(readFileSync(new URL(file,import.meta.url),'utf8'), /VITE_PAGEWRIGHT_WS_URL/);
+ }
+});
 
 test('durable history restores all lifecycle states with strict pagination and a public allowlist', () => {
  const job = {job_id:'job',site_id:'site',source_version:'initial',target_version:'version',status:'pending',dispatch_state:'ready',created_at:'2026-09-06T12:00:00Z',updated_at:'2026-09-06T12:00:00Z'};

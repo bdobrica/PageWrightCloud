@@ -10,7 +10,6 @@ services:
       - "3000:80"
     environment:
       - VITE_PAGEWRIGHT_API_URL=http://localhost:8080
-      - VITE_PAGEWRIGHT_WS_URL=ws://localhost:8080/ws
       - VITE_PAGEWRIGHT_DEFAULT_DOMAIN=pagewright.io
     networks:
       - pagewright-network

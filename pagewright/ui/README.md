@@ -10,7 +10,7 @@ React/TypeScript user interface with chat-based site editing and real-time updat
 - **Build Tool**: Vite 5
 - **Styling**: CSS Modules + Global CSS
 - **HTTP Client**: Axios with interceptors
-- **WebSocket**: Native WebSocket API
+- **Build updates**: Bounded owner-checked HTTP polling (WebSockets disabled)
 - **Authentication**: JWT tokens in localStorage
 - **Router**: React Router v6
 
@@ -31,8 +31,6 @@ src/
 │   └── FileAttachment.tsx
 ├── contexts/
 │   └── AuthContext.tsx    # Authentication state management
-├── hooks/
-│   └── useWebSocket.ts    # WebSocket connection hook
 ├── pages/
 │   ├── Login.tsx
 │   ├── Register.tsx
@@ -73,7 +71,7 @@ src/
 ### Pages
 - [ ] Dashboard: Site cards with actions
 - [ ] CreateSite: FQDN input and template selection
-- [ ] Chat: Message interface with WebSocket
+- [x] Chat: Message interface with bounded build-history polling
 - [ ] Profile: User settings and password change
 - [ ] ResetPassword: Token-based password reset
 
@@ -86,7 +84,7 @@ src/
 - [ ] FileAttachment: Multi-file upload widget
 
 ### Integration
-- [ ] WebSocket connection for real-time updates
+- [x] WebSocket integration disabled for the polling MVP
 - [ ] Build status notifications
 - [ ] Error handling and toast messages
 - [ ] Loading states and skeletons
@@ -160,40 +158,12 @@ api.get(`/sites/${fqdn}/versions/${versionId}/download`)
 api.post(`/sites/${fqdn}/build`, { message, conversation_id? })
 ```
 
-## WebSocket Integration
+## Build updates
 
-### Connection Hook
-
-Located at `src/hooks/useWebSocket.ts`:
-
-```typescript
-const { messages, sendMessage, isConnected } = useWebSocket(
-  config.WS_URL,
-  token
-);
-```
-
-### Message Format
-
-**From Server:**
-```json
-{
-  "type": "job_status",
-  "data": {
-    "job_id": "uuid",
-    "status": "running",
-    "progress": 45
-  }
-}
-```
-
-**To Server:**
-```json
-{
-  "type": "subscribe",
-  "site_id": "blog-example-com"
-}
-```
+The MVP uses owner-checked job history and bounded HTTP polling, not WebSockets.
+See [the history/polling contract and WebSocket re-enable gate](../../docs/JOB_HISTORY_API.md).
+No socket connection, query-token transport, subscription or reconnect timer is
+created by the UI. The retired gateway `/ws` endpoint returns HTTP 501.
 
 ## Configuration
 
@@ -201,7 +171,6 @@ Environment variables (`.env` file):
 
 ```bash
 VITE_API_URL=http://localhost:8085
-VITE_WS_URL=ws://localhost:8085/ws
 VITE_DEFAULT_DOMAIN=pagewright.dev
 ```
 
@@ -280,14 +249,6 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 
-    # WebSocket proxy
-    location /ws {
-        proxy_pass http://gateway:8085/ws;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-    }
 }
 ```
 
@@ -303,7 +264,6 @@ services:
       - "3000:80"
     environment:
       - VITE_API_URL=http://gateway:8085
-      - VITE_WS_URL=ws://gateway:8085/ws
     depends_on:
       - gateway
 ```

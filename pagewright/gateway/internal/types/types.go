@@ -110,10 +110,6 @@ type BuildResponse struct {
 	ConversationID *string `json:"conversation_id,omitempty"` // For follow-up
 }
 
-// WebSocket Types
-
-type JobStatusUpdate = Job
-
 type PaginatedRequest struct {
 	Page     int `json:"page,omitempty"`
 	PageSize int `json:"page_size,omitempty"`

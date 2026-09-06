@@ -9,7 +9,7 @@ See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from 
 | UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, deterministic bounded polling/lifecycle/cleanup tests, zero-warning lint, production build |
 | Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP, worker callbacks, and shared artifact round-trips through worker/gateway/serving in isolated Compose |
 | Images | `docker compose --env-file /dev/null --profile worker build` | Selected service images, including the optional mock worker |
-| Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, auth, bootstrap storage; SIGKILL this disposable project's Redis/gateway/manager, recreate with retained volumes, verify history recovery and missing-evidence non-redispatch |
+| Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, disabled `/ws` and socket-free bundle, auth, bootstrap storage; SIGKILL this disposable project's Redis/gateway/manager, recreate with retained volumes, verify history recovery and missing-evidence non-redispatch |
 
 The integration and startup checks use disposable, uniquely named projects and remove only their own test volumes. They do not require your development stack or `.env`. The image-build command only builds images; it does not start or remove containers. Startup needs Node as well as Docker. No paid AI credentials are needed.
 

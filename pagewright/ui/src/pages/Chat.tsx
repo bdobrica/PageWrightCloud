@@ -8,7 +8,6 @@ import { BuildHistory } from '../components/BuildHistory';
 import { FileAttachment } from '../components/FileAttachment';
 import { apiClient } from '../api/client';
 import { createSubmissionIdentity, isRejectedSubmission } from '../api/submission';
-import { useWebSocket } from '../hooks/useWebSocket';
 import './Chat.css';
 
 interface Message {
@@ -35,9 +34,6 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
   const submission = useRef(createSubmissionIdentity());
 
   const refreshCompletedVersions = useCallback(() => setVersionRefresh(n => n + 1), []);
-  // Only owner-checked polling can update build state. Removing the legacy
-  // connection itself remains M3.3; unscoped socket messages are not authoritative.
-  useWebSocket(() => {});
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
