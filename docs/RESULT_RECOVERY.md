@@ -1,6 +1,6 @@
 # Bounded result delivery and recovery (M2.8)
 
-Selected worker: `pagewright-worker:m2.10`. This extends the
+Selected worker: `pagewright-worker:m2.11`. This extends the
 [M2.7 fenced commit contract](FENCED_COMMITS.md); it does not weaken worker
 commit checks, reacquire expired leases, restart workers, or overwrite artifacts.
 

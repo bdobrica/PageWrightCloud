@@ -78,6 +78,14 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 	defer stopSignals()
 	ctx, cancel := context.WithTimeout(signals, 15*time.Minute)
 	defer cancel()
+	return runJobWithContext(ctx, cfg, job, storageClient, executor, srv)
+}
+
+// A caller-owned deadline permits deterministic cancellation acceptance without
+// introducing a runtime flag that can weaken the production lifetime ceiling.
+func runJobWithContext(parent context.Context, cfg *config.Config, job *types.Job, storageClient *storage.Client, executor *codex.Executor, srv *server.Server) error {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
 	srv.SetJobCancel(cancel)
 	defer srv.SetJobCancel(nil)
 	storageClient = storageClient.WithContext(ctx)

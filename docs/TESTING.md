@@ -75,13 +75,14 @@ These do not establish the full publish/preview journey.
 
 ## Known skipped tests
 
-Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.
+Two serving tests explicitly skip. Executor parsing and cancellation tests were
+restored in M2.3/M2.6 and remain enabled. M2.11 adds
+[actual runner failure and restart acceptance](RUNNER_ACCEPTANCE.md).
+Keep verbose test output visible and remove skips only when the underlying
+behavior and tests are repaired.
 
 | File | Test | Gap / follow-up |
 | --- | --- | --- |
-| `pagewright/worker/internal/codex/executor_test.go` | `TestExecutorMock` | Disabled output parsing; M2.11 |
-| Same file | `TestExecutorKill` | Cancellation race; M2.11 |
-| Same file | `TestParseOutput` | Wrapper stdout parsing; M2.11 |
 | `pagewright/serving/internal/config/config_test.go` | `TestLoadConfigDefaults` | Environment-sensitive defaults; M4.12 |
 | `pagewright/serving/internal/artifact/manager_test.go` | `TestCleanupOldVersions` | Flaky cleanup coverage; M3.8 / M4.12 |
 

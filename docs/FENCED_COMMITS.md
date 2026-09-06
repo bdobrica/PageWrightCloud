@@ -83,7 +83,7 @@ its previous result was never accepted.
 
 ## Upgrade and scope
 
-Selected image/build defaults are `pagewright-worker:m2.10`.
+Selected image/build defaults are `pagewright-worker:m2.11`.
 Drain/reconcile pending, running and uncertain jobs before upgrading manager,
 storage and worker together. Old workers do not send the new identity header;
 old active jobs lack the dispatch timestamp/commit receipts needed for this

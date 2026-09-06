@@ -181,7 +181,21 @@ func TestLostCallbackRecoveryWithReservedBytes(t *testing.T) {
 				w.Write([]byte("output"))
 			}))
 			defer storage.Close()
-			recovery := reconciler.Reconciler{Queue: b, Workers: exitedWorker{}, StorageURL: storage.URL, Lifetime: time.Minute}
+			// Restart recovery must use only durable evidence, not the admitting
+			// manager's connection or in-memory launch state.
+			replacement, err := NewRedisBackend(b.client.Options().Addr, "", 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer replacement.Close()
+			replacement.queueKey, replacement.jobKeyPrefix = b.queueKey, b.jobKeyPrefix
+			if err := replacement.ProtectReservations(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := replacement.InitializeDispatch(ctx, 1); err != nil {
+				t.Fatal(err)
+			}
+			recovery := reconciler.Reconciler{Queue: replacement, Workers: exitedWorker{}, StorageURL: storage.URL, Lifetime: time.Minute}
 			if err := recovery.Once(ctx); err != nil {
 				t.Fatal(err)
 			}

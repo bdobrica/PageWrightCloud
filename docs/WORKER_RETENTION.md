@@ -1,6 +1,6 @@
 # Worker and staging retention (M2.10)
 
-Selected worker: `pagewright-worker:m2.10`. Isolation, the pinned CLI/compiler,
+Selected worker: `pagewright-worker:m2.11`. Isolation, the pinned CLI/compiler,
 capabilities and resource ceilings are unchanged. No privileged containers are
 required. This policy complements [durable job recovery](JOB_DURABILITY.md) and
 [immutable result receipts](RESULT_RECOVERY.md); it does not garbage-collect versions.
@@ -89,4 +89,5 @@ Acceptance uses isolated Redis/storage fixtures, real Docker identity/removal
 tests and root-stack restart smoke tests. It covers receipt preservation, active
 upload exclusion, symlink/final-file preservation, diagnostic failure/TTL guards,
 and secret-sentinel omission. No production-host cleanup or paid provider call is
-part of this acceptance. Broader runner fault acceptance remains M2.11.
+part of this acceptance. Broader runner fault acceptance is documented in
+[M2.11 runner acceptance](RUNNER_ACCEPTANCE.md).
