@@ -22,9 +22,9 @@ There is useful implementation across all services, but the application is still
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
 | Compilation | M1.8 (`6bc86f1`) adds [starter/compiler fixtures and filesystem checks](docs/COMPILER_CONTRACT.md), but the [worker runner](pagewright/worker/cmd/runner/main.go) still does not invoke the compiler and `ChecksPassed` remains false. Serving validates compiled archive structure. | Integrate `pagewrightc` using fresh output, generate `public/index.html`, and derive validation results from actual checks. |
-| Version state | M1.2 commits the job mapping and version using `target_version` before dispatch, with atomic outcome/status writes. [Version listing](pagewright/gateway/internal/handlers/versions.go) still returns storage records that differ from UI types. | Submission mapping fixed; reconcile later completion and normalize version listing in M1.9/M3.1. |
+| Version state | M1.2 persists the job/target mapping before dispatch. M1.9 (`8609d32`) normalizes committed-storage versions into validated UI fields, status and UTC timestamps. | Pending/failed job history and DB/storage completion reconciliation remain M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
-| Deploy / preview | [Gateway serving client](pagewright/gateway/internal/clients/serving.go) sends `version_id`; [serving types](pagewright/serving/internal/types/types.go) require `version`. Preview UI only opens a URL and does not activate a preview. | Repair the payload, preview action, returned URLs, and preview assets/navigation. |
+| Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
 | Hosting | [Compose](docker-compose.yaml) separates serving and nginx, but serving executes local `nginx -s reload`. Preview activation does not create nginx config. | Make nginx configuration/reload part of a supported topology; first preview must work before first publish. |
 | Job reliability | Manager queues and immediately spawns inside the HTTP handler; no queue consumer runs in server main. Lock renewal and worker timeout configuration are not wired into the lifecycle. Redis has no persistent volume in root Compose. | Add durable dispatch, bounded concurrency, lock renewal, timeout handling and restart recovery. |
@@ -383,9 +383,38 @@ removed; repository/application data were untouched. Five pre-existing worker/
 serving skips remain unchanged; no compiler skips were added. No Docker service
 code changed, and no paid AI, browser journey, push or hosted CI run was performed.
 
-M1.9 is next: serving/version payloads and chat route alignment. Real worker
+At M1.8 handoff, M1.9 was next; its completed work is recorded below. Real worker
 compilation, credential/resource isolation, production output validation and
 hosting activation remain M2–M4. The full M1 exit is still unverified.
+
+M1.9 completed (2026-09-06) in `8609d32`. Gateway now sends `version` in
+serving deployment, live activation and preview bodies, normalizes trailing base
+slashes and rejects redirects. The owner-checked version endpoint maps storage's
+committed records to explicit `id/site_id/build_id/status/created_at` summaries.
+Artifact identity is distinct from a DB row/job identity; timestamps normalize to
+UTC, status is `completed`, sorting is deterministic and malformed records fail
+instead of leaking incomplete UI data. Pagination handles invalid defaults,
+empty collections and huge page numbers without overflow.
+
+UI version parsing checks identities, canonical status, timestamps and pagination.
+Load failures are visible; stale selections/lists and late responses are cleared
+or ignored when the site changes. Shared `/chat/:fqdn` routing and encoded site
+links agree with Chat's FQDN lookup, covered by executable router matching.
+See [version/serving contract and remaining boundaries](docs/VERSION_API.md).
+
+Verification passed: six-module package baseline; gateway client/handler race
+tests; five-module isolated integration using real PostgreSQL/storage for version
+listing, ownership, pagination and upstream failures; 20 UI contract tests;
+zero-warning UI lint and production build; affected gateway/UI image builds and
+fresh startup/persistent-volume recreation. Disposable test stacks were removed
+without changing application volumes. Five existing skips remain unchanged.
+
+M1.10 is next: deterministic compiled-artifact service round trip. The version
+list is committed-artifact history, not pending/failed job reconciliation, and
+completed initial source is not a publishable build. UI preview activation,
+hosting URLs, atomic symlinks, preservation of the other DB version pointer and
+serving/DB failure compensation remain M3. No paid AI, browser publishing journey,
+push or hosted CI execution occurred; the full M1 exit remains unverified.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
