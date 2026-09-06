@@ -69,13 +69,26 @@ const ChatSession: React.FC<{ fqdn: string; owner: string }> = ({ fqdn, owner })
     }).catch(() => { if (active) setHostingError('Hosting state could not be refreshed; displayed links may be stale.'); });
     return () => { active = false; controller.abort(); };
   }, [fqdn, hostingRefresh]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRegion = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  const sendButton = useRef<HTMLButtonElement>(null);
+  const wasSending = useRef(false);
+  useEffect(() => {
+    if (wasSending.current && !isLoading && document.activeElement === document.body) {
+      if (composer.current && !composer.current.disabled) composer.current.focus();
+      else sendButton.current?.focus();
+    }
+    wasSending.current = isLoading;
+  }, [isLoading]);
   const submission = useRef(createSubmissionIdentity(undefined, restored.draft.identity));
 
   const refreshCompletedVersions = useCallback(() => setVersionRefresh(n => n + 1), []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const region = messagesRegion.current;
+    if (region && region.scrollHeight - region.scrollTop - region.clientHeight < 160) {
+      region.scrollTop = region.scrollHeight;
+    }
   }, [messages]);
 
   const handleSend = async () => {
@@ -209,7 +222,7 @@ const ChatSession: React.FC<{ fqdn: string; owner: string }> = ({ fqdn, owner })
     <Layout sidebar={<VersionsList fqdn={fqdn!} refresh={versionRefresh} onDeployed={refreshHosting} site={site} />}>
       <div className="chat-container">
         <div className="chat-header">
-          <h2>{fqdn}</h2>
+          <h1>{fqdn}</h1>
           <div>
             <HostingLinks site={site} />
             <button onClick={refreshHosting}>Refresh hosting state</button>
@@ -217,7 +230,7 @@ const ChatSession: React.FC<{ fqdn: string; owner: string }> = ({ fqdn, owner })
           </div>
         </div>
 
-        <div className="chat-messages">
+        <div className="chat-messages" ref={messagesRegion} tabIndex={0} role="region" aria-label="Conversation and build history">
           <BuildHistory key={historyRefresh} fqdn={fqdn} onCompleted={refreshCompletedVersions} />
           {messages.length === 0 && (
             <div className="empty-chat">
@@ -227,7 +240,6 @@ const ChatSession: React.FC<{ fqdn: string; owner: string }> = ({ fqdn, owner })
           {messages.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />
           ))}
-          <div ref={messagesEndRef} />
         </div>
 
         <div className="chat-input">
@@ -238,6 +250,7 @@ const ChatSession: React.FC<{ fqdn: string; owner: string }> = ({ fqdn, owner })
           {restored.error && draftError && <button onClick={reloadDraft}>Retry loading saved draft</button>}
           {sendError && <p role="alert">{sendError}</p>}
           <textarea
+            ref={composer}
             value={inputText}
             onChange={(e) => {
               setInputText(e.target.value);
@@ -245,8 +258,8 @@ const ChatSession: React.FC<{ fqdn: string; owner: string }> = ({ fqdn, owner })
             }}
             maxLength={50000}
             aria-label="Build request"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !e.repeat) {
                 e.preventDefault();
                 handleSend();
               }
@@ -256,6 +269,7 @@ const ChatSession: React.FC<{ fqdn: string; owner: string }> = ({ fqdn, owner })
             rows={3}
           />
           <button
+            ref={sendButton}
             onClick={handleSend}
             disabled={isLoading || !inputText.trim()}
             className="pure-button pure-button-primary"

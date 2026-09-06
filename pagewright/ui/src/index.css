@@ -2,6 +2,22 @@
   box-sizing: border-box;
 }
 
+:root { color-scheme: light; color: #222; background: #fff; }
+button, input, textarea, select, .pure-button { max-width: 100%; }
+button, .pure-button { min-height: 44px; white-space: normal; }
+button:disabled { cursor: not-allowed; }
+h1, h2, h3, p, li, code, .version-item, .site-card-info { overflow-wrap: anywhere; }
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 3px solid #082f49 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 3px white;
+}
+.skip-link { position: fixed; left: 1rem; top: -10rem; z-index: 2000; padding: 1rem; background: white; color: #082f49; }
+.skip-link:focus { top: 1rem; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+}
+
 html,
 body {
   height: 100%;
@@ -19,13 +35,15 @@ body {
 }
 
 /* PureCSS overrides */
-.pure-button-primary {
-  background-color: #1f8dd6;
+button.pure-button-primary, a.pure-button-primary {
+  background-color: #12679d;
 }
 
-.pure-button-primary:hover,
-.pure-button-primary:focus {
-  background-color: #1c7cbd;
+button.pure-button-primary:hover,
+button.pure-button-primary:focus,
+a.pure-button-primary:hover,
+a.pure-button-primary:focus {
+  background-color: #105781;
 }
 
 .button-error {
@@ -140,7 +158,7 @@ body {
 }
 
 h1 {
-  font-size: 3.2em;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
   line-height: 1.1;
 }
 
@@ -151,7 +169,8 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #e8e8e8;
+  color: #222;
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -160,7 +179,8 @@ button:hover {
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 3px solid #082f49;
+  outline-offset: 3px;
 }
 
 @media (prefers-color-scheme: light) {

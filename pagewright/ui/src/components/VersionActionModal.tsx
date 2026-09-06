@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { openActivatedPreview } from '../api/preview';
 import type { Version } from '../types/api';
 import { formatTimestamp } from '../utils/format';
@@ -27,6 +27,21 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
   const [previewURL, setPreviewURL] = useState('');
   const previewBusy = useRef(false);
   const mounted = useRef(true);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    const element = dialog.current!;
+    const opener = document.activeElement;
+    const overflow = document.body.style.overflow;
+    element.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      element.close();
+      document.body.style.overflow = overflow;
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+      else document.getElementById('versions-heading')?.focus();
+    };
+  }, []);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const handlePreview = async () => {
     if (previewBusy.current) return;
@@ -52,7 +67,7 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
       setPromoteError('');
       try {
         await onPromote();
-        onClose();
+        if (mounted.current) onClose();
       } catch (error) {
         console.error('Failed to promote version:', error);
         if (mounted.current) setPromoteError('Publishing could not be confirmed. Refresh hosting state and retry this same version; it may already be live.');
@@ -64,11 +79,18 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <dialog ref={dialog} className="version-dialog" aria-labelledby={titleId}
+      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right ||
+            event.clientY < rect.top || event.clientY > rect.bottom) onClose();
+      }}>
+      <div className="modal-content">
         <div className="modal-header">
-          <h2>{label} — {version.build_id}</h2>
-          <button className="modal-close" onClick={onClose}>
+          <h2 id={titleId}>{label} — {version.build_id}</h2>
+          <button className="modal-close" onClick={onClose} aria-label="Close version actions" autoFocus>
             ×
           </button>
         </div>
@@ -77,6 +99,7 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
             <strong>Created:</strong> {formatTimestamp(version.created_at)}
           </p>
           <div className="modal-actions">
+            <p role="status">{previewPending ? 'Preparing preview…' : promotePending ? 'Publishing…' : ''}</p>
             <button className="pure-button pure-button-primary" onClick={handlePreview} disabled={previewPending || promotePending}>
               {previewPending ? 'Preparing preview…' : 'Preview in New Tab'}
             </button>
@@ -90,6 +113,6 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

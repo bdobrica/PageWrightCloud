@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve, extname } from 'node:path';
+import { auditAccessibility } from './accessibilityBrowser.mjs';
 
 const [modulePath, executablePath] = process.argv.slice(2);
 if (!modulePath || !executablePath) throw Error('Pass Playwright module and Firefox executable paths');
@@ -32,6 +33,15 @@ try {
   initialization_status:'ready',template_id:'starter',created_at:user.created_at,updated_at:user.created_at,
   live_url:'http://one.example.test:8084/',preview_url:'http://preview.one.example.test:8084/'};
  const version={id:'v1',site_id:site.id,build_id:'v1',status:'completed',created_at:user.created_at};
+ const accessibility = process.argv.includes('--accessibility');
+ if (accessibility) {
+  site.fqdn='a'.repeat(55)+'.example.test';
+  site.live_url='http://'+site.fqdn+':8084/';
+  site.preview_url='http://preview.'+site.fqdn+':8084/';
+  version.build_id='v1-'+'b'.repeat(80);
+  version.id=version.build_id;
+  site.live_version_id=version.build_id;
+ }
  let buildMode='expired', publishFails=true, versionsFail=false, toggleFails=false;
  const submissions=[];
  const errors=[];
@@ -74,6 +84,15 @@ try {
   localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('token','old-token');
  },user);
  await page.goto(origin+'/chat/'+site.fqdn);
+ // The recovery test is desktop; the accessibility branch exercises collapsed mobile versions.
+ if (!accessibility && !await page.locator('.sidebar details').evaluate(node=>node.open)) {
+  await page.getByText('Browse versions',{exact:true}).click();
+ }
+ if (accessibility) {
+  await auditAccessibility(page,origin,site);
+  assert.equal(submissions.length,0,'IME/newline must not submit');
+  assert.deepEqual(errors,[]);
+ } else {
  const input=page.getByRole('textbox',{name:'Build request'});
  await input.fill('Keep my unsent edit');
  await page.reload();
@@ -178,6 +197,7 @@ try {
  assert.equal(await page.evaluate(()=>localStorage.getItem('token')),null);
  assert.deepEqual(errors,[]);
  console.log('Rendered draft expiry/re-auth/retry, owner isolation, clarification, publishing, dashboard refresh, version retry and storage-failure checks passed.');
+ }
 } finally {
  if(browser) await browser.close();
  await new Promise(resolve=>server.close(resolve));

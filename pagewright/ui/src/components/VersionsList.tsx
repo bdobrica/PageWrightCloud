@@ -69,7 +69,7 @@ export const VersionsList: React.FC<VersionsListProps> = ({ fqdn, refresh, onDep
   return (
     <>
       <div className="versions-list">
-        <h3>Versions</h3>
+        <h2 id="versions-heading" tabIndex={-1}>Versions</h2>
         {isLoading ? (
           <p className="no-versions">Loading...</p>
         ) : loadError ? (

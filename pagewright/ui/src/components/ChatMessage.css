@@ -19,7 +19,7 @@
 }
 
 .chat-message.user .message-bubble {
-  background: #1f8dd6;
+  background: #12679d;
   color: white;
   border-bottom-right-radius: 0.25rem;
 }
@@ -38,7 +38,7 @@
 
 .message-time {
   font-size: 0.75rem;
-  opacity: 0.7;
+  opacity: 1;
   display: block;
   margin-top: 0.25rem;
 }

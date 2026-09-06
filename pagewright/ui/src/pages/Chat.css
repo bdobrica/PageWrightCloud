@@ -1,7 +1,8 @@
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 120px);
+  min-height: 60vh;
+  min-width: 0;
 }
 
 .chat-header {
@@ -13,12 +14,13 @@
   margin-bottom: 1rem;
 }
 
-.chat-header h2 {
+.chat-header h1 {
   margin: 0;
 }
 
 .chat-header div {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -33,7 +35,7 @@
 
 .empty-chat {
   text-align: center;
-  color: #999;
+  color: #626262;
   padding: 2rem;
 }
 

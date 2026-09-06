@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { CHAT_ROUTE } from './routes';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/auth';
 import { Login } from './pages/Login';
@@ -13,6 +13,19 @@ import { Chat } from './pages/Chat';
 import { Profile } from './pages/Profile';
 
 // Protected route wrapper
+function RouteFocus() {
+  const { pathname } = useLocation();
+  const previous = useRef(pathname);
+  useEffect(() => {
+    if (previous.current !== pathname) {
+      const target = document.getElementById('main-content') ?? document.querySelector<HTMLElement>('h1');
+      if (target) { target.tabIndex = -1; target.focus(); }
+      previous.current = pathname;
+    }
+  }, [pathname]);
+  return null;
+}
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
   
@@ -27,6 +40,7 @@ const App: React.FC = () => {
   return (
     <Router>
       <AuthProvider>
+        <RouteFocus />
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />

@@ -5,7 +5,7 @@
 }
 
 .header {
-  background: #1f8dd6;
+  background: #12679d;
   color: white;
   padding: 1rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -69,13 +69,18 @@
 
 .sidebar {
   width: 280px;
+  flex-shrink: 0;
   background: #f7f7f7;
   border-right: 1px solid #e0e0e0;
   overflow-y: auto;
 }
 
+.sidebar summary { cursor: pointer; padding: 1rem; min-height: 44px; }
+.sidebar summary:focus-visible { outline: 3px solid #082f49; outline-offset: -3px; }
+
 .content {
   flex: 1;
+  min-width: 0;
   padding: 2rem;
   overflow-y: auto;
 }
@@ -100,7 +105,7 @@
     width: 100%;
     border-right: none;
     border-bottom: 1px solid #e0e0e0;
-    max-height: 300px;
+    max-height: none;
   }
 
   .content {

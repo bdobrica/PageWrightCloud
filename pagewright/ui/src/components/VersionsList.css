@@ -6,7 +6,7 @@
   height: 100%;
 }
 
-.versions-list h3 {
+.versions-list h2 {
   margin: 0 0 1rem 0;
   font-size: 1rem;
   color: #333;
@@ -15,7 +15,7 @@
 }
 
 .no-versions {
-  color: #999;
+  color: #626262;
   font-style: italic;
   font-size: 0.9rem;
 }
@@ -56,6 +56,6 @@
     border-left: none;
     border-top: 1px solid #ddd;
     height: auto;
-    max-height: 200px;
+    max-height: none;
   }
 }

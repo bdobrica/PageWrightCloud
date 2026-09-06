@@ -1,4 +1,5 @@
 .site-card {
+  min-width: 0;
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -9,6 +10,8 @@
 }
 
 .site-card-header {
+  gap: 0.75rem;
+  flex-wrap: wrap;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -29,7 +32,7 @@
 
 .status-badge.enabled {
   background: #d6f5d6;
-  color: #2d862d;
+  color: #256b25;
 }
 
 .status-badge.disabled {
