@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/config"
@@ -122,12 +123,21 @@ func (t *Theme) RenderPage(ctx types.RenderContext) ([]byte, error) {
 
 // GenerateTokensCSS generates a tokens.css file from theme tokens
 func GenerateTokensCSS(tokens map[string]interface{}) ([]byte, error) {
+	if err := config.ValidateTokens(tokens); err != nil {
+		return nil, err
+	}
 	var sb strings.Builder
 
 	sb.WriteString(":root {\n")
 
 	// Convert tokens to CSS variables
-	for key, value := range tokens {
+	keys := make([]string, 0, len(tokens))
+	for key := range tokens {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		value := tokens[key]
 		// Skip non-CSS tokens (like site_name, logo_url, etc.)
 		if strings.HasPrefix(key, "site_") || key == "theme_name" {
 			continue

@@ -17,13 +17,30 @@ func Parse(source []byte) ([]types.MDXNode, error) {
 
 	var currentMarkdown strings.Builder
 	lineNum := 0
+	var fence byte
+	fenceLength := 0
 
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+		if len(trimmed) >= 3 && (trimmed[0] == '`' || trimmed[0] == '~') {
+			count := 0
+			for count < len(trimmed) && trimmed[count] == trimmed[0] {
+				count++
+			}
+			if fence == 0 && count >= 3 {
+				fence = trimmed[0]
+				fenceLength = count
+			} else if fence == trimmed[0] && count >= fenceLength && strings.TrimSpace(trimmed[count:]) == "" {
+				fence = 0
+			}
+			currentMarkdown.WriteString(line + "\n")
+			continue
+		}
 
 		// Check for component block start
-		if strings.HasPrefix(strings.TrimSpace(line), ":::component ") {
+		if fence == 0 && !strings.HasPrefix(line, "    ") && !strings.HasPrefix(line, "\t") && (trimmed == ":::component" || strings.HasPrefix(trimmed, ":::component ")) {
 			// Save any accumulated markdown
 			if currentMarkdown.Len() > 0 {
 				nodes = append(nodes, types.MarkdownNode{
@@ -33,7 +50,7 @@ func Parse(source []byte) ([]types.MDXNode, error) {
 			}
 
 			// Parse component block
-			componentNode, err := parseComponentBlock(scanner, line, lineNum)
+			componentNode, err := parseComponentBlock(scanner, line, lineNum, &lineNum)
 			if err != nil {
 				return nil, err
 			}
@@ -61,10 +78,10 @@ func Parse(source []byte) ([]types.MDXNode, error) {
 }
 
 // parseComponentBlock parses a single :::component block
-func parseComponentBlock(scanner *bufio.Scanner, firstLine string, startLine int) (types.ComponentNode, error) {
+func parseComponentBlock(scanner *bufio.Scanner, firstLine string, startLine int, lineNum *int) (types.ComponentNode, error) {
 	// Extract component name
 	parts := strings.Fields(strings.TrimSpace(firstLine))
-	if len(parts) < 2 {
+	if len(parts) != 2 {
 		return types.ComponentNode{}, &types.CompileError{
 			Line:    startLine,
 			Message: "component block missing name: " + firstLine,
@@ -76,6 +93,7 @@ func parseComponentBlock(scanner *bufio.Scanner, firstLine string, startLine int
 
 	// Parse properties until we hit :::
 	for scanner.Scan() {
+		(*lineNum)++
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
 
@@ -103,6 +121,12 @@ func parseComponentBlock(scanner *bufio.Scanner, firstLine string, startLine int
 		}
 
 		key := strings.TrimSpace(line[:colonIdx])
+		if key == "" {
+			return types.ComponentNode{}, &types.CompileError{Line: *lineNum, Message: "empty property name"}
+		}
+		if _, exists := props[key]; exists {
+			return types.ComponentNode{}, &types.CompileError{Line: *lineNum, Message: "duplicate property: " + key}
+		}
 		valueStr := strings.TrimSpace(line[colonIdx+1:])
 
 		// Parse value as JSON
@@ -128,6 +152,9 @@ func parseJSONValue(valueStr string) (interface{}, error) {
 	// Try to parse as JSON
 	var value interface{}
 	if err := json.Unmarshal([]byte(valueStr), &value); err != nil {
+		if valueStr == "" || strings.ContainsAny(valueStr[:1], "\"[{") {
+			return nil, err
+		}
 		// If it fails, treat it as a plain string (no quotes)
 		return valueStr, nil
 	}
@@ -162,7 +189,7 @@ func validateStringLeaves(value interface{}) error {
 	case float64, bool:
 		return fmt.Errorf("leaf values must be strings, got %T", v)
 	case nil:
-		return nil
+		return fmt.Errorf("leaf values must be strings, got null")
 	default:
 		return fmt.Errorf("unsupported type %T", v)
 	}

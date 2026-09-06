@@ -1,17 +1,33 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 )
 
 // Load reads and merges configuration from theme and site
 func Load(themeDir, contentDir, outputDir, baseURL string) (*types.BuildConfig, error) {
+	if err := ValidatePaths(themeDir, contentDir, outputDir); err != nil {
+		return nil, err
+	}
+	if baseURL != "" {
+		u, err := url.Parse(baseURL)
+		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+			return nil, fmt.Errorf("base URL must be an HTTP(S) origin")
+		}
+		baseURL = strings.TrimSuffix(baseURL, "/")
+	}
 	// Load site.json
 	siteConfigPath := filepath.Join(contentDir, "site.json")
 	siteConfig, err := loadSiteConfig(siteConfigPath)
@@ -20,7 +36,7 @@ func Load(themeDir, contentDir, outputDir, baseURL string) (*types.BuildConfig, 
 	}
 
 	// Validate required fields
-	if siteConfig.SiteName == "" {
+	if strings.TrimSpace(siteConfig.SiteName) == "" {
 		return nil, &types.CompileError{
 			File:    siteConfigPath,
 			Message: "site_name is required in site.json",
@@ -52,11 +68,19 @@ func loadSiteConfig(path string) (*types.SiteConfig, error) {
 	}
 
 	var config types.SiteConfig
-	if err := json.Unmarshal(data, &config); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&config); err != nil {
 		return nil, &types.CompileError{
 			File:    path,
 			Message: fmt.Sprintf("invalid JSON: %v", err),
 		}
+	}
+	if err := decoder.Decode(new(interface{})); err != io.EOF {
+		return nil, fmt.Errorf("%s: trailing JSON data", path)
+	}
+	if err := ValidateTokens(config.Tokens); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
 	return &config, nil
@@ -84,7 +108,71 @@ func LoadThemeConfig(themeDir string) (*types.ThemeConfig, error) {
 		}
 	}
 
+	if strings.TrimSpace(config.ThemeName) == "" || len(config.Tokens) == 0 {
+		return nil, fmt.Errorf("%s: theme_name and tokens are required", tokensPath)
+	}
+	if err := ValidateTokens(config.Tokens); err != nil {
+		return nil, fmt.Errorf("%s: %w", tokensPath, err)
+	}
 	return &config, nil
+}
+
+func ValidatePaths(themeDir, contentDir, outputDir string) error {
+	if themeDir == "" || contentDir == "" || outputDir == "" {
+		return fmt.Errorf("theme, content and output directories are required")
+	}
+	for _, root := range []string{themeDir, contentDir} {
+		if err := util.CheckPath(root, false); err != nil {
+			return err
+		}
+	}
+	if err := util.CheckPath(outputDir, true); err != nil {
+		return err
+	}
+	themeAbs, err := util.Absolute(themeDir)
+	if err != nil {
+		return err
+	}
+	contentAbs, err := util.Absolute(contentDir)
+	if err != nil {
+		return err
+	}
+	outAbs, err := util.Absolute(outputDir)
+	if err != nil {
+		return err
+	}
+	for _, pair := range [][2]string{{themeAbs, contentAbs}, {themeAbs, outAbs}, {contentAbs, outAbs}} {
+		if util.Overlap(pair[0], pair[1]) || util.Overlap(pair[1], pair[0]) {
+			return fmt.Errorf("theme, content and output roots must not overlap")
+		}
+	}
+	if err := util.CheckTree(themeAbs); err != nil {
+		return err
+	}
+	if err := util.CheckTree(contentAbs); err != nil {
+		return err
+	}
+	return util.CheckPath(outAbs, true)
+}
+
+var tokenName = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+var tokenValue = regexp.MustCompile(`^[A-Za-z0-9#.,%() +/_-]+$`)
+
+// MVP tokens are simple CSS values, not arbitrary declarations or URL loads.
+func ValidateTokens(tokens map[string]interface{}) error {
+	for name, value := range tokens {
+		s, ok := value.(string)
+		if !tokenName.MatchString(name) || !ok || strings.TrimSpace(s) == "" {
+			return fmt.Errorf("invalid token %q: expected named nonempty string", name)
+		}
+		if strings.HasPrefix(name, "site_") || name == "theme_name" {
+			continue
+		}
+		if !tokenValue.MatchString(s) || strings.Contains(strings.ToLower(s), "url(") {
+			return fmt.Errorf("unsafe CSS token %q", name)
+		}
+	}
+	return nil
 }
 
 // MergeTokens merges theme tokens with site.json overrides

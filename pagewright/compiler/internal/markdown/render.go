@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
-	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -35,8 +34,13 @@ func init() {
 
 // Render converts markdown to HTML
 func Render(source []byte) (template.HTML, error) {
+	return RenderWithIDs(source, parser.NewContext().IDs())
+}
+
+// RenderWithIDs shares heading IDs across Markdown chunks separated by components.
+func RenderWithIDs(source []byte, ids parser.IDs) (template.HTML, error) {
 	var buf bytes.Buffer
-	if err := md.Convert(source, &buf); err != nil {
+	if err := md.Convert(source, &buf, parser.WithContext(parser.NewContext(parser.WithIDs(ids)))); err != nil {
 		return "", err
 	}
 	return template.HTML(buf.String()), nil
@@ -56,15 +60,10 @@ func ExtractHeadings(source []byte) ([]types.Heading, error) {
 
 		if heading, ok := n.(*ast.Heading); ok {
 			// Extract heading text
-			var buf bytes.Buffer
-			for child := heading.FirstChild(); child != nil; child = child.NextSibling() {
-				if textNode, ok := child.(*ast.Text); ok {
-					buf.Write(textNode.Segment.Value(source))
-				}
-			}
-
-			text := buf.String()
-			id := util.SanitizeID(text)
+			text := string(heading.Text(source))
+			rawID, _ := heading.AttributeString("id")
+			idBytes, _ := rawID.([]byte)
+			id := string(idBytes)
 
 			headings = append(headings, types.Heading{
 				Level: heading.Level,
@@ -121,7 +120,7 @@ func GenerateTOC(headings []types.Heading) template.HTML {
 		sb.WriteString(indent)
 		sb.WriteString("<li>")
 		sb.WriteString("<a href=\"#")
-		sb.WriteString(h.ID)
+		sb.WriteString(template.HTMLEscapeString(h.ID))
 		sb.WriteString("\">")
 		sb.WriteString(template.HTMLEscapeString(h.Text))
 		sb.WriteString("</a></li>\n")

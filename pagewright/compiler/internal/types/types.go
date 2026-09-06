@@ -1,6 +1,9 @@
 package types
 
-import "html/template"
+import (
+	"fmt"
+	"html/template"
+)
 
 // Site represents the site-level configuration and context
 type Site struct {
@@ -103,7 +106,7 @@ type CompileError struct {
 
 func (e *CompileError) Error() string {
 	if e.Line > 0 {
-		return e.File + ":" + string(rune(e.Line)) + ":" + string(rune(e.Column)) + ": " + e.Message
+		return fmt.Sprintf("%s:%d:%d: %s", e.File, e.Line, e.Column, e.Message)
 	}
 	return e.File + ": " + e.Message
 }

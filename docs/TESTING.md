@@ -58,6 +58,12 @@ deployment retries. Worker and serving enforce identical policy files (checked
 by integration). Source survives a second edit; private paths return 404 from
 the public HTTP root. These checks do not certify compiler or nginx behavior.
 
+[M1.8 compiler fixtures](COMPILER_CONTRACT.md) exercise real starter rendering,
+Markdown/MDX discovery and failures, navigation/TOC consistency, tokens/assets,
+malformed configuration, escaping, filesystem boundaries and CLI exit codes.
+Run `go test -race -count=1 -coverpkg=./internal/... ./...` in
+`pagewright/compiler` for race-enabled cross-package coverage.
+
 ## Known skipped tests
 
 Five existing tests explicitly skip. Passing package checks do not mean these behaviors have coverage. Keep verbose test output visible and remove skips only when the underlying behavior and tests are repaired.
@@ -72,7 +78,7 @@ Five existing tests explicitly skip. Passing package checks do not mean these be
 
 ## What passing does not prove
 
-- The compiler fixture checks output presence, not complete rendering correctness or adversarial-input safety; the compiler currently has no Go test files.
+- Compiler fixtures cover specific rendering and adversarial regressions, not all possible HTML/CSS content or hostile concurrent filesystem changes.
 - UI lint/build does not exercise browser interactions.
 - Integration checks cover canonical migrations, rollback, restart, legacy adoption, concurrent startup and invalid history/data, but not a complete edit/build/publish workflow.
 - Startup creates initial source and stores synthetic transport fixtures. It does not compile through the worker, run real AI, publish, validate tenant isolation, or prove production readiness.

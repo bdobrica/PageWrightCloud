@@ -10,11 +10,11 @@ build-prod:
 
 # Run tests
 test:
-	go test ./... -v
+	go test -count=1 ./... -v
 
 # Run tests with coverage
 coverage:
-	go test ./... -coverprofile=coverage.out
+	go test -count=1 -coverpkg=./internal/... ./... -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
 
 # Clean build artifacts

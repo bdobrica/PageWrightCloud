@@ -1,6 +1,8 @@
 # Pagewright Compiler
 
-A standalone Go binary that transforms markdown content and a theme into a static website. Designed to limit what AI agents can modify while giving them full control over content.
+A standalone Go binary that transforms Markdown/component content and a trusted
+theme into a static website. It is not an AI execution sandbox. See the
+[compiler contract and tested boundaries](../../docs/COMPILER_CONTRACT.md).
 
 ## Quick Start
 
@@ -51,7 +53,10 @@ content/
         └── index.md   # Maps to /blog/post-1
 ```
 
-**Navigation is auto-generated from folder hierarchy.**
+**Navigation is auto-generated from folder hierarchy.** `index.mdx` also works;
+duplicate routes or both extensions in one directory fail. Output must be absent
+or empty and separate from source/theme. Use a fresh output directory for each
+build; failure does not publish partially rendered pages.
 
 ## MDX Components
 
@@ -73,45 +78,18 @@ More markdown content.
 
 **Rules:**
 - Components must exist in theme's `src/mdx-components/`
-- Props are JSON with string leaf values only
+- Props are JSON with string leaf values only; plain unquoted strings also work
 - Unknown components cause build failure
 
 ## Worker Integration
 
-The compiler is designed to be invoked by the PageWright worker as a tool:
+Real worker invocation and trusted-theme packaging remain M2. The current worker
+does not call this compiler. The supported local CLI validates a quiescent input
+tree and stages output, but process isolation, credentials, resource limits and
+publication policy must be enforced by the eventual worker integration.
 
-```go
-// In worker tool handler
-// 1. Download theme from registry
-resp, _ := http.Get("http://themes:8086/starter.tar.gz")
-themeTgz, _ := io.ReadAll(resp.Body)
-
-// 2. Extract theme
-exec.Command("tar", "-xzf", themeTgz, "-C", "/workspace/theme").Run()
-
-// 3. Run compiler
-cmd := exec.Command("pagewrightc", "build",
-    "--theme", "/workspace/theme/starter",
-    "--content", contentPath,
-    "--out", outputPath,
-    "--base-url", baseURL,
-)
-output, err := cmd.CombinedOutput()
-```
-
-**What AI agents can do:**
-- ✅ Edit markdown content files
-- ✅ Modify site.json (name, author, token overrides)
-- ✅ Add page assets
-- ✅ Choose between available themes
-
-**What AI agents cannot do:**
-- ❌ Modify base URL (controlled by tool invocation)
-- ❌ Edit theme templates (read-only)
-- ❌ Execute arbitrary code
-- ❌ Access files outside workspace
-
-This provides a safe, constrained environment for AI-assisted website building.
+Only bundled trusted themes are in MVP scope. Do not accept uploaded templates
+or use these filesystem checks as protection against concurrent hostile mutation.
 
 ## Commands
 
@@ -166,13 +144,13 @@ internal/
 ## Dependencies
 
 - `github.com/yuin/goldmark` - Markdown parser with GFM support
-- Go 1.21+ standard library
+- Go 1.24.10 (matching go.mod and the pinned development baseline)
 
 ## Development
 
 ```bash
 make build      # Build binary
-make test       # Run tests (TODO)
+make test       # Run compiler fixtures and CLI tests
 make fmt        # Format code
 make clean      # Remove binaries
 ```

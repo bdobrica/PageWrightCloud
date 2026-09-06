@@ -70,6 +70,9 @@ func (r *Registry) LoadFromTheme(themeDir string) error {
 		}
 
 		r.templates[componentName] = tmpl
+		if componentName == "YouTubeVideo" {
+			r.templates["YoutubeVideo"] = tmpl
+		}
 	}
 
 	return nil
@@ -105,6 +108,9 @@ func (r *Registry) HasComponent(name string) bool {
 // componentNameFromFile converts a filename to a component name
 // e.g., "hero.html" -> "Hero", "youtube-video.html" -> "YouTubeVideo"
 func componentNameFromFile(filename string) string {
+	if filename == "youtube-video.html" {
+		return "YouTubeVideo"
+	}
 	// Remove .html extension
 	name := strings.TrimSuffix(filename, ".html")
 

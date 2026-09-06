@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/yuin/goldmark/parser"
+
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/assets"
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/config"
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/content"
@@ -27,6 +29,9 @@ type Pipeline struct {
 
 // NewPipeline creates a new compilation pipeline
 func NewPipeline(cfg *types.BuildConfig) (*Pipeline, error) {
+	if cfg == nil || cfg.SiteConfig == nil {
+		return nil, fmt.Errorf("build configuration is required")
+	}
 	return &Pipeline{
 		config: cfg,
 	}, nil
@@ -34,6 +39,43 @@ func NewPipeline(cfg *types.BuildConfig) (*Pipeline, error) {
 
 // Run executes the complete compilation pipeline
 func (p *Pipeline) Run() error {
+	if err := config.ValidatePaths(p.config.ThemeDir, p.config.ContentDir, p.config.OutputDir); err != nil {
+		return err
+	}
+	out := p.config.OutputDir
+	if entries, err := os.ReadDir(out); err == nil {
+		if len(entries) > 0 {
+			return fmt.Errorf("output directory must be absent or empty")
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(out), 0755); err != nil {
+		return err
+	}
+	stage, err := os.MkdirTemp(filepath.Dir(out), ".compile-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	original := p.config
+	cfg := *original
+	cfg.OutputDir = stage
+	p.config = &cfg
+	defer func() { p.config = original }()
+	if err := p.run(); err != nil {
+		return err
+	}
+	if err := os.Chmod(stage, 0755); err != nil {
+		return err
+	}
+	if err := os.Remove(out); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return os.Rename(stage, out)
+}
+
+func (p *Pipeline) run() error {
 	// Phase 1: Load theme
 	fmt.Println("Loading theme...")
 	var err error
@@ -64,11 +106,27 @@ func (p *Pipeline) Run() error {
 	if p.homePage == nil {
 		return &types.CompileError{
 			File:    p.config.ContentDir,
-			Message: "no home page found (missing home/index.md or index.md)",
+			Message: "no home page found (missing home/index.md[x] or index.md[x])",
 		}
 	}
 
 	// Phase 5: Process each page
+	// Resolve every title before rendering navigation for any page.
+	for _, page := range p.pages {
+		data, err := os.ReadFile(page.SourceMD)
+		if err != nil {
+			return err
+		}
+		page.ContentMD = string(data)
+		title, err := markdown.ExtractTitle(data)
+		if err != nil {
+			return err
+		}
+		if title == "" {
+			title = p.site.Name
+		}
+		page.Title = title
+	}
 	fmt.Println("Processing pages...")
 	for _, page := range p.pages {
 		if err := p.compilePage(page); err != nil {
@@ -101,13 +159,7 @@ func (p *Pipeline) Run() error {
 // compilePage processes a single page
 func (p *Pipeline) compilePage(page *types.Page) error {
 	// Read markdown content
-	mdContent, err := os.ReadFile(page.SourceMD)
-	if err != nil {
-		return &types.CompileError{
-			File:    page.SourceMD,
-			Message: fmt.Sprintf("failed to read file: %v", err),
-		}
-	}
+	mdContent := []byte(page.ContentMD)
 
 	// Extract title from first H1
 	title, err := markdown.ExtractTitle(mdContent)
@@ -131,6 +183,9 @@ func (p *Pipeline) compilePage(page *types.Page) error {
 	// Parse MDX nodes
 	nodes, err := mdx.Parse(mdContent)
 	if err != nil {
+		if diagnostic, ok := err.(*types.CompileError); ok {
+			diagnostic.File = page.SourceMD
+		}
 		return err
 	}
 
@@ -178,12 +233,13 @@ func (p *Pipeline) compilePage(page *types.Page) error {
 // renderNodes renders a sequence of MDX nodes to HTML
 func (p *Pipeline) renderNodes(nodes []types.MDXNode, page *types.Page) (template.HTML, error) {
 	var result []byte
+	ids := parser.NewContext().IDs()
 
 	for _, node := range nodes {
 		switch n := node.(type) {
 		case types.MarkdownNode:
 			// Render markdown
-			html, err := markdown.Render([]byte(n.Text))
+			html, err := markdown.RenderWithIDs([]byte(n.Text), ids)
 			if err != nil {
 				return "", &types.CompileError{
 					File:    page.SourceMD,

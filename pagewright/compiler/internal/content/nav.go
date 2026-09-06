@@ -49,7 +49,7 @@ func renderNavNode(sb *strings.Builder, page *types.Page, currentPage *types.Pag
 	sb.WriteString("<li")
 	sb.WriteString(activeClass)
 	sb.WriteString("><a href=\"")
-	sb.WriteString(page.Slug)
+	sb.WriteString(template.HTMLEscapeString(page.Slug))
 	sb.WriteString("\">")
 	sb.WriteString(template.HTMLEscapeString(label))
 	sb.WriteString("</a>")
@@ -101,7 +101,7 @@ func GenerateBreadcrumbHTML(page *types.Page) template.HTML {
 		sb.WriteString("    <li>")
 		if i < len(crumbs)-1 {
 			sb.WriteString("<a href=\"")
-			sb.WriteString(crumb.Slug)
+			sb.WriteString(template.HTMLEscapeString(crumb.Slug))
 			sb.WriteString("\">")
 			sb.WriteString(template.HTMLEscapeString(label))
 			sb.WriteString("</a>")
