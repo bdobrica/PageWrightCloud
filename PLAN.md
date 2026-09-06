@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 adds pinned CLI 0.153.4 and tested non-root sandbox execution. M2.4 (`ef864e5`) selects `pagewright-worker:m2.4` with trusted compiler 0.1.0/theme 1.0.0, validated changes and fresh compilation. M2.5 (`cb9c35e`) selects and displays the latest completed draft base, with tested accumulation of unpublished edits. Kubernetes remains a historical logging stub. | Paid-provider validation, broader recovery and full isolation remain M2.6 onward. Manager-only Docker socket access still requires trusted local operation; AppArmor enforcement requires host verification. |
+| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 pins CLI 0.153.4; M2.4 adds trusted compiler/theme, and M2.5 accumulates unpublished edits. M2.6 (`9fceb7c`) selects `pagewright-worker:m2.6` with resource/cancellation limits and tested nested isolation, including enforcing-AppArmor host acceptance. Kubernetes remains a historical logging stub. | Lock fencing/recovery, retention and real-provider acceptance remain M2.7 onward. Manager-only Docker access requires trusted operation; AppArmor proc mode is explicit opt-in after profile loading. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -454,6 +454,40 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.6 completed (2026-09-06) in `9fceb7c`. Selected image defaults and build
+targets now use `pagewright-worker:m2.6`. Fixed CPU/memory/PID/storage/FD/log
+ceilings, read-only root, outer CLI filesystem/PID isolation and process-tree
+cancellation bound execution. The CLI stops at 10 minutes or 1 MiB output; job
+context expires at 15 minutes and the whole-runner watchdog at 16 minutes.
+Kill/SIGTERM/SIGINT cancel storage I/O and compilation; upload checks cancellation.
+
+The user-approved proc compatibility work is accepted on `ublo.ro` (Linux
+6.12.86+deb13-amd64, Docker 29.5.0, cgroup v2). The separate enforcing
+`pagewright-worker-proc` AppArmor profile replaces Docker's proc overmounts with
+explicit denies while preserving non-proc masks. A tool-only seccomp filter
+blocks namespace/mount operations after trusted bubblewrap setup. The manager
+requires a compatible image label and resolves to image ID; startup checks actual
+tool namespace denial before provider contact. No privileged/unconfined mode or
+host-wide sysctl change. See [host evidence](docs/M2_6_HOST_ACCEPTANCE.md) and
+[worker isolation / kernel-surface assessment](docs/WORKER_ISOLATION.md).
+
+Acceptance passed: six-module package tests, full isolated service integration,
+real-Docker spawner, local and enforcing-AppArmor host installed CLI/compiler
+suites, manager/worker race/vet, selected production image build and actionlint.
+Tests verify actual workspace editing, sibling/socket/theme/provider-key denial,
+network/namespace denial, protected proc access, resource ceilings and detached
+child teardown after proof of startup. The kill test is restored; two pre-existing
+serving skips remain. Disposable test containers/networks were removed; image
+caches and remote evidence remain. No paid-provider, browser, hosted-CI or
+production-deployment acceptance, and no push. Runtime-loaded profiles remain;
+persistent installation is an administrator deployment step.
+
+Next: **M2.7**, lock renewal and fenced/attempt-scoped result acceptance.
+OOM/hard-kill recovery remains M2.8/M2.9; retention remains M2.10 and broader
+runner failure coverage M2.11. Internal authorization and comprehensive secret
+policy remain M4. Isolation limits visibility and lifetime but is not proof
+against kernel exploits or a compromised trusted CLI.
 
 M2.5 completed (2026-09-06) in `cb9c35e`. New submissions choose the latest
 manifest-committed non-bootstrap build from owner-scoped storage, then live,
