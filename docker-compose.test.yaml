@@ -51,6 +51,24 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+  serving:
+    build: ./pagewright/serving
+    environment:
+      PAGEWRIGHT_STORAGE_URL: http://storage:8080
+    volumes:
+      - ./tests/nginx.conf:/etc/nginx/nginx.conf:ro
+    tmpfs:
+      - /var/www
+      - /etc/nginx/sites-enabled
+    command: [sh, -c, 'nginx && exec ./serving-runner']
+    depends_on:
+      storage:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://localhost:8083/health']
+      interval: 2s
+      timeout: 3s
+      retries: 30
   tests:
     build:
       context: .
@@ -60,11 +78,15 @@ services:
       TEST_MANAGER_URL: http://manager:8081
       TEST_REDIS_ADDR: redis:6379
       TEST_STORAGE_URL: http://storage:8080
+      TEST_SERVING_URL: http://serving:8083
+      TEST_HOSTING_URL: http://serving
     depends_on:
       postgres:
         condition: service_healthy
       manager:
         condition: service_healthy
       storage:
+        condition: service_healthy
+      serving:
         condition: service_healthy
     command: [sh, /workspace/scripts/integration-suites.sh]
