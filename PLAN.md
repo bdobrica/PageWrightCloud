@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 (`b8fb6c0`) selects `pagewright-worker:m2.3` with pinned real CLI 0.153.4, explicit auth/instructions and tested non-root nested sandbox execution. Kubernetes remains a historical logging stub. | Trusted compiler integration, paid-provider validation, broader recovery and full isolation remain M2.4 onward. Manager-only Docker socket access still requires trusted local operation; AppArmor enforcement requires host verification. |
+| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 adds pinned CLI 0.153.4 and tested non-root sandbox execution. M2.4 (`ef864e5`) selects `pagewright-worker:m2.4` with trusted compiler 0.1.0/theme 1.0.0, validated source changes, fresh compilation and truthful static-check manifests. Kubernetes remains a historical logging stub. | Draft-base selection, paid-provider validation, broader recovery and full isolation remain M2.5 onward. Manager-only Docker socket access still requires trusted local operation; AppArmor enforcement requires host verification. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -454,6 +454,37 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.4 completed (2026-09-06) in `ef864e5`. The selected image is
+`pagewright-worker:m2.4`, retaining the pinned CLI and existing unprivileged
+sandbox while packaging compiler 0.1.0 and root-owned read-only starter 1.0.0.
+Worker snapshots reject forbidden source/output/instruction edits and special
+files. Accepted content is digest-verified into a sibling outside the agent's
+writable root, compiled with trusted inputs into fresh output, checked for HTML
+structure/local references and archive validity, then used to replace workspace
+`public/`. The uploaded archive contains exactly the frozen source compiled.
+Compile/validation failures preserve old output and never begin upload; stale
+pages cannot survive a successful fresh build.
+
+Manifests now report filesystem-derived changed paths, compiler/theme versions
+and four named checks. `checks_passed=true` means those static gates passed;
+`browser_checks_performed=false` prevents interpreting the legacy zero console
+count as browser validation. Source assets use `content/<page>/assets/`.
+The deterministic executor edits source only; production runner compiles it in
+the service round trip and the persisted manifest is asserted.
+
+Verification: all six module package suites and full isolated service integration;
+worker race/vet and manager config race/vet; installed compiler builds, exact
+assets, deletion/failure preservation and read-only input checks under UID 1000,
+no network/capabilities; installed CLI sandbox regression; selected production
+image build and actionlint. Acceptance caught and fixed writable theme modes
+inherited from the checkout. Three existing skips remain. Disposable integration
+containers/networks were removed; application data was untouched and image caches
+may remain. No paid calls, browser acceptance, hosted CI verification or push.
+
+Next: **M2.5**, latest-draft source selection and accumulating unpublished edits.
+Broader cancellation/resource/credential isolation remains M2.6; real-provider
+acceptance remains M2.12. See [trusted build scope and limitations](docs/WORKER_BUILD.md).
 
 M2.3 completed (2026-09-06) in `b8fb6c0`. The selected worker image is now
 `pagewright-worker:m2.3`, with integrity-locked Codex CLI 0.153.4 instead of a mock.
