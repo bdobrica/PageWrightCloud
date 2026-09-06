@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1 (`d9bb650`) implements [Docker create/start and safe spawn outcomes](docs/DOCKER_SPAWNER.md), selecting `pagewright-worker:m2.1` with explicit network/endpoints and credential allowlisting. M2.2 moves launching into bounded dispatch. Kubernetes remains a historical logging stub. | Containers now launch, but the selected worker still has a placeholder executor. Real AI/compiler integration, broader recovery and full isolation remain M2.3 onward. Manager-only Docker socket access requires trusted local operation. |
+| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 (`b8fb6c0`) selects `pagewright-worker:m2.3` with pinned real CLI 0.153.4, explicit auth/instructions and tested non-root nested sandbox execution. Kubernetes remains a historical logging stub. | Trusted compiler integration, paid-provider validation, broader recovery and full isolation remain M2.4 onward. Manager-only Docker socket access still requires trusted local operation; AppArmor enforcement requires host verification. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -454,6 +454,40 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.3 completed (2026-09-06) in `b8fb6c0`. The selected worker image is now
+`pagewright-worker:m2.3`, with integrity-locked Codex CLI 0.153.4 instead of a mock.
+The native executable receives explicit Responses-provider authentication,
+developer instructions and a stdin prompt using fresh per-job state. Shell
+snapshots are disabled and secret-name exclusions are explicit; capture is
+bounded and exact-key redacted. Unsupported hosts fail a sandbox preflight
+before any provider call; no unsafe fallback is offered.
+
+With explicit user approval, the minimum runtime compatibility prerequisite was
+brought forward from M2.6. Workers run as UID/GID 1000 with zero capabilities,
+no-new-privileges and an owned private tmpfs. A pinned default-deny seccomp
+profile adds only audited nested-user-namespace and mount operations. The outer
+user still cannot mount; the inner CLI sandbox denies outside writes and command
+network access. No privileged containers, unconfined profiles, daemon defaults or
+global sysctls were introduced. An explicit worker-only AppArmor profile and
+fixed-name opt-in support AppArmor hosts; syntax was checked without kernel
+loading, but enforcement is not verified on this WSL host. CI includes the named
+profile setup and denial tests; hosted CI has not been run.
+
+Verification passed: installed CLI/fake-API authentication, instructions, prompt,
+actual shell execution, key exclusion, permitted writes and denied outside writes,
+reachable-loopback denial, outer capability/mount checks and runtime cleanup;
+six-module package baseline; full isolated service integration; manager/worker
+race/vet; real-Docker launch/inspect and workspace checks; production image build;
+fresh startup and persistence recreation; AppArmor parsing, Compose overlay merge
+and actionlint. Two skipped executor/parsing tests were restored; three existing
+skips remain. Disposable test resources were removed without changing application
+data; test image caches may remain. No paid calls or push occurred.
+
+Next: **M2.4**, trusted compiler/theme integration. Full resource limits,
+cancellation, credential isolation, AppArmor host enforcement and user-namespace
+attack-surface review remain M2.6; real-provider acceptance remains M2.12. See the
+[CLI contract, provenance and host prerequisites](docs/WORKER_CLI.md).
 
 M2.2 completed (2026-09-06) in `5da77ad`. HTTP admission now atomically stores
 and queues `pending` jobs without spawning. A background dispatcher enforces a
