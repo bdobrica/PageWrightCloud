@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | [Docker spawner](pagewright/manager/internal/spawner/docker/docker.go) and Kubernetes spawner only log. [Worker Dockerfile](pagewright/worker/Dockerfile) installs a mock command. | An accepted job cannot execute the intended AI workflow. There are also two worker implementations/images; select `pagewright/worker` as the MVP runner. |
+| Execution | M2.1 (`d9bb650`) implements [Docker create/start and safe spawn outcomes](docs/DOCKER_SPAWNER.md), selecting `pagewright-worker:m2.1` with explicit network/endpoints and credential allowlisting. Kubernetes remains a historical logging stub. | Containers now launch, but the selected worker still has a placeholder executor. Queue dispatch, real AI/compiler integration, recovery and full isolation remain M2.2 onward. Manager-only Docker socket access requires trusted local operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -442,7 +442,7 @@ Disposable stacks and their ephemeral data were removed; application volumes
 were untouched. Five existing skips remain unchanged. No UI code changed, and no
 paid AI, browser journey, push or hosted CI run was performed.
 
-M1's deterministic contract exit is now verified. Next is M2.1: implement the
+M1's deterministic contract exit is now verified. At M1.10 handoff, next was M2.1: implement the
 production Docker spawner. The test harness deliberately bridges that stub;
 the fixture binary is absent from production images. Production compiler/output
 validation remains M2.4 (`checks_passed` is still false), and root Compose's
@@ -455,7 +455,50 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
 
-Implement the Docker spawner and a queue dispatcher with bounded concurrency. Build the selected real worker image with the compiler and trusted theme. Bootstrap/download source, execute a bounded edit, validate allowed changes, compile to `public/`, validate output, store the artifact and report completion. Add lease renewal, fencing enforcement, worker cleanup, callback retries and reconciliation for lost callbacks or manager restarts. Persist Redis data and reconcile gateway uncertainty; define safe retention for M1.2's nonexpiring reservations and legacy expiring jobs.
+M2.1 completed (2026-09-06) in `d9bb650`. The Docker spawner now creates and starts
+containers through the Unix-socket Engine API with bounded acknowledgements and
+timeouts. A deterministic job-derived name prevents adoption/restart after name
+conflicts; labels preserve job/site/network correlation. Root Compose derives the
+worker network from its project, uses a private `/work` tmpfs and passes explicit
+manager/storage endpoints. Worker credentials use a separate provider key and
+an environment allowlist, not the manager/gateway environment. Workers receive
+no Docker socket, host binds or published ports; capabilities are dropped and
+privilege escalation is disabled.
+
+The supported image/build targets agree on `pagewright-worker:m2.1` from
+`pagewright/worker`; untagged/latest images are rejected and missing images are
+not automatically pulled. The old manager worker image is marked historical and
+no supported target builds it. M1 integration uses a build-tag-only manual bridge
+instead of a production logging stub; production does not register that bridge.
+
+Only explicit no-start evidence produces durable `failed/spawn_failed` and early
+lock release. Ambiguous create/start errors return `spawn_uncertain`, keep the
+existing running reservation and do not release the lock. Container identity is
+merged without overwriting a racing terminal callback; persistence uses a bounded
+context independent of client disconnect. Same-identity retries retrieve the
+reservation without another launch. The lock still expires normally: renewal,
+fencing, durable recovery and queue dispatch are not implemented by this change.
+
+Verification passed: six-module package baseline; repeated manager race tests and
+vet; separate real-Docker fixture acceptance for create/start, network health,
+workspace writes, credential/socket exclusions, duplicate-name refusal and missing
+image rejection; full five-module isolated integration including M1 compiled
+nginx hosting; selected worker image build; production-manager stack startup and
+persistent-volume recreation. A test-server counter race exposed by dropped
+acknowledgements was fixed. Dedicated daemon acceptance is wired into CI; hosted
+CI was not run. Disposable test containers/networks/data were removed without
+changing application volumes. Five existing skips remain; no paid provider or
+browser publishing journey was run and nothing was pushed.
+
+Next: M2.2, bounded queue dispatch. See [configuration, authority and remaining
+limitations](docs/DOCKER_SPAWNER.md). The manager now has host-level Docker socket
+authority; this is not a remote-safe deployment or an AI sandbox. The worker still
+contains the placeholder executor, its compiler is not integrated, callback/storage
+credentials are not per-job tokens, and exited containers retain daemon metadata
+until removal. Real AI/compiler integration, full resource isolation, callback
+recovery and cleanup remain M2.3–M2.10; internal authentication remains M4.
+
+Replace request-handler launching with a queue dispatcher with bounded concurrency. Build the selected real worker image with the compiler and trusted theme. Bootstrap/download source, execute a bounded edit, validate allowed changes, compile to `public/`, validate output, store the artifact and report completion. Add lease renewal, fencing enforcement, worker cleanup, callback retries and reconciliation for lost callbacks or manager restarts. Persist Redis data and reconcile gateway uncertainty; define safe retention for M1.2's nonexpiring reservations and legacy expiring jobs.
 
 **Exit:** one real text request visibly changes a new site's HTML, two successive edits preserve each other, a concurrent same-site build is handled predictably, and worker failure/timeout/restart produces a recoverable terminal status without affecting live content.
 
