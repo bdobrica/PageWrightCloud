@@ -53,14 +53,14 @@ run:
 	PAGEWRIGHT_QUEUE_BACKEND=redis \
 	PAGEWRIGHT_WORKER_SPAWNER=docker \
 	PAGEWRIGHT_REDIS_ADDR=localhost:6379 \
-	PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:m2.11 \
+	PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:m2.12 \
 	go run ./cmd/server
 
 # Build Docker images
 docker-build:
 	@echo "Building Docker images..."
 	docker build -t pagewright-manager:latest -f Dockerfile .
-	docker build -f ../worker/Dockerfile -t pagewright-worker:m2.11 ../..
+	docker build -f ../worker/Dockerfile -t pagewright-worker:m2.12 ../..
 
 # Clean build artifacts
 clean:

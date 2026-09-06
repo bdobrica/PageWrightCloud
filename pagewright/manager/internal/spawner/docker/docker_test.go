@@ -24,6 +24,28 @@ func jobFixture() *types.Job {
 	return &types.Job{JobID: uuid.NewString(), SiteID: "site", OwnerID: "owner", Prompt: "quoted \" request\n$DO_NOT_EXECUTE", SourceVersion: "initial", TargetVersion: uuid.NewString(), Status: types.JobStatusRunning, LockToken: "lease", FencingToken: 7, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 }
 
+func TestExplicitWorkerModel(t *testing.T) {
+	d := fakeEngine(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/containers/create") {
+			var body struct{ Env []string }
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(strings.Join(body.Env, "\n"), "PAGEWRIGHT_LLM_MODEL=gpt-5.1-codex-mini") {
+				t.Error("model not forwarded")
+			}
+			w.WriteHeader(201)
+			json.NewEncoder(w).Encode(map[string]string{"Id": strings.Repeat("a", 64)})
+		} else {
+			w.WriteHeader(204)
+		}
+	})
+	d.cfg.LLMModel = "gpt-5.1-codex-mini"
+	if _, err := d.Spawn(context.Background(), jobFixture(), "http://manager:8081"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func fakeEngine(t *testing.T, h http.HandlerFunc) *DockerSpawner {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "pw-docker-")

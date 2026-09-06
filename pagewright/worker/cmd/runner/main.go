@@ -47,7 +47,7 @@ func main() {
 
 	// Initialize components
 	storageClient := storage.NewClient(cfg.StorageURL)
-	executor := codex.NewExecutor(cfg.CodexBinary, filepath.Join(cfg.WorkDir, "site"), cfg.LLMKey, cfg.LLMBaseURL)
+	executor := codex.NewExecutor(cfg.CodexBinary, filepath.Join(cfg.WorkDir, "site"), cfg.LLMKey, cfg.LLMBaseURL).WithModel(cfg.LLMModel)
 	srv := server.NewServer(cfg.Port, executor)
 
 	// Start HTTP server in background

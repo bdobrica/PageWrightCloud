@@ -1,6 +1,6 @@
 # Worker CLI and sandbox contract (M2.3–M2.7)
 
-`pagewright-worker:m2.11` packages Codex CLI **0.153.4**, replacing the production
+`pagewright-worker:m2.12` packages Codex CLI **0.153.4**, replacing the production
 mock. The npm lockfile pins both the wrapper and native platform packages with
 integrity hashes; the image checks the installed version. The worker invokes the
 native executable directly so cancellation does not merely kill an npm launcher.
@@ -32,9 +32,12 @@ checks that the provider key is absent while the API fixture confirms bearer aut
 The [M2.6 isolation policy](WORKER_ISOLATION.md) cancels execution at
 the 1 MiB capture limit and adds outer PID/filesystem isolation and resource caps.
 Exact-key redaction is not comprehensive secret detection. Cleanup/recovery and
-per-job authorization remain open. The CLI's
-bundled default model is used; paid account/model availability is not established
-by offline fixtures. Real-provider acceptance remains M2.12.
+per-job authorization remain separate concerns. An optional
+`PAGEWRIGHT_WORKER_LLM_MODEL` manager setting becomes `PAGEWRIGHT_LLM_MODEL` in
+the worker and an explicit CLI `--model` argument; empty retains the pinned CLI
+default. [M2.12 provider acceptance](PROVIDER_SMOKE.md) explicitly selects a model
+behind a smoke-only budget gateway. A model being listed by the API does not
+prove generation access for the configured key.
 
 ## Narrow runtime prerequisite brought forward from M2.6
 

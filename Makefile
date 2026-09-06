@@ -13,6 +13,9 @@ TEST_PASSWORD ?= TestPass123!
 help:
 	@echo "PageWrightCloud - Makefile Commands"
 	@echo "  make test-docker-spawner - Isolated host-Docker launch acceptance (no AI)"
+	@echo "  make test-provider-budget - Offline per-run spend guard tests"
+	@echo "  make smoke-provider PROVIDER_SMOKE_ARGS='--offline' - Full smoke with fake provider"
+	@echo "  Real-provider smoke requires explicit budget/date flags; see docs/PROVIDER_SMOKE.md"
 	@echo ""
 	@echo "Docker Commands:"
 	@echo "  make docker-up           - Start all services (infrastructure + apps)"
@@ -359,3 +362,10 @@ vet:
 
 lint: vet
 	@echo "Linting completed!"
+# Explicit opt-in only; normal test/CI targets never call a paid provider.
+.PHONY: smoke-provider test-provider-budget
+smoke-provider:
+	node scripts/provider-smoke.mjs $(PROVIDER_SMOKE_ARGS)
+
+test-provider-budget:
+	node --test scripts/provider-budget.test.mjs

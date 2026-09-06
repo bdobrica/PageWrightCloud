@@ -1,6 +1,6 @@
 # Runner failure acceptance (M2.11)
 
-Selected image: `pagewright-worker:m2.11`. Run `make test-integration` for the
+Selected image: `pagewright-worker:m2.12`. Run `make test-integration` for the
 race-enabled disposable service suite. It builds a test-only CLI fixture and the
 real compiler; no provider calls or production data are involved.
 
@@ -53,6 +53,6 @@ fenced attempt. See [result recovery](RESULT_RECOVERY.md),
 
 Executor parsing tests were restored in M2.3 and cancellation/process-tree tests
 in M2.6. They are enabled and remain regression gates. The two unrelated serving
-skips remain tracked in M3.8/M4.12. M2.12 is the remaining explicitly authorized,
-cost-bounded real-provider acceptance gate; M2.11 does not deploy to a host or
+skips remain tracked in M3.8/M4.12. [M2.12](PROVIDER_SMOKE.md) records the separately
+authorized, cost-bounded real-provider acceptance; M2.11 does not deploy to a host or
 claim the complete browser publish journey.

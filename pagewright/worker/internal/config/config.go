@@ -10,6 +10,7 @@ type Config struct {
 	WorkDir          string
 	LLMKey           string
 	LLMBaseURL       string
+	LLMModel         string
 	ManagerURL       string
 	StorageURL       string
 	JobJSON          string
@@ -27,6 +28,7 @@ func LoadConfig() *Config {
 		WorkDir:          getEnv("PAGEWRIGHT_WORK_DIR", "/work"),
 		LLMKey:           getEnv("PAGEWRIGHT_LLM_KEY", ""),
 		LLMBaseURL:       getEnv("PAGEWRIGHT_LLM_URL", "https://api.openai.com/v1"),
+		LLMModel:         getEnv("PAGEWRIGHT_LLM_MODEL", ""),
 		ManagerURL:       getEnv("PAGEWRIGHT_MANAGER_URL", "http://localhost:8081"),
 		StorageURL:       getEnv("PAGEWRIGHT_STORAGE_URL", "http://localhost:8080"),
 		JobJSON:          getEnv("PAGEWRIGHT_JOB", ""),

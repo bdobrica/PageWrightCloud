@@ -22,6 +22,7 @@ func TestExecutorMock(t *testing.T) {
 	// Create mock codex script
 	mockCodex := filepath.Join(workDir, "mock-codex")
 	mockScript := `#!/bin/sh
+echo "MODEL_ARGS: $*"
 echo "Processing prompt"
 echo "FILES_CHANGED:"
 echo "- modified: content/page.md"
@@ -34,7 +35,7 @@ exit 0
 	require.NoError(t, os.MkdirAll(filepath.Join(workDir, ".codex"), 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(workDir, ".codex", "instructions.md"), []byte("trusted instructions"), 0600))
 
-	executor := newTestExecutor(mockCodex, workDir, "test-key", "https://api.test.com")
+	executor := newTestExecutor(mockCodex, workDir, "test-key", "https://api.test.com").WithModel("gpt-5.1-codex-mini")
 
 	// Test execution
 	ctx := context.Background()
@@ -44,6 +45,7 @@ exit 0
 	// Test output capture
 	output := executor.GetOutput()
 	assert.Contains(t, output, "Processing prompt")
+	assert.Contains(t, output, "--model gpt-5.1-codex-mini -")
 
 	// Test parsing
 	filesChanged, summary := executor.ParseOutput()

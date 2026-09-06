@@ -75,6 +75,11 @@ These do not establish the full publish/preview journey.
 
 ## Known skipped tests
 
+`make test-provider-budget` tests the smoke-only spend guard without a real key.
+`make smoke-provider PROVIDER_SMOKE_ARGS='--offline'` verifies its complete disposable
+worker/compiler/storage topology. Paid acceptance is separately authorized and
+explicitly invoked; see [M2.12 procedure and limits](PROVIDER_SMOKE.md).
+
 Two serving tests explicitly skip. Executor parsing and cancellation tests were
 restored in M2.3/M2.6 and remain enabled. M2.11 adds
 [actual runner failure and restart acceptance](RUNNER_ACCEPTANCE.md).

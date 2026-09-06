@@ -4,7 +4,7 @@
 
 Stateless worker that executes AI-powered site edits using Codex in isolated containers.
 
-The selected `pagewright-worker:m2.11` packages pinned Codex CLI 0.153.4,
+The selected `pagewright-worker:m2.12` packages pinned Codex CLI 0.153.4,
 pagewrightc 0.1.0 and read-only starter theme 1.0.0, with non-root nested sandbox execution.
 Read the [trusted build contract](../../docs/WORKER_BUILD.md) and the
 [CLI contract and host prerequisites](../../docs/WORKER_CLI.md); older examples below are historical. Follow the
@@ -13,6 +13,8 @@ Private diagnostics withhold raw executor output; see the
 [retention and coordinated-upgrade policy](../../docs/WORKER_RETENTION.md).
 See [runner failure/restart acceptance](../../docs/RUNNER_ACCEPTANCE.md) for
 deterministic fault coverage and the separate real-provider gate.
+The [explicit provider smoke](../../docs/PROVIDER_SMOKE.md) verifies a real edit
+under a per-run model-token budget; it is never run by normal tests or CI.
 
 ## API Endpoints
 

@@ -23,7 +23,7 @@ import (
 
 // Engine API v1.45; Unix-only. No ambient Docker context, remote TCP,
 // automatic pulls, shell execution or inherited environment.
-type Config struct{ Image, Network, Socket, WorkDir, StorageURL, LLMURL, LLMKey, AppArmorProfile string }
+type Config struct{ Image, Network, Socket, WorkDir, StorageURL, LLMURL, LLMKey, LLMModel, AppArmorProfile string }
 type DockerSpawner struct {
 	cfg    Config
 	client *http.Client
@@ -100,6 +100,9 @@ func (d *DockerSpawner) Spawn(ctx context.Context, job *types.Job, managerURL st
 		"Env":        []string{"PAGEWRIGHT_JOB=" + string(payload), "PAGEWRIGHT_WORKER_ID=" + name, "PAGEWRIGHT_WORK_DIR=" + d.cfg.WorkDir, "PAGEWRIGHT_MANAGER_URL=" + managerURL, "PAGEWRIGHT_STORAGE_URL=" + d.cfg.StorageURL, "PAGEWRIGHT_LLM_KEY=" + d.cfg.LLMKey, "PAGEWRIGHT_LLM_URL=" + d.cfg.LLMURL},
 		"Labels":     map[string]string{"io.pagewright.role": "worker", "io.pagewright.job_id": job.JobID, "io.pagewright.site_id": job.SiteID, "io.pagewright.network": d.cfg.Network},
 		"HostConfig": workerHostConfig(d.cfg),
+	}
+	if d.cfg.LLMModel != "" {
+		body["Env"] = append(body["Env"].([]string), "PAGEWRIGHT_LLM_MODEL="+d.cfg.LLMModel)
 	}
 	data, _ := json.Marshal(body)
 	status, response, err := d.call(ctx, "POST", "/containers/create?name="+url.QueryEscape(name), data)

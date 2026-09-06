@@ -19,6 +19,7 @@ type Executor struct {
 	workDir    string
 	llmKey     string
 	llmBaseURL string
+	model      string
 	isolate    bool
 
 	mu             sync.Mutex
@@ -40,7 +41,13 @@ func NewExecutor(binaryPath, workDir, llmKey, llmBaseURL string) *Executor {
 	}
 }
 
-// Execute runs codex exec with the given prompt
+// WithModel must be called before Execute. Empty preserves the pinned CLI default.
+func (e *Executor) WithModel(model string) *Executor {
+	e.model = model
+	return e
+}
+
+// Execute runs codex exec with the given prompt.
 func (e *Executor) Execute(ctx context.Context, prompt string) error {
 	e.mu.Lock()
 	if e.running {
@@ -122,6 +129,9 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 		"-c", "shell_environment_policy.set={PATH=\"/usr/local/bin:/usr/bin:/bin\"}",
 		"-c", "developer_instructions="+strconv.Quote(string(instructions)), "-")
 	cmd.Dir = e.workDir
+	if e.model != "" {
+		cmd.Args = append(cmd.Args[:len(cmd.Args)-1], "--model", e.model, "-")
+	}
 	cmd.WaitDelay = 2 * time.Second
 	confineProcess(cmd)
 	cmd.Stdin = strings.NewReader(prompt)
