@@ -26,8 +26,8 @@ There is useful implementation across all services, but the application is still
 | Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped history and intersects completed submissions with committed storage. M3.2 (`b1af7d6`) polls active jobs on the current history page with bounded backoff and refreshes versions on completion. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; polling pauses at explicit limits and supports manual resume. Actual browser acceptance remains M3.12. |
 | Live updates | M3.2 supplies bounded owner-checked history polling. M3.3 (`7f99456`) removes the broken browser socket transport and gateway hub/upgrader; `/ws` returns 501. | Polling is the MVP transport. Future sockets require browser-compatible authentication, strict origins, owner/site filtering, real event delivery/resynchronization and tested reconnect cleanup; no re-enable flag exists. |
 | Deploy / preview | M3.4 activates Preview before opening its validated URL. M3.6 (`830c476`) shares configured URLs across API/UI entry points and serves preview on `preview.<site-fqdn>/`; nested navigation/assets and exact-artifact promotion pass real compiler/nginx integration. | Configure DNS/TLS for both hosts and migrate existing generated configs by reactivating Preview; custom configs require operator review. Actual browser journey remains M3.12. |
-| Deployment consistency | M3.4 preserves the opposite DB pointer and checks write errors. Serving still removes the old symlink before creating the new one. | Reconcile partial activation in M3.7; replace symlinks atomically in M3.8. A failed activation can already have changed serving state. |
-| Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy; config mutations are validated, generation-acknowledged, journaled and recoverable. M3.6 adds separate preview hosts and safe legacy config migration. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. DB reconciliation and atomic artifact pointers remain M3.7/M3.8; pilot security remains M4. |
+| Deployment consistency | M3.7 (`ec47934`) persists sequenced intent, serializes unresolved per-site selections, fences serving requests with durable receipts, and reconciles exact outcomes into one DB pointer transaction. | Upgrade gateway/serving together and preserve sequence/receipt evidence. Atomic symlink replacement and safe retention remain M3.8; a pending activation can temporarily leave its host unavailable. Enrolled-site deletion is guarded until coordinated deletion exists. |
+| Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy; config mutations are validated, generation-acknowledged, journaled and recoverable. M3.6 adds separate preview hosts; M3.7 reconciles durable activation receipts. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Atomic artifact pointers/retention remain M3.8; pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. M3.6 removes hard-coded site hosting links. | Ship only working controls and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
@@ -874,6 +874,65 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.7 completed (2026-09-06) in `ec47934`.
+[Deployment consistency/recovery runbook](docs/DEPLOYMENT_RECOVERY.md) defines the
+protocol. Migration 010 adds a bounded current deployment record per site and a
+monotonically increasing PostgreSQL sequence. Site-row reservation admits only one
+unresolved operation across live/preview and gateway instances; identical pending
+requests share identity, competing selections return 409. Ownership, identifiers,
+target and configured URL are validated before intent persistence/external writes.
+
+Serving serializes deployment work and atomically writes/syncs a private receipt
+before side effects. It stages the immutable artifact and confirms existing-policy
+nginx routing, persists `activating` before the symlink change, verifies the selected
+link, then persists completion. Pre-activation failures are durable terminal failures;
+interrupted activation remains uncertain and retries only the exact artifact.
+Same-sequence conflicts, delayed older requests, corrupt receipts and mismatched
+completed pointers fail closed. Completed replay does not download/reactivate.
+The M3.5 single-serving-writer volume lock remains a prerequisite.
+
+Gateway accepts only an identity-matching bounded terminal receipt. A conditional
+transaction saves its status and only its selected site pointer; DB failure rolls
+both back, retaining the pending intent. Startup/five-second recovery scans bounded
+oldest-first batches with per-attempt deadlines and never invents a rollback or new
+selection. An owner-authenticated no-store status endpoint exposes the current
+operation. Detailed UI recovery presentation remains M3.10.
+
+Legacy artifact/activation/deletion calls cannot bypass an enrolled site's fence.
+Enrollment and never-enrolled deletion are serialized; serving deletion failure no
+longer silently proceeds to DB deletion. Enrolled-site deletion is refused even
+after terminal failure, preserving sequence evidence against delayed requests.
+The new route does not invoke unsafe automatic artifact retention. Safe active-aware
+retention/atomic symlinks remain M3.8; unsupported deletion controls belong in M3.9.
+
+Verification passed: final six-module Go baseline, gateway/serving race tests/vet,
+full race-enabled service integration, root Compose startup/nginx-crash/recreation
+smoke and whitespace checks. Tests include concurrent reservations and replay,
+opposite-pointer preservation, actual PostgreSQL pointer-write failure/transaction
+rollback, stale completion rejection, owner-only status and deletion guards.
+Serving tests recreate handlers over persisted receipts, model a crash after the
+pointer switched, retain uncertainty through an outage, and reject corrupt/stale
+evidence. The real worker/compiler/storage/hosting journey loses the serving
+acknowledgment after actual activation, confirms DB uncertainty, then starts a fresh
+gateway recovery instance and verifies agreement without changing preview.
+
+Initial verification corrected an absent gateway test dependency and migration-count
+expectations. Integration also reproduced the documented nginx worker-drain window;
+public-resource tests now bound convergence while retaining exact artifact-byte
+checks and immediate private-path 404 assertions. Two existing serving skips remain
+(`TestCleanupOldVersions`, `TestLoadConfigDefaults`). Evidence:
+`/tmp/pagewright-m37-verified-integration.log`, `/tmp/pagewright-m37-unit-final.log`,
+`/tmp/pagewright-m37-smoke.log`. UI source unchanged; root smoke rebuilt its image.
+
+Upgrade gateway/serving together after draining deployment traffic. Retain PostgreSQL
+sequence state and serving receipts; do not mix old unfenced gateways or independently
+restore volumes. Legacy pre-M3.7 mismatches and arbitrary evidence loss require
+operator review; coordinated backup/restore acceptance remains M4.11. No paid calls,
+remote deployment, application-data changes or push occurred; disposable stacks
+were removed. This is retry/restart reconciliation, not globally atomic publishing.
+
+Next: **M3.8**, atomic artifact-pointer replacement, active-version retention and rollback tests.
+
 M3.6 completed (2026-09-06) in `830c476`.
 [Hosting URLs and preview upgrade guidance](docs/PREVIEW_ACTIVATION.md) define
 shared gateway scheme/port URL generation for site create/list/detail and deployment
@@ -919,7 +978,7 @@ stacks were removed. Preview remains public, not an authenticated private worksp
 Distributed deployment reconciliation remains M3.7, atomic artifact-pointer changes
 M3.8, and full rendered-browser acceptance M3.12.
 
-Next: **M3.7**, reconcile partial activation and define concurrent deployment policy.
+At M3.6 handoff, next was **M3.7**, reconcile partial activation and define concurrent deployment policy.
 
 M3.5 completed (2026-09-06) in `2e1eea2`.
 [Supervised hosting lifecycle](docs/HOSTING_LIFECYCLE.md) defines the production
