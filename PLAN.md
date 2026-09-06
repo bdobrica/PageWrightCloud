@@ -26,8 +26,8 @@ There is useful implementation across all services, but the application is still
 | Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped history and intersects completed submissions with committed storage. M3.2 (`b1af7d6`) polls active jobs on the current history page with bounded backoff and refreshes versions on completion. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; polling pauses at explicit limits and supports manual resume. Actual browser acceptance remains M3.12. |
 | Live updates | M3.2 supplies bounded owner-checked history polling. M3.3 (`7f99456`) removes the broken browser socket transport and gateway hub/upgrader; `/ws` returns 501. | Polling is the MVP transport. Future sockets require browser-compatible authentication, strict origins, owner/site filtering, real event delivery/resynchronization and tested reconnect cleanup; no re-enable flag exists. |
 | Deploy / preview | M3.4 activates Preview before opening its validated URL. M3.6 (`830c476`) shares configured URLs across API/UI entry points and serves preview on `preview.<site-fqdn>/`; nested navigation/assets and exact-artifact promotion pass real compiler/nginx integration. | Configure DNS/TLS for both hosts and migrate existing generated configs by reactivating Preview; custom configs require operator review. Actual browser journey remains M3.12. |
-| Deployment consistency | M3.7 (`ec47934`) persists sequenced intent, serializes unresolved per-site selections, fences serving requests with durable receipts, and reconciles exact outcomes into one DB pointer transaction. | Upgrade gateway/serving together and preserve sequence/receipt evidence. Atomic symlink replacement and safe retention remain M3.8; a pending activation can temporarily leave its host unavailable. Enrolled-site deletion is guarded until coordinated deletion exists. |
-| Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy; config mutations are validated, generation-acknowledged, journaled and recoverable. M3.6 adds separate preview hosts; M3.7 reconciles durable activation receipts. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Atomic artifact pointers/retention remain M3.8; pilot security remains M4. |
+| Deployment consistency | M3.7 (`ec47934`) persists sequenced intent and reconciles exact serving receipts into one DB pointer transaction. M3.8 (`4466271`) replaces pointers atomically and protects active/receipt-pinned cache versions through retention and rollback. | Preserve sequence/receipt evidence and single-writer operation. Post-rename errors remain uncertain, not speculative rollbacks. Atomic pointer selection is not a multi-request browser snapshot; enrolled-site deletion remains guarded until a coordinated tombstone protocol exists. |
+| Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. M3.6 removes hard-coded site hosting links. | Ship only working controls and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
@@ -874,6 +874,61 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.8 completed (2026-09-06) in `4466271`.
+[Atomic activation and retention guide](docs/ATOMIC_ACTIVATION.md) defines the
+filesystem and upgrade contract. Compiled output is validated/extracted privately,
+synced and renamed into its immutable cache directory before activation. Serving
+creates a temporary symlink on the destination filesystem and renames it over only
+the selected public/preview pointer, then syncs the site directory. It no longer
+unlinks active output first. Invalid replacement paths and unrecognized pointers
+fail before cutover; errors after rename retain M3.7's uncertainty semantics rather
+than assuming rollback. Explicit rollback uses a newer fenced deployment sequence.
+
+The artifact writer mutex serializes deployment, activation, retention and deletion.
+Retention parses exact canonical live/preview targets and the shared M3.7 receipt
+schema; malformed/unreadable evidence or path indirection prevents deletion. Active
+and receipt-pinned versions plus one minute of newly created/selected/retired output
+are protected. Directory timestamps provide grace without altering artifact bytes.
+The configured maximum is a soft total cache budget; protected entries may exceed
+it, and remaining entries are ordered deterministically by timestamp/name. Private
+staging entries are untouched. Only serving-cache copies are removed; canonical
+storage and version history remain available for restaging an evicted rollback.
+
+Fenced deployments now run guarded retention after terminal receipt persistence;
+cleanup failure is deferred maintenance, not a false activation failure. Whole-site
+removal checks active pointers and receipt evidence before its nginx-removal callback
+under the writer lock. A legacy active site therefore keeps both routing and output
+when deletion is refused. M3.7's enrolled-site/tombstone guard remains in place;
+coordinated deletion is not implemented, and M3.9 should hide unsupported controls.
+
+Verification passed: six-module Go baseline, final serving race tests/vet, full
+race-enabled service integration, production startup/nginx-crash/recreation smoke
+and whitespace checks. The previously skipped cleanup test is now deterministic
+and passing. Added tests cover continuous complete-file reads through repeated
+switches/cleanup, forced lock overlap, rename failure preserving old output,
+post-rename uncertainty followed by recreated-manager rollback, exact versus
+substring pins, receipt protection, staging preservation, grace-period overflow,
+stable ties, symlink/regular-file rejection and deletion guards preceding routing
+removal. Serving tests evict an inactive cached version, re-download it through a
+newer fenced rollback, preserve preview and reject delayed older requests. The real
+compiler/storage/nginx journey still passes promotion, rollback and lost-ack recovery.
+
+One pre-existing serving skip remains (`TestLoadConfigDefaults`). Evidence:
+`/tmp/pagewright-m38-final-integration.log`, `/tmp/pagewright-m38-unit.log`,
+`/tmp/pagewright-m38-smoke.log`. No schema or UI source changes; production smoke
+builds the images. No paid calls, remote deployment, application-data changes or
+push occurred; disposable test stacks were removed.
+
+Drain deployments before upgrading serving; preserve compatible gateway/receipts
+and the single-writer volume lock. Existing inactive cache entries can become
+eligible on the next cleanup, so review the soft cache limit first. Atomic rename
+does not provide a multi-request browser snapshot, and the grace period is not a
+request-lifetime lease. Hidden crash-left staging directories remain for operator
+inspection. Full rendered-browser acceptance remains M3.12; arbitrary disk loss,
+coordinated backup/restore and security remain M4 work.
+
+Next: **M3.9**, hide/disable unsupported MVP controls and backend actions.
+
 M3.7 completed (2026-09-06) in `ec47934`.
 [Deployment consistency/recovery runbook](docs/DEPLOYMENT_RECOVERY.md) defines the
 protocol. Migration 010 adds a bounded current deployment record per site and a
@@ -931,7 +986,7 @@ operator review; coordinated backup/restore acceptance remains M4.11. No paid ca
 remote deployment, application-data changes or push occurred; disposable stacks
 were removed. This is retry/restart reconciliation, not globally atomic publishing.
 
-Next: **M3.8**, atomic artifact-pointer replacement, active-version retention and rollback tests.
+At M3.7 handoff, next was **M3.8**, atomic artifact-pointer replacement, active-version retention and rollback tests.
 
 M3.6 completed (2026-09-06) in `830c476`.
 [Hosting URLs and preview upgrade guidance](docs/PREVIEW_ACTIVATION.md) define
