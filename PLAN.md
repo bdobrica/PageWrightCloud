@@ -29,7 +29,7 @@ There is useful implementation across all services, but the application is still
 | Deployment consistency | M3.7 (`ec47934`) persists sequenced intent and reconciles exact serving receipts into one DB pointer transaction. M3.8 (`4466271`) replaces pointers atomically and protects active/receipt-pinned cache versions through retention and rollback. | Preserve sequence/receipt evidence and single-writer operation. Post-rename errors remain uncertain, not speculative rollbacks. Atomic pointer selection is not a multi-request browser snapshot; enrolled-site deletion remains guarded until a coordinated tombstone protocol exists. |
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
-| User-facing gaps | M3.9 (`d61a2e2`) gates unsupported capabilities. M3.10 (`5ad744d`) preserves account/site-scoped tab drafts and retry identities, adds publication feedback and refreshes confirmed deployment state. Reset email remains a TODO and reset tokens are logged. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Full keyboard/mobile audit remains M3.11, real-service browser acceptance M3.12 and reset-email/pilot security M4. |
+| User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains a TODO and reset tokens are logged. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
@@ -874,6 +874,48 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.11 completed (2026-09-06) in `375def7`.
+[Keyboard/focus and responsive acceptance](docs/UI_ACCESSIBILITY.md) records the
+behavior, repeatable audit and verification limits. Version actions now use
+labelled native modal dialogs with initial close-button focus, inert background,
+keyboard containment, Escape/close/backdrop dismissal and opener restoration
+(versions-heading fallback when needed). Cleanup restores body scrolling, and
+closing pending work does not cancel a deployment or reopen the dismissed UI.
+
+Skip/main landmarks, route focus and current-page navigation support keyboard
+movement. Version buttons retain Enter/Space activation; the composer regains
+focus after submission only when it would otherwise be lost to the body.
+Shift+Enter remains a newline, while composition and repeat events cannot send.
+History updates no longer scroll the whole page. A native disclosure starts
+collapsed for mobile versions, keeping long histories from preceding the editor.
+Layout changes remove constrained nested scroll areas, wrap long IDs/domains and
+bound a single dialog scroller to the viewport. Explicit colors, 44px button
+heights, visible-focus overrides and reduced-motion rules address base-CSS
+conflicts and system color preferences.
+
+Verification passed: UI contracts, zero-warning lint/type-check/production build,
+rendered Firefox keyboard/reflow checks at 1280×900, 768×1024, 390×844, 320×568
+and 640×450, screenshot inspection, the existing rendered draft-recovery regression
+and final production Compose startup/nginx-crash/recreation smoke. Assertions
+cover skip/route focus, disclosure activation, modal focus containment and inert
+background, Escape/close restoration, pending dismissal, scroll cleanup,
+IME/newline safety, target size, page/dialog overflow, dialog bounds, primary
+text contrast, focus visibility and reduced motion with a dark system preference.
+The audit caught a driver/browser mismatch, a mismatched synthetic version ID
+and an overridden focus rule; all were corrected before final acceptance.
+Cached Playwright 1.58.2 matches installed Firefox revision 1509; no browser or
+application dependencies were installed.
+
+No backend/schema/provider or hosting-policy changes were made. The full Go
+suites were not rerun for this UI-only change. No paid calls, remote deployment,
+application-data changes or push occurred; disposable stacks were removed.
+This audit is not WCAG certification: screen-reader speech, real-device touch/
+virtual keyboards, actual zoom, forced colors and other browser engines remain
+unverified. The viewport tests and synthetic IME events do not imply those checks.
+
+Next: **M3.12**, the real-service browser journey, sequential edits, independent
+preview/live state, refresh, build failure and rollback without manual HTML/DB seeding.
+
 M3.10 completed (2026-09-06) in `5ad744d`.
 [Draft recovery and publication feedback](docs/DRAFT_RECOVERY.md) defines the
 account/site-scoped, current-tab storage contract. Text changes are saved
@@ -918,7 +960,7 @@ dependencies were installed. No backend/schema changes or full Go-suite rerun
 were needed for this UI-only change; no paid provider calls, remote changes,
 application-data migration or push occurred. Disposable stacks were removed.
 
-Next: **M3.11**, full keyboard/focus and mobile/desktop usability verification.
+At M3.10 handoff, next was **M3.11**, full keyboard/focus and mobile/desktop usability verification.
 The mocked rendered regression does not complete M3.12's real-service browser
 journey. Tab-local storage is not encrypted backup, cross-device persistence or
 server-side conversation history.
