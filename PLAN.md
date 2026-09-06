@@ -22,6 +22,7 @@ There is useful implementation across all services, but the application is still
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
 | Compilation | M1.8 (`6bc86f1`) adds [starter/compiler fixtures and filesystem checks](docs/COMPILER_CONTRACT.md), but the [worker runner](pagewright/worker/cmd/runner/main.go) still does not invoke the compiler and `ChecksPassed` remains false. Serving validates compiled archive structure. | Integrate `pagewrightc` using fresh output, generate `public/index.html`, and derive validation results from actual checks. |
+| Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
 | Version state | M1.2 persists the job/target mapping before dispatch. M1.9 (`8609d32`) normalizes committed-storage versions into validated UI fields, status and UTC timestamps. | Pending/failed job history and DB/storage completion reconciliation remain M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
@@ -409,12 +410,44 @@ zero-warning UI lint and production build; affected gateway/UI image builds and
 fresh startup/persistent-volume recreation. Disposable test stacks were removed
 without changing application volumes. Five existing skips remain unchanged.
 
-M1.10 is next: deterministic compiled-artifact service round trip. The version
+At M1.9 handoff, M1.10 was next: deterministic compiled-artifact service round trip. The version
 list is committed-artifact history, not pending/failed job reconciliation, and
 completed initial source is not a publishable build. UI preview activation,
 hosting URLs, atomic symlinks, preservation of the other DB version pointer and
 serving/DB failure compensation remain M3. No paid AI, browser publishing journey,
-push or hosted CI execution occurred; the full M1 exit remains unverified.
+push or hosted CI execution occurred; the full M1 exit was still unverified at that handoff.
+
+M1.10 completed (2026-09-06) in `92ea617`. The integration-only deterministic
+executor edits bootstrapped Markdown and invokes the actual compiler with the
+trusted starter theme. A worker test entrypoint calls the production `runJob`
+using the manager's complete HTTP snapshot, preserving internal lease fields.
+It fetches/unpacks source, executes, packs/validates, commits archive/log/manifest
+and reports completion through the actual service interfaces.
+
+The end-to-end scenario registers and creates the site through real gateway HTTP
+handlers/auth middleware and submits the canonical build. It uses PostgreSQL,
+Redis, manager, storage and serving services in isolated containers. Gateway
+list/download/deploy routes lead to real serving activation and nginx hosting;
+HTML and every public asset match the archive bytes. Source survives in the
+immutable archive, private paths return 404, a conflicting overwrite preserves
+bytes, and a rejected source-only deployment leaves the compiled live page intact.
+No public files are manually seeded and the scenario makes no direct DB edits.
+See [test topology and limitations](docs/DETERMINISTIC_ROUNDTRIP.md).
+
+Verification passed: six-module package baseline; five-module race-enabled
+isolated integration including `TestCompiledArtifactRoundTrip`; shell syntax and
+staged whitespace checks. Test nginx's hostname hash size was adjusted after a
+minimal nginx check reproduced rejection of the long UUID-based fixture domains.
+Disposable stacks and their ephemeral data were removed; application volumes
+were untouched. Five existing skips remain unchanged. No UI code changed, and no
+paid AI, browser journey, push or hosted CI run was performed.
+
+M1's deterministic contract exit is now verified. Next is M2.1: implement the
+production Docker spawner. The test harness deliberately bridges that stub;
+the fixture binary is absent from production images. Production compiler/output
+validation remains M2.4 (`checks_passed` is still false), and root Compose's
+separate nginx/reload topology, preview and deployment reconciliation remain M3.
+The test-only co-located nginx topology is not a production deployment fix.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
