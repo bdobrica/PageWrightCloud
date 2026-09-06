@@ -25,9 +25,9 @@ There is useful implementation across all services, but the application is still
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
 | Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped history and intersects completed submissions with committed storage. M3.2 (`b1af7d6`) polls active jobs on the current history page with bounded backoff and refreshes versions on completion. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; polling pauses at explicit limits and supports manual resume. Actual browser acceptance remains M3.12. |
 | Live updates | M3.2 supplies bounded owner-checked history polling. M3.3 (`7f99456`) removes the broken browser socket transport and gateway hub/upgrader; `/ws` returns 501. | Polling is the MVP transport. Future sockets require browser-compatible authentication, strict origins, owner/site filtering, real event delivery/resynchronization and tested reconnect cleanup; no re-enable flag exists. |
-| Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
-| Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
-| Hosting | [Compose](docker-compose.yaml) separates serving and nginx, but serving executes local `nginx -s reload`. Preview activation does not create nginx config. | Make nginx configuration/reload part of a supported topology; first preview must work before first publish. |
+| Deploy / preview | M3.4 (`e22362d`) activates Preview through the deployment API before opening a validated, scheme/port-configured response URL, with popup fallback and failure feedback. | Update remaining UI links and verify preview assets/navigation in M3.6; actual browser journey remains M3.12. |
+| Deployment consistency | M3.4 preserves the opposite DB pointer and checks write errors. Serving still removes the old symlink before creating the new one. | Reconcile partial activation in M3.7; replace symlinks atomically in M3.8. A failed activation can already have changed serving state. |
+| Hosting | M3.4 provisions first-preview nginx routing and verifies it with real nginx in integration. [Compose](docker-compose.yaml) still separates serving/nginx while serving executes local `nginx -s reload`. | Production supervision, reload coordination, validation and rollback remain M3.5. The integration topology is not a production lifecycle fix. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. Site links assume HTTPS without the local port. | Ship only working controls, configure returned hosting URLs, and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
@@ -874,6 +874,37 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.4 completed (2026-09-06) in `e22362d`.
+[Preview activation contract](docs/PREVIEW_ACTIVATION.md) documents staging,
+activation, first-host routing, checked DB state and returned URL sequencing.
+The version modal calls the preview deployment API, validates its response and
+opens only after confirmation; pending actions are guarded, errors remain visible,
+and a normal link handles blocked popups. Closing the modal suppresses late tab
+opening, not the server operation.
+
+Serving ensures missing nginx routing exists on first preview without replacing
+existing aliases or disabled-site configuration. The real worker/compiler/storage/
+nginx integration proves compiled HTML is available in preview before first publish,
+live remains 404, and a later preview leaves published HTML and the live pointer
+unchanged. Narrow M3.6/M3.7 prerequisites were necessary: explicit public scheme/
+port configuration, nil-as-unchanged DB pointer updates, and checked DB write errors.
+Other UI entry-point URLs/assets and distributed activation reconciliation remain
+in those milestones; no partial-activation rollback claim is made.
+
+Verification passed: two full race-enabled isolated service integration runs,
+six-module Go package baseline, gateway/serving race/vet, UI contracts/polling tests,
+zero-warning lint, TypeScript and production build. Additional tests cover owner
+denial, artifact-before-activation ordering, failure responses without success URLs,
+safe URL validation, modal closure, popup fallback, routing policy preservation and
+reload errors. Two existing serving skips remain. Disposable integration services
+were removed; application data and private `.env` were untouched. No paid calls,
+remote deployment or push occurred.
+
+Next: **M3.5**, production serving/nginx lifecycle. M3.4's integration co-locates
+nginx and serving; root Compose still requires reload coordination before production
+preview can succeed. Preview assets and remaining configured URLs are M3.6, durable
+reconciliation/atomic operations M3.7/M3.8, rendered-browser acceptance M3.12.
+
 M3.3 completed (2026-09-06) in `7f99456`.
 [WebSocket retirement and re-enable gate](docs/JOB_HISTORY_API.md) documents the
 polling-only MVP. Removed the browser connection hook, reconnect timer, query-token
@@ -895,7 +926,7 @@ application data was untouched. No paid calls, remote deployment or push occurre
 Full rendered-browser acceptance remains M3.12; the full service integration suite
 was not rerun for this transport-removal milestone.
 
-Next: **M3.4**, make Preview activate deployment before opening its returned URL.
+At M3.3 handoff, next was **M3.4**, make Preview activate deployment before opening its returned URL.
 
 M3.2 completed (2026-09-06) in `b1af7d6`.
 [Polling contract](docs/JOB_HISTORY_API.md) defines sequential checks of active jobs
