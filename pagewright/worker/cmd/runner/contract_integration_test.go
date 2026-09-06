@@ -90,6 +90,11 @@ func TestManagerWorkerContractRoundTrip(t *testing.T) {
 			if err := reportResult(managerURL, &job, status, manifest, failure); err != nil {
 				t.Fatal(err)
 			}
+			// Manager still rejects a terminal duplicate; delivery resolves its
+			// ambiguous 409 through the authoritative stored outcome.
+			if err := reportResult(managerURL, &job, status, manifest, failure); err != nil {
+				t.Fatalf("terminal result lookup reconciliation: %v", err)
+			}
 			stored, err := client.Get(managerURL + "/jobs/" + job.JobID)
 			if err != nil {
 				t.Fatal(err)

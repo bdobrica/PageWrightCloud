@@ -4,7 +4,9 @@ Port 8081. Redis-backed durable job admission and bounded background Docker
 dispatch. See the [dispatch contract](../../docs/QUEUE_DISPATCH.md) for recovery,
 persistence, configuration and upgrade requirements, and the
 [Docker launch contract](../../docs/DOCKER_SPAWNER.md) for image/network setup and
-socket authority. Trusted compilation and paid-provider acceptance remain later milestones.
+socket authority. [Result recovery](../../docs/RESULT_RECOVERY.md) covers bounded
+callbacks, verified worker exits, artifact receipts and terminal timeouts.
+Paid-provider acceptance remains a later milestone.
 
 ## API
 
@@ -50,7 +52,7 @@ All variables use the `PAGEWRIGHT_` prefix.
 | `DISPATCH_CLAIM_TTL` | `30s`, range 1s–1m, pre-launch claim lease |
 | `LOCK_TTL` | `5m`; renewal remains unimplemented |
 | `WORKER_SPAWNER` | `docker`; Kubernetes is a historical logging stub |
-| `WORKER_IMAGE` | `pagewright-worker:m2.7`; [CLI contract and sandbox prerequisites](../../docs/WORKER_CLI.md) |
+| `WORKER_IMAGE` | `pagewright-worker:m2.8`; [CLI contract and sandbox prerequisites](../../docs/WORKER_CLI.md) |
 | `WORKER_APPARMOR_PROFILE` | Empty or reviewed `pagewright-worker`; requires explicit host profile installation |
 | `WORKER_NETWORK` | Required dedicated Docker network |
 | `WORKER_STORAGE_URL` | `http://storage:8080`, reachable by workers |

@@ -81,6 +81,13 @@ func TestRealDockerCreateStart(t *testing.T) {
 		_, body, _ := d.call(ctx, "GET", "/containers/"+id+"/logs?stdout=true&stderr=true", nil)
 		t.Fatalf("fixture failed: %d %q", state.State.ExitCode, body)
 	}
+	observed, err := d.Inspect(ctx, job)
+	if err != nil || !observed.Exists || !observed.Exited || observed.ID != id || observed.ExitCode != 0 {
+		t.Fatalf("recovery inspection: %+v %v", observed, err)
+	}
+	if err := d.Kill(ctx, observed.ID); err != nil {
+		t.Fatalf("already-exited kill reconciliation: %v", err)
+	}
 	if state.HostConfig.NetworkMode != cfg.Network || len(state.HostConfig.Binds) != 0 || state.Config.Image != cfg.Image {
 		t.Fatal("incorrect Docker configuration")
 	}

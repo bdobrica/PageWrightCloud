@@ -168,7 +168,7 @@ func TestDispatchFastCallbackAndSpawnOutcomes(t *testing.T) {
 			}
 			active := b.client.SCard(context.Background(), b.queueKey+":active").Val()
 			if outcome == "not_started" {
-				if stored.Status != types.JobStatusFailed || stored.ErrorCode != "spawn_failed" || active != 0 || locks.released.Load() != 1 {
+				if stored.Status != types.JobStatusFailed || stored.ErrorCode != "spawn_failed" || active != 0 || locks.released.Load() != 0 || b.client.Exists(context.Background(), "lock:site:"+stored.SiteID).Val() != 0 {
 					t.Fatalf("bad rejection: %+v active=%d", stored, active)
 				}
 			} else if outcome == "fast_callback" {

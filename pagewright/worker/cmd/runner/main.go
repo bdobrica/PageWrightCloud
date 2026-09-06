@@ -1,16 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -66,7 +63,9 @@ func main() {
 		srv.SetError(err)
 
 		// Report failure to manager
-		reportResult(cfg.ManagerURL, &job, "failed", "", err.Error())
+		if !errors.Is(err, errDeliveryUncertain) {
+			reportResult(cfg.ManagerURL, &job, "failed", "", err.Error())
+		}
 		os.Exit(1)
 	}
 
@@ -192,14 +191,14 @@ func persistAndReport(storageClient *storage.Client, managerURL string, job *typ
 	}
 	fmt.Println("Committing manifest...")
 	if err := storageClient.UploadManifest(job.SiteID, job.TargetVersion, manifest); err != nil {
-		return fmt.Errorf("failed to upload manifest: %w", err)
+		return fmt.Errorf("%w: manifest acknowledgement unavailable: %v", errDeliveryUncertain, err)
 	}
 
 	// Step 9: Report completion to manager
 	manifestPath := fmt.Sprintf("/sites/%s/artifacts/%s/manifest", job.SiteID, job.TargetVersion)
 
 	if err := reportResult(managerURL, job, "completed", manifestPath, ""); err != nil {
-		return fmt.Errorf("failed to report result: %w", err)
+		return fmt.Errorf("%w: %v", errDeliveryUncertain, err)
 	}
 
 	return nil
@@ -229,27 +228,7 @@ func reportResult(managerURL string, job *types.Job, status, manifestPath, error
 		return fmt.Errorf("invalid result: %w", err)
 	}
 
-	jsonData, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	// POST to manager's /jobs/{job_id}/result endpoint
-	url := fmt.Sprintf("%s/jobs/%s/result", strings.TrimRight(managerURL, "/"), job.JobID)
-	fmt.Printf("Reporting result to manager: %s\n", url)
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to post result: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("manager returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	fmt.Println("Result reported successfully")
-	return nil
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	return deliverResult(ctx, managerURL, result, 4, 250*time.Millisecond)
 }

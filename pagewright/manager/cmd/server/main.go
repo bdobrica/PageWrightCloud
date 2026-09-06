@@ -17,6 +17,7 @@ import (
 	lockRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock/redis"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
 	queueRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue/redis"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/reconciler"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner/docker"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner/kubernetes"
@@ -98,6 +99,14 @@ func main() {
 	dispatcherContext, stopDispatch := context.WithCancel(context.Background())
 	dispatcherDone := make(chan struct{})
 	leasesDone := make(chan struct{})
+	recoveryDone := make(chan struct{})
+	go func() {
+		defer close(recoveryDone)
+		if inspector, ok := workerSpawner.(spawner.Inspector); ok {
+			recovery := &reconciler.Reconciler{Queue: queueBackend.(*queueRedis.RedisBackend), Workers: inspector, StorageURL: cfg.WorkerStorageURL, Lifetime: cfg.WorkerTimeout}
+			recovery.Run(dispatcherContext)
+		}
+	}()
 	go func() {
 		defer close(leasesDone)
 		queueBackend.(*queueRedis.RedisBackend).MaintainLeases(dispatcherContext, cfg.LockTTL, cfg.LockRenewInterval, cfg.WorkerTimeout)
@@ -133,6 +142,7 @@ func main() {
 	log.Println("Shutting down server...")
 	stopDispatch()
 	<-leasesDone
+	<-recoveryDone
 	select {
 	case <-dispatcherDone:
 	case <-time.After(45 * time.Second):

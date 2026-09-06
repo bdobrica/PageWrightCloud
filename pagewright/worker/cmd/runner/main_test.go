@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,7 +65,7 @@ func TestReportResultWireContract(t *testing.T) {
 					}
 				}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(job)
+				json.NewEncoder(w).Encode(payload)
 			}))
 			defer server.Close()
 			if err := reportResult(server.URL+"/", &job, status, manifest, failure); err != nil {
@@ -87,7 +88,7 @@ func TestReportResultHTTPError(t *testing.T) {
 		job := contractJob()
 		err := reportResult(server.URL, &job, "failed", "", "execution failed")
 		server.Close()
-		if err == nil || !strings.Contains(err.Error(), "callback_rejected") {
+		if !errors.Is(err, errDeliveryUncertain) {
 			t.Errorf("HTTP %d error = %v", code, err)
 		}
 	}

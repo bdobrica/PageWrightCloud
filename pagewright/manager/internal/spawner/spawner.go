@@ -19,3 +19,14 @@ type Spawner interface {
 	// Close closes the spawner
 	Close() error
 }
+
+type WorkerState struct {
+	ID                                 string
+	Exists, Running, Exited, OOMKilled bool
+	ExitCode                           int
+}
+
+type Inspector interface {
+	Inspect(context.Context, *types.Job) (WorkerState, error)
+	Kill(context.Context, string) error
+}

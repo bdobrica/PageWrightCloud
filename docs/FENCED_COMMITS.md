@@ -61,9 +61,10 @@ Redis provides [atomic script execution](https://redis.io/docs/latest/develop/pr
 
 If storage crashes or the acknowledgement is lost after reservation, bytes may
 be staged/reserved but not visible. An identical object retry is allowed only
-while that attempt remains active and leased. Automatic recovery/reconciliation
-of this uncertain window belongs to M2.8/M2.9; do not delete a receipt to retry
-different bytes. Receipt retention/garbage collection belongs to M2.10.
+while that attempt remains active and leased. M2.8 adds conservative
+[receipt and result reconciliation](RESULT_RECOVERY.md); do not delete a receipt
+to retry different bytes. Restart durability remains M2.9 and receipt
+retention/garbage collection belongs to M2.10.
 
 ## Results and retries
 
@@ -77,12 +78,12 @@ Expired, superseded, duplicate terminal, and terminal-to-running callbacks retur
 409 without modifying the snapshot or releasing another attempt's lock. This
 includes identical terminal retries. Admission retries (`POST /jobs`) remain
 idempotent and return the stored snapshot. A worker receiving an ambiguous result
-response must eventually reconcile via job lookup (M2.8), not assume 409 means
+response now reconciles via bounded job lookup (M2.8), not assume 409 means
 its previous result was never accepted.
 
 ## Upgrade and scope
 
-Selected image/build defaults are `pagewright-worker:m2.7`.
+Selected image/build defaults are `pagewright-worker:m2.8`.
 Drain/reconcile pending, running and uncertain jobs before upgrading manager,
 storage and worker together. Old workers do not send the new identity header;
 old active jobs lack the dispatch timestamp/commit receipts needed for this

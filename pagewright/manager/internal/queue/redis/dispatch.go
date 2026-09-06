@@ -178,6 +178,8 @@ if redis.call('HGET', KEYS[4], id) ~= ARGV[2] then return false end
 local raw = redis.call('GET', ARGV[3]..id)
 if not raw then return false end
 local job = cjson.decode(raw)
+if job.site_id ~= ARGV[7] then return false end
+local lease = redis.call('GET', KEYS[8])
 if ARGV[4] ~= '' then job.worker_id = ARGV[4] end
 -- A fast terminal callback wins over late dispatch metadata.
 if job.status == 'running' then
@@ -187,7 +189,9 @@ if job.status == 'running' then
   job.error_code = 'spawn_failed'
   job.error_message = 'Worker was not started'
   job.updated_at = ARGV[6]
+  if job.lock_token and lease == job.lock_token then redis.call('DEL', KEYS[8]) end
   redis.call('SREM', KEYS[2], id)
+  redis.call('ZREM', KEYS[3], id)
   if redis.call('HGET', KEYS[6], job.site_id) == id then redis.call('HDEL', KEYS[6], job.site_id) end
  end
 end
@@ -199,7 +203,7 @@ func (r *RedisBackend) ResolveDispatch(ctx context.Context, c *queue.Claim, work
 	if outcome != "started" && outcome != "uncertain" && outcome != "not_started" {
 		return fmt.Errorf("invalid dispatch outcome")
 	}
-	_, err := resolveDispatch.Run(ctx, r.client, r.dispatchKeys(), c.Job.JobID, c.Token, r.jobKeyPrefix, workerID, outcome, time.Now().UTC().Format(time.RFC3339Nano)).Int()
+	_, err := resolveDispatch.Run(ctx, r.client, append(r.dispatchKeys(), "lock:site:"+c.Job.SiteID), c.Job.JobID, c.Token, r.jobKeyPrefix, workerID, outcome, time.Now().UTC().Format(time.RFC3339Nano), c.Job.SiteID).Int()
 	if err == redis.Nil {
 		return queue.ErrClaimLost
 	}

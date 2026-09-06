@@ -15,14 +15,16 @@ pending/running site is rejected with `job_busy`.
    fence and irreversible launch intent, checking claim ownership and expiry.
 3. Call Docker once. Merge container metadata without overwriting a fast terminal
    callback. A definite no-start failure records `failed/spawn_failed` and frees
-   capacity. Success or an ambiguous outcome retains capacity until terminal.
+   capacity and its matching lease atomically (M2.8). Success or an ambiguous
+   outcome retains capacity until terminal.
 
 Expired **pre-intent** claims return to the queue; stale claim owners cannot
 launch. Restarting a manager preserves this recovery and the shared limit.
 **Intent is never automatically replayed**, including a crash immediately before
 Docker is called, a lost intent acknowledgement or an ambiguous launch. These
-jobs conservatively remain running and occupy capacity; automatic/operator
-reconciliation is M2.8/M2.9. This is duplicate-safe dispatch, not guaranteed
+jobs conservatively remain running and occupy capacity until
+[M2.8 result/exit/timeout reconciliation](RESULT_RECOVERY.md); broader restart
+and operator recovery remains M2.9. This is duplicate-safe dispatch, not guaranteed
 eventual completion or exactly-once execution under arbitrary storage loss.
 Do not delete dispatch markers or expire reservations to force retries.
 

@@ -84,7 +84,5 @@ func (d *Dispatcher) Process(ctx context.Context, c *queue.Claim) {
 		log.Printf("Dispatch outcome not confirmed for job %s", job.JobID)
 		return
 	}
-	if outcome == "not_started" {
-		_ = d.Locks.Release(persist, job.SiteID, token)
-	}
+	// The queue atomically releases the matching lease with definite spawn failure.
 }

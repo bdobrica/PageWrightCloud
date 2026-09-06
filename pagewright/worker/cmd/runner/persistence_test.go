@@ -27,6 +27,10 @@ func TestPersistenceGatesCompletion(t *testing.T) {
 			}
 			var calls []string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == "GET" && r.URL.Path == "/jobs/"+job.JobID {
+					json.NewEncoder(w).Encode(job)
+					return
+				}
 				stage := "artifact"
 				base := "/sites/" + job.SiteID + "/artifacts/" + job.TargetVersion
 				switch r.URL.Path {
@@ -71,6 +75,7 @@ func TestPersistenceGatesCompletion(t *testing.T) {
 				}
 				if stage == "callback" {
 					w.WriteHeader(200)
+					w.Write(body)
 				} else {
 					w.WriteHeader(201)
 				}
@@ -81,8 +86,11 @@ func TestPersistenceGatesCompletion(t *testing.T) {
 				t.Fatalf("error=%v failure=%s", err, failure)
 			}
 			want := []string{"artifact", "logs", "manifest", "callback"}
+			if failure == "callback" {
+				want = append(want, "callback", "callback", "callback")
+			}
 			for i, stage := range want {
-				if stage == failure {
+				if stage == failure && stage != "callback" {
 					want = want[:i+1]
 					break
 				}
