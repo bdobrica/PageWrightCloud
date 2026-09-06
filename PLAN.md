@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1 (`d9bb650`) implements [Docker create/start and safe spawn outcomes](docs/DOCKER_SPAWNER.md), selecting `pagewright-worker:m2.1` with explicit network/endpoints and credential allowlisting. Kubernetes remains a historical logging stub. | Containers now launch, but the selected worker still has a placeholder executor. Queue dispatch, real AI/compiler integration, recovery and full isolation remain M2.2 onward. Manager-only Docker socket access requires trusted local operation. |
+| Execution | M2.1 (`d9bb650`) implements [Docker create/start and safe spawn outcomes](docs/DOCKER_SPAWNER.md), selecting `pagewright-worker:m2.1` with explicit network/endpoints and credential allowlisting. M2.2 moves launching into bounded dispatch. Kubernetes remains a historical logging stub. | Containers now launch, but the selected worker still has a placeholder executor. Real AI/compiler integration, broader recovery and full isolation remain M2.3 onward. Manager-only Docker socket access requires trusted local operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -28,7 +28,7 @@ There is useful implementation across all services, but the application is still
 | Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
 | Hosting | [Compose](docker-compose.yaml) separates serving and nginx, but serving executes local `nginx -s reload`. Preview activation does not create nginx config. | Make nginx configuration/reload part of a supported topology; first preview must work before first publish. |
-| Job reliability | Manager queues and immediately spawns inside the HTTP handler; no queue consumer runs in server main. Lock renewal and worker timeout configuration are not wired into the lifecycle. Redis has no persistent volume in root Compose. | Add durable dispatch, bounded concurrency, lock renewal, timeout handling and restart recovery. |
+| Job reliability | M2.2 (`5da77ad`) adds [durable bounded dispatch](docs/QUEUE_DISPATCH.md), atomic pending admission, shared active slots and token-fenced pre-intent recovery. Root/standalone Redis now use AOF and a persistent volume. | Ambiguous/irreversible intent retains capacity without replay. Lock renewal, timeouts, callback reconciliation and broader recovery remain M2.7–M2.9; existing Redis data needs operator migration before container replacement. |
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. Site links assume HTTPS without the local port. | Ship only working controls, configure returned hosting URLs, and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
@@ -454,6 +454,41 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.2 completed (2026-09-06) in `5da77ad`. HTTP admission now atomically stores
+and queues `pending` jobs without spawning. A background dispatcher enforces a
+shared active-job cap (default 4), claims with Redis-clock leases and random
+ownership tokens, and records irreversible launch intent before Docker. Expired
+pre-intent claims recover without allowing stale owners to launch; intent is
+never replayed. Terminal updates atomically free site admission/capacity and
+preserve container/lock metadata even when callbacks race dispatch completion.
+Manager shutdown stops claims and waits for bounded dispatch operations.
+
+Minimum Redis persistence was brought forward from M2.9: root and standalone
+Compose use a named volume and AOF with `appendfsync always`. Existing application
+Redis data was not migrated; preserve/export and restore writable-layer data
+before replacing an old container. Startup imports bounded legacy queue entries,
+preserves history and reserves capacity for old running jobs without relaunch.
+Malformed/conflicting legacy state fails closed. See the
+[dispatch contract and upgrade requirements](docs/QUEUE_DISPATCH.md).
+
+Verification passed: six-module package baseline; two full isolated integration
+runs including real-Redis expiry, stale claims, intent interruption, independent
+manager clients/restarts, global capacity, legacy import, corruption and fast
+callbacks; manager race/vet; isolated real-Docker launch regression; root-stack
+recreation preserving an acknowledged job, its failure and retry deduplication.
+No AI worker/provider ran in the persistence smoke test (unique missing image).
+Five existing skips remain. Disposable test containers/networks/volumes were
+removed; application data was untouched, hosted CI was not run and nothing was
+pushed.
+
+Next: **M2.3**, package/pin the real non-interactive AI CLI. M2.2 recovers only
+pre-intent dispatch automatically. A crash after intent, even before Docker,
+holds capacity conservatively; unresolved launches, missing callbacks, lease
+renewal, worker fencing, cancellation, history retention and gateway uncertainty
+still require M2.7–M2.9. This is not full restart recovery or a working AI MVP.
+
+#### M2.1 implementation record
 
 M2.1 completed (2026-09-06) in `d9bb650`. The Docker spawner now creates and starts
 containers through the Unix-socket Engine API with bounded acknowledgements and
