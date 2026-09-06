@@ -23,7 +23,7 @@ There is useful implementation across all services, but the application is still
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
 | Compilation | M1.8 adds compiler fixtures; M2.4 integrates trusted compilation/static checks; M2.5 verifies accumulated edits. M2.12 verifies a paid Luna edit through the actual sandboxed CLI and compiler. Serving validates archive structure. | Browser checks remain unperformed; one synthetic paid edit and static checks do not establish safe HTML for remote multi-user hosting. |
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
-| Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped durable history and refresh loading, and intersects known completed submissions with committed storage versions. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; automatic polling remains M3.2 and actual browser acceptance M3.12. |
+| Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped history and intersects completed submissions with committed storage. M3.2 (`b1af7d6`) polls active jobs on the current history page with bounded backoff and refreshes versions on completion. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; polling pauses at explicit limits and supports manual resume. Actual browser acceptance remains M3.12. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
@@ -874,6 +874,32 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.2 completed (2026-09-06) in `b1af7d6`.
+[Polling contract](docs/JOB_HISTORY_API.md) defines sequential checks of active jobs
+on the current history page, with 2/4/8/15-second backoff, 10-second transport
+timeouts, a 60-round/15-minute budget and a five-consecutive-error limit. Terminal
+pages stop; 401/403/404 pause immediately. Manual refresh resumes checks. Other
+pages are checked when opened; builds submitted elsewhere require a history refresh
+for discovery. There is no indefinite idle-page discovery loop.
+
+The UI validates site/job/source/target identities, ignores stale/regressive results,
+retains saved states and safe diagnostic codes during outages, and never converts
+polling errors into build failures. Failed builds show useful code explanations and
+job IDs for operators. Completion refreshes the version sidebar independently of
+history polling. Site-keyed Chat isolates navigation; new submissions reset history
+to page one. Cleanup aborts requests, cancels timers and ignores late responses.
+Unscoped socket events no longer update Chat; the unused connection remains M3.3.
+
+Verification passed: UI contracts and deterministic polling tests covering lifecycle
+transitions, fresh-instance recovery, timer/round/elapsed bounds, transient and access
+errors, retained failures, identity filtering, monotonicity, non-overlap and cleanup;
+zero-warning lint, TypeScript checks and production build. The polling tests run in
+the existing CI contract-test command. No backend code changed, so Go/Docker suites
+were not rerun for this UI-only milestone. Actual rendered-browser acceptance remains
+M3.12. No paid calls, remote changes, application-data changes or push occurred.
+
+Next: **M3.3**, remove the broken/unused WebSocket connection for the polling MVP.
+
 M3.1 completed (2026-09-06) in `38e908e`.
 [Owner-scoped history contract](docs/JOB_HISTORY_API.md) documents the authenticated
 single-job and paginated site-history endpoints, public allowlisted fields and
@@ -904,7 +930,7 @@ attempt exposed a new test-fixture response-format error; the corrected run pass
 Two existing serving skips remain. Disposable services/data were removed; no paid
 calls, remote deployment, application-data migration or push occurred.
 
-Next: **M3.2**, bounded active-job polling. M3.1's UI checks cover contracts and
+At M3.1 handoff, next was **M3.2**, bounded active-job polling. M3.1's UI checks cover contracts and
 build wiring, not a real browser journey (M3.12). The existing socket remains
 unchanged pending M3.3, and drafts/session-expiry recovery remains M3.10.
 
