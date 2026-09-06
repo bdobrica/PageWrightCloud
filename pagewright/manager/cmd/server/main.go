@@ -62,7 +62,7 @@ func main() {
 
 	switch cfg.WorkerSpawner {
 	case "docker":
-		workerSpawner, err = docker.NewDockerSpawner(docker.Config{Image: cfg.WorkerImage, Network: cfg.WorkerNetwork, Socket: cfg.DockerSocket, WorkDir: cfg.WorkerWorkDir, StorageURL: cfg.WorkerStorageURL, LLMURL: cfg.WorkerLLMURL, LLMKey: cfg.WorkerLLMKey})
+		workerSpawner, err = docker.NewDockerSpawner(docker.Config{Image: cfg.WorkerImage, Network: cfg.WorkerNetwork, Socket: cfg.DockerSocket, WorkDir: cfg.WorkerWorkDir, StorageURL: cfg.WorkerStorageURL, LLMURL: cfg.WorkerLLMURL, LLMKey: cfg.WorkerLLMKey, AppArmorProfile: cfg.WorkerAppArmorProfile})
 		if err != nil {
 			log.Fatalf("Invalid Docker worker configuration: %v", err)
 		}

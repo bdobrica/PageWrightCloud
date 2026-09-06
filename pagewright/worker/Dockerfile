@@ -17,9 +17,16 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o runner ./cmd/runner
 
 # Runtime stage
-FROM alpine:latest
+FROM node:24.11.1-bookworm-slim AS runtime
 
-RUN apk --no-cache add ca-certificates curl
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git bubblewrap \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY cli/package.json cli/package-lock.json /opt/pagewright-cli/
+RUN cd /opt/pagewright-cli && npm ci --omit=dev --ignore-scripts \
+    && cli_native="$(find /opt/pagewright-cli/node_modules -path '*/bin/codex' -type f)" \
+    && test -f "$cli_native" && ln -s "$cli_native" /usr/local/bin/codex \
+    && test "$(codex --version)" = 'codex-cli 0.153.4'
 
 WORKDIR /app
 
@@ -29,18 +36,9 @@ COPY --from=builder /build/runner .
 # Copy codex instructions template
 COPY .codex/instructions.md /.codex/instructions.md
 
-# Install codex CLI
-# For now, we'll create a placeholder script that can be replaced with the real binary
-RUN mkdir -p /usr/local/bin && \
-    echo '#!/bin/sh' > /usr/local/bin/codex && \
-    echo 'echo "CODEX MOCK: Would execute: $@"' >> /usr/local/bin/codex && \
-    echo 'echo "SUMMARY: Mock execution completed"' >> /usr/local/bin/codex && \
-    echo 'echo "FILES_CHANGED:"' >> /usr/local/bin/codex && \
-    echo 'echo "- modified: content/index.md"' >> /usr/local/bin/codex && \
-    chmod +x /usr/local/bin/codex
-
 # Create work directory
-RUN mkdir -p /work
+RUN mkdir -p /work && chown 1000:1000 /work
+USER 1000:1000
 
 # Set environment defaults
 ENV PAGEWRIGHT_WORK_DIR=/work \
@@ -51,3 +49,12 @@ ENV PAGEWRIGHT_WORK_DIR=/work \
 EXPOSE 8082
 
 CMD ["./runner"]
+
+FROM builder AS acceptance-builder
+RUN CGO_ENABLED=0 go test -tags cli_acceptance -c -o /cli-acceptance ./internal/codex
+
+FROM runtime AS cli-acceptance
+COPY --from=acceptance-builder /cli-acceptance /usr/local/bin/cli-acceptance
+ENTRYPOINT ["/usr/local/bin/cli-acceptance", "-test.v", "-test.timeout", "120s", "-test.run", "TestInstalled"]
+
+FROM runtime AS production

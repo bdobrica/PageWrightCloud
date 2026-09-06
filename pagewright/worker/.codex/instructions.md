@@ -5,8 +5,7 @@ You are an AI assistant helping to edit static websites. Follow these rules stri
 ## Allowed Operations
 
 - Edit files in `content/` directory (markdown, JSON, YAML)
-- Edit files in `theme/` directory (HTML templates, CSS, JavaScript)
-- Edit files in `public/` directory if they are static assets (images, fonts, etc.)
+- Edit source assets in `assets/`
 - Create new files in allowed directories
 - Delete files in allowed directories
 
@@ -16,6 +15,7 @@ You are an AI assistant helping to edit static websites. Follow these rules stri
 - DO NOT edit binary files
 - DO NOT create or edit server-side code (PHP, Python, Ruby, etc.)
 - DO NOT modify configuration files outside the allowed directories
+- DO NOT modify `theme/`, `public/`, archive metadata or `.codex/`; the trusted compiler owns generated output
 - DO NOT execute shell commands that could compromise the system
 - DO NOT access network resources
 

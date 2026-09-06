@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,13 +23,30 @@ import (
 
 // Engine API v1.45; Unix-only. No ambient Docker context, remote TCP,
 // automatic pulls, shell execution or inherited environment.
-type Config struct{ Image, Network, Socket, WorkDir, StorageURL, LLMURL, LLMKey string }
+type Config struct{ Image, Network, Socket, WorkDir, StorageURL, LLMURL, LLMKey, AppArmorProfile string }
 type DockerSpawner struct {
 	cfg    Config
 	client *http.Client
 }
 
+// Pinned default-deny Moby profile plus the nested-user-namespace operations
+// required by bubblewrap. Always paired with non-root UID and zero capabilities.
+//
+//go:embed seccomp-worker.json
+var workerSeccomp string
+
+func workerSecurityOptions() []string {
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, []byte(workerSeccomp)); err != nil {
+		panic("invalid embedded worker seccomp profile")
+	}
+	return []string{"no-new-privileges:true", "seccomp=" + compact.String()}
+}
+
 func NewDockerSpawner(cfg Config) (*DockerSpawner, error) {
+	if cfg.AppArmorProfile != "" && cfg.AppArmorProfile != "pagewright-worker" {
+		return nil, fmt.Errorf("only the reviewed pagewright-worker AppArmor profile is supported")
+	}
 	tagged := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*$`)
 	if !tagged.MatchString(cfg.Image) || strings.HasSuffix(cfg.Image, ":latest") {
 		return nil, fmt.Errorf("worker image requires an explicit non-latest tag or digest")
@@ -74,9 +92,13 @@ func (d *DockerSpawner) Spawn(ctx context.Context, job *types.Job, managerURL st
 	}
 	body := map[string]any{
 		"Image":      d.cfg.Image,
+		"User":       "1000:1000",
 		"Env":        []string{"PAGEWRIGHT_JOB=" + string(payload), "PAGEWRIGHT_WORKER_ID=" + name, "PAGEWRIGHT_WORK_DIR=" + d.cfg.WorkDir, "PAGEWRIGHT_MANAGER_URL=" + managerURL, "PAGEWRIGHT_STORAGE_URL=" + d.cfg.StorageURL, "PAGEWRIGHT_LLM_KEY=" + d.cfg.LLMKey, "PAGEWRIGHT_LLM_URL=" + d.cfg.LLMURL},
 		"Labels":     map[string]string{"io.pagewright.role": "worker", "io.pagewright.job_id": job.JobID, "io.pagewright.site_id": job.SiteID, "io.pagewright.network": d.cfg.Network},
-		"HostConfig": map[string]any{"NetworkMode": d.cfg.Network, "RestartPolicy": map[string]string{"Name": "no"}, "AutoRemove": false, "Privileged": false, "PublishAllPorts": false, "CapDrop": []string{"ALL"}, "SecurityOpt": []string{"no-new-privileges:true"}, "Tmpfs": map[string]string{d.cfg.WorkDir: "rw,nosuid,nodev,size=268435456,mode=0700"}},
+		"HostConfig": map[string]any{"NetworkMode": d.cfg.Network, "RestartPolicy": map[string]string{"Name": "no"}, "AutoRemove": false, "Privileged": false, "PublishAllPorts": false, "CapDrop": []string{"ALL"}, "SecurityOpt": workerSecurityOptions(), "Tmpfs": map[string]string{d.cfg.WorkDir: "rw,nosuid,nodev,size=268435456,mode=0700,uid=1000,gid=1000"}},
+	}
+	if d.cfg.AppArmorProfile != "" {
+		body["HostConfig"].(map[string]any)["SecurityOpt"] = append(workerSecurityOptions(), "apparmor="+d.cfg.AppArmorProfile)
 	}
 	data, _ := json.Marshal(body)
 	status, response, err := d.call(ctx, "POST", "/containers/create?name="+url.QueryEscape(name), data)

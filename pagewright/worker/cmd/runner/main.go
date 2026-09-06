@@ -101,7 +101,7 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 
 	// Step 4: Execute codex
 	srv.UpdateStatus("executing", "Running codex exec", 40)
-	fmt.Printf("Executing codex with prompt: %s\n", job.Prompt)
+	fmt.Println("Executing non-interactive Codex")
 
 	if err := executor.Execute(ctx, job.Prompt); err != nil {
 		return fmt.Errorf("codex execution failed: %w", err)

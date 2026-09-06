@@ -12,7 +12,6 @@ import (
 )
 
 func TestExecutorMock(t *testing.T) {
-	t.Skip("Skipping parsing test - works in real execution")
 
 	// Create temporary work directory
 	workDir, err := os.MkdirTemp("", "codex-test-*")
@@ -22,7 +21,7 @@ func TestExecutorMock(t *testing.T) {
 	// Create mock codex script
 	mockCodex := filepath.Join(workDir, "mock-codex")
 	mockScript := `#!/bin/sh
-echo "Processing prompt: $2"
+echo "Processing prompt"
 echo "FILES_CHANGED:"
 echo "- modified: content/page.md"
 echo "- created: theme/new-style.css"
@@ -31,6 +30,8 @@ echo "Updated page content and added new stylesheet"
 exit 0
 `
 	require.NoError(t, os.WriteFile(mockCodex, []byte(mockScript), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(workDir, ".codex"), 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(workDir, ".codex", "instructions.md"), []byte("trusted instructions"), 0600))
 
 	executor := NewExecutor(mockCodex, workDir, "test-key", "https://api.test.com")
 
@@ -87,7 +88,6 @@ sleep 10
 }
 
 func TestParseOutput(t *testing.T) {
-	t.Skip("Skipping parsing test - output format includes [STDOUT] wrapper")
 
 	executor := NewExecutor("", "", "", "")
 

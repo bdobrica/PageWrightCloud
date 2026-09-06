@@ -34,7 +34,7 @@ func TestDeterministicWorkerEntrypoint(t *testing.T) {
 	if err := os.WriteFile(cfg.InstructionsPath, []byte("Test-only deterministic executor.\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	executor := codex.NewExecutor("/usr/local/bin/deterministic-executor", filepath.Join(cfg.WorkDir, "site"), "", "")
+	executor := codex.NewExecutor("/usr/local/bin/deterministic-executor", filepath.Join(cfg.WorkDir, "site"), "test-only-key", "")
 	if err := runJob(cfg, &job, storage.NewClient(cfg.StorageURL), executor, server.NewServer(0, executor)); err != nil {
 		t.Fatal(err)
 	}

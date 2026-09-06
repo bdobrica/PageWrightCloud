@@ -262,6 +262,10 @@ test-docker-spawner:
 smoke-stack:
 	sh scripts/smoke-stack.sh
 
+.PHONY: test-worker-cli
+test-worker-cli:
+	sh scripts/test-worker-cli.sh
+
 .PHONY: test-compiler-smoke
 test-compiler-smoke:
 	sh scripts/test-compiler.sh

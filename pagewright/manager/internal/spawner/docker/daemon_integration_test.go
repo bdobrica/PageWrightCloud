@@ -48,11 +48,14 @@ func TestRealDockerCreateStart(t *testing.T) {
 			ExitCode int
 		}
 		HostConfig struct {
-			NetworkMode string
-			Binds       []string
+			NetworkMode                  string
+			Binds                        []string
+			Privileged                   bool
+			SecurityOpt, CapDrop, CapAdd []string
 		}
 		Config struct {
 			Image string
+			User  string
 			Env   []string
 		}
 	}
@@ -78,6 +81,9 @@ func TestRealDockerCreateStart(t *testing.T) {
 	}
 	if state.HostConfig.NetworkMode != cfg.Network || len(state.HostConfig.Binds) != 0 || state.Config.Image != cfg.Image {
 		t.Fatal("incorrect Docker configuration")
+	}
+	if state.Config.User != "1000:1000" || state.HostConfig.Privileged || len(state.HostConfig.CapAdd) != 0 || len(state.HostConfig.CapDrop) != 1 || len(state.HostConfig.SecurityOpt) != 2 {
+		t.Fatal("worker confinement missing from daemon inspect")
 	}
 	// Never restart an exited container (or adopt a running one) after conflict.
 	if _, err := d.Spawn(ctx, job, "http://manager:8081"); err == nil || errors.Is(err, spawner.ErrNotStarted) {

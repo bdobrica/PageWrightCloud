@@ -1,0 +1,6 @@
+{
+  "name": "pagewright-worker-cli",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": { "@openai/codex": "0.153.4" }
+}

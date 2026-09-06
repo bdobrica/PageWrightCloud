@@ -4,9 +4,9 @@
 
 Stateless worker that executes AI-powered site edits using Codex in isolated containers.
 
-Current boundary: the image still contains a placeholder executor (M2.3 replaces
-it). M2.1 makes this the selected launchable runner, tagged
-`pagewright-worker:m2.1`; older examples below are historical. Follow the
+M2.3 replaces the placeholder with pinned Codex CLI 0.153.4, tagged
+`pagewright-worker:m2.3`, with non-root nested sandbox execution. Read the
+[CLI contract and host prerequisites](../../docs/WORKER_CLI.md); older examples below are historical. Follow the
 [Docker launch contract](../../docs/DOCKER_SPAWNER.md) for supported setup.
 
 ## API Endpoints
@@ -22,7 +22,7 @@ it). M2.1 makes this the selected launchable runner, tagged
 1. **Fetch Artifact**: Download from storage service
 2. **Unpack**: Extract to `/work/site/`
 3. **Patch Instructions**: Replace `.codex/instructions.md` with container version
-4. **Execute Codex**: Run `codex exec "<prompt>"`
+4. **Execute Codex**: Pass the prompt through stdin to non-interactive, workspace-write `codex exec` with explicit provider configuration and developer instructions
 5. **Parse Output**: Extract files_changed and summary
 6. **Pack Result**: Create `output.tar.gz`
 7. **Upload**: Send artifact, manifest, and logs to storage

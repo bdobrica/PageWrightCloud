@@ -1,0 +1,7 @@
+# Explicit opt-in only after loading security/pagewright-worker.apparmor.
+# Applies to manually launched optional workers; manager-created workers use
+# PAGEWRIGHT_WORKER_APPARMOR_PROFILE=pagewright-worker instead.
+services:
+  worker:
+    security_opt:
+      - apparmor=pagewright-worker

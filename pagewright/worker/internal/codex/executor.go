@@ -1,14 +1,15 @@
 package codex
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Executor wraps codex exec command execution
@@ -61,54 +62,77 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 	e.mu.Unlock()
 	defer cancel()
 
-	// Prepare command
-	cmd := exec.CommandContext(cmdCtx, e.binaryPath, "exec", prompt)
-	cmd.Dir = e.workDir
-
-	// Set environment variables
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("OPENAI_API_KEY=%s", e.llmKey))
-	if e.llmBaseURL != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("OPENAI_BASE_URL=%s", e.llmBaseURL))
+	if e.llmKey == "" {
+		return fmt.Errorf("worker provider API key is required")
 	}
+	instructions, err := os.ReadFile(filepath.Join(e.workDir, ".codex", "instructions.md"))
+	if err != nil {
+		return fmt.Errorf("read trusted worker instructions: %w", err)
+	}
+	// Fresh runtime state outside the source archive: never reuse operator login,
+	// project configuration or another job's session. No credentials are on argv.
+	runtimeDir, err := os.MkdirTemp(filepath.Dir(e.workDir), "codex-runtime-")
+	if err != nil {
+		return fmt.Errorf("create CLI runtime: %w", err)
+	}
+	defer os.RemoveAll(runtimeDir)
+	// Fail before contacting a provider if this Docker host cannot enforce the
+	// required sandbox. No insecure fallback or approval escalation is offered.
+	preflightCtx, stopPreflight := context.WithTimeout(cmdCtx, 10*time.Second)
+	defer stopPreflight()
+	preflight := exec.CommandContext(preflightCtx, e.binaryPath, "sandbox",
+		"-c", "sandbox_mode=\"workspace-write\"",
+		"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+		"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true", "--", "/bin/true")
+	preflight.Dir = e.workDir
+	preflight.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + runtimeDir, "CODEX_HOME=" + runtimeDir}
+	preflight.WaitDelay = 2 * time.Second
+	if err := preflight.Run(); err != nil {
+		return fmt.Errorf("worker sandbox unavailable; verify Docker host with make test-worker-cli: %w", err)
+	}
+	baseURL := e.llmBaseURL
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1"
+	}
+	cmd := exec.CommandContext(cmdCtx, e.binaryPath, "exec",
+		"--ignore-user-config", "--ignore-rules", "--ephemeral", "--skip-git-repo-check",
+		"--sandbox", "workspace-write", "--color", "never",
+		"--disable", "shell_snapshot",
+		"-c", "model_provider=\"pagewright\"",
+		"-c", "model_providers.pagewright={name=\"PageWright\",base_url="+strconv.Quote(baseURL)+",env_key=\"CODEX_API_KEY\",wire_api=\"responses\",supports_websockets=false}",
+		"-c", "approval_policy=\"never\"",
+		"-c", "forced_login_method=\"api\"",
+		"-c", "web_search=\"disabled\"",
+		"-c", "sandbox_workspace_write.network_access=false",
+		"-c", "sandbox_workspace_write.exclude_slash_tmp=true",
+		"-c", "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+		"-c", "shell_environment_policy.inherit=\"none\"",
+		"-c", "shell_environment_policy.ignore_default_excludes=false",
+		"-c", "shell_environment_policy.filters={\"*KEY*\"=\"exclude\",\"*TOKEN*\"=\"exclude\",\"*SECRET*\"=\"exclude\"}",
+		"-c", "shell_environment_policy.set={PATH=\"/usr/local/bin:/usr/bin:/bin\"}",
+		"-c", "developer_instructions="+strconv.Quote(string(instructions)), "-")
+	cmd.Dir = e.workDir
+	cmd.WaitDelay = 2 * time.Second
+	cmd.Stdin = strings.NewReader(prompt)
+
+	// Deliberately exclude job JSON, callbacks, management credentials and host auth.
+	cmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "LANG=C.UTF-8",
+		"HOME=" + runtimeDir, "CODEX_HOME=" + runtimeDir, "CODEX_API_KEY=" + e.llmKey}
 
 	e.mu.Lock()
 	e.cmd = cmd
 	e.mu.Unlock()
 
-	// Capture stdout and stderr
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create stdout pipe: %w", err)
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("failed to create stderr pipe: %w", err)
-	}
+	cmd.Stdout = outputWriter{e}
+	cmd.Stderr = outputWriter{e}
 
 	// Start command
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start codex: %w", err)
 	}
 
-	// Read output in goroutines
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		e.readOutput(stdout, "STDOUT")
-	}()
-
-	go func() {
-		defer wg.Done()
-		e.readOutput(stderr, "STDERR")
-	}()
-
 	// Wait for command to complete
 	err = cmd.Wait()
-	wg.Wait()
 
 	if err != nil {
 		if cmdCtx.Err() == context.Canceled {
@@ -120,17 +144,20 @@ func (e *Executor) Execute(ctx context.Context, prompt string) error {
 	return nil
 }
 
-func (e *Executor) readOutput(r io.Reader, prefix string) {
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := scanner.Text()
-		e.mu.Lock()
-		e.output.WriteString(fmt.Sprintf("[%s] %s\n", prefix, line))
-		e.mu.Unlock()
+type outputWriter struct{ executor *Executor }
 
-		// Also log to console
-		fmt.Printf("[CODEX %s] %s\n", prefix, line)
+func (w outputWriter) Write(p []byte) (int, error) {
+	w.executor.mu.Lock()
+	defer w.executor.mu.Unlock()
+	// Continue draining even after the capture limit, avoiding pipe deadlocks.
+	remaining := 1024*1024 - w.executor.output.Len()
+	if remaining > len(p) {
+		remaining = len(p)
 	}
+	if remaining > 0 {
+		w.executor.output.Write(p[:remaining])
+	}
+	return len(p), nil
 }
 
 // Kill terminates the running codex process
@@ -169,12 +196,17 @@ func (e *Executor) IsRunning() bool {
 func (e *Executor) GetOutput() string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.output.String()
+	output := e.output.String()
+	if e.llmKey != "" {
+		output = strings.ReplaceAll(output, e.llmKey, "[REDACTED]")
+	}
+	return output
 }
 
 // ParseOutput extracts FILES_CHANGED and SUMMARY from codex output
 func (e *Executor) ParseOutput() (filesChanged []string, summary string) {
 	output := e.GetOutput()
+	output = strings.ReplaceAll(output, "[STDOUT] ", "")
 
 	// Look for FILES_CHANGED section
 	if idx := strings.Index(output, "FILES_CHANGED:"); idx != -1 {
@@ -204,7 +236,7 @@ func (e *Executor) ParseOutput() (filesChanged []string, summary string) {
 
 	// Look for SUMMARY section
 	if idx := strings.Index(output, "SUMMARY:"); idx != -1 {
-		section := output[idx+8:]
+		section := strings.TrimSpace(output[idx+8:])
 		lines := strings.Split(section, "\n")
 		for i := 0; i < len(lines); i++ {
 			line := strings.TrimSpace(lines[i])

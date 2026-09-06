@@ -55,6 +55,14 @@ jobs:
           persist-credentials: false
       - run: make test-integration
       - run: make test-docker-spawner
+      - name: Load worker-only namespace profile on AppArmor hosts
+        shell: bash
+        run: |
+          if docker info --format '{{json .SecurityOptions}}' | grep -q apparmor; then
+            sudo apparmor_parser -r security/pagewright-worker.apparmor
+            echo 'PAGEWRIGHT_WORKER_APPARMOR_PROFILE=pagewright-worker' >> "$GITHUB_ENV"
+          fi
+      - run: make test-worker-cli
   startup:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -65,7 +73,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - name: Build all selected images, including optional mock worker
+      - name: Build all selected images, including real CLI worker
         run: docker compose --env-file /dev/null --profile worker build
       - name: Fresh startup and data-preserving recreation
         run: make smoke-stack

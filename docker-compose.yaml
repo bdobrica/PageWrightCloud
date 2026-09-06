@@ -89,7 +89,8 @@ services:
       - PAGEWRIGHT_REDIS_DB=${PAGEWRIGHT_REDIS_DB:-0}
       - PAGEWRIGHT_LOCK_TTL=${PAGEWRIGHT_LOCK_TTL:-5m}
       - PAGEWRIGHT_LOCK_RENEW_INTERVAL=${PAGEWRIGHT_LOCK_RENEW_INTERVAL:-1m}
-      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.1}
+      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.3}
+      - PAGEWRIGHT_WORKER_APPARMOR_PROFILE=${PAGEWRIGHT_WORKER_APPARMOR_PROFILE:-}
       - PAGEWRIGHT_WORKER_NETWORK=${COMPOSE_PROJECT_NAME:-pagewrightcloud}_pagewright
       - PAGEWRIGHT_WORKER_WORK_DIR=/work
       - PAGEWRIGHT_WORKER_STORAGE_URL=http://storage:8080
@@ -218,7 +219,14 @@ services:
 
   # Worker (optional - use with --profile worker)
   worker:
-    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.1}
+    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.3}
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./pagewright/manager/internal/spawner/docker/seccomp-worker.json
+    tmpfs:
+      - /work:rw,nosuid,nodev,size=268435456,mode=0700,uid=1000,gid=1000
     build:
       context: ./pagewright/worker
       dockerfile: Dockerfile
@@ -229,8 +237,8 @@ services:
     environment:
       - PAGEWRIGHT_WORKER_PORT=8082
       - PAGEWRIGHT_WORK_DIR=${PAGEWRIGHT_WORK_DIR:-/work}
-      - PAGEWRIGHT_LLM_KEY=${PAGEWRIGHT_LLM_KEY:-}
-      - PAGEWRIGHT_LLM_URL=${PAGEWRIGHT_LLM_URL:-https://api.openai.com/v1}
+      - PAGEWRIGHT_LLM_KEY=${PAGEWRIGHT_WORKER_LLM_KEY:-}
+      - PAGEWRIGHT_LLM_URL=${PAGEWRIGHT_WORKER_LLM_URL:-https://api.openai.com/v1}
       - PAGEWRIGHT_MANAGER_URL=${PAGEWRIGHT_MANAGER_URL:-http://manager:8081}
       - PAGEWRIGHT_STORAGE_URL=${PAGEWRIGHT_STORAGE_URL:-http://storage:8080}
       - PAGEWRIGHT_CODEX_BINARY=${PAGEWRIGHT_CODEX_BINARY:-/usr/local/bin/codex}

@@ -64,6 +64,7 @@ func TestSpawnWireContract(t *testing.T) {
 			}
 			var body struct {
 				Image      string
+				User       string
 				Env        []string
 				Labels     map[string]string
 				HostConfig struct {
@@ -94,8 +95,11 @@ func TestSpawnWireContract(t *testing.T) {
 				t.Error("wrong environment allowlist")
 			}
 			hc := body.HostConfig
-			if body.Image != "pagewright-worker:m2.1" || hc.NetworkMode != "test-network" || hc.Privileged || hc.PublishAllPorts || hc.AutoRemove || len(hc.Binds) != 0 || hc.RestartPolicy.Name != "no" || hc.Tmpfs["/work"] == "" || body.Labels["io.pagewright.job_id"] != job.JobID || len(hc.SecurityOpt) != 1 || len(hc.CapDrop) != 1 {
+			if body.Image != "pagewright-worker:m2.1" || body.User != "1000:1000" || hc.NetworkMode != "test-network" || hc.Privileged || hc.PublishAllPorts || hc.AutoRemove || len(hc.Binds) != 0 || hc.RestartPolicy.Name != "no" || !strings.Contains(hc.Tmpfs["/work"], "uid=1000,gid=1000") || body.Labels["io.pagewright.job_id"] != job.JobID || len(hc.SecurityOpt) != 2 || len(hc.CapDrop) != 1 || hc.CapDrop[0] != "ALL" {
 				t.Errorf("unsafe container configuration: %+v", body)
+			}
+			if strings.Join(hc.SecurityOpt, "\n") != strings.Join(workerSecurityOptions(), "\n") {
+				t.Error("missing embedded sandbox profile")
 			}
 			w.WriteHeader(201)
 			json.NewEncoder(w).Encode(map[string]string{"Id": id})

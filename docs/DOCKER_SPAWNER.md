@@ -2,7 +2,7 @@
 
 The supported worker is `pagewright/worker`, not the historical
 `pagewright/manager/cmd/worker` prototype. Root Compose, the worker Makefile and
-the manager's worker build targets agree on `pagewright-worker:m2.1`. The old
+the manager's worker build targets agree on `pagewright-worker:m2.3`. The old
 manager `Dockerfile.worker` is retained only as explicitly labelled history.
 
 Before submitting jobs, build the selected image:
@@ -16,8 +16,9 @@ Do not start a standing `worker` Compose service without a canonical job. The
 manager creates one container per accepted job. It does not pull missing images;
 operators build/load the explicit tag (or configure a digest) first. Untagged and
 `:latest` images are rejected. This tag identifies the current launchable runner,
-**which still contains the placeholder executor**; real AI and trusted compiler
-integration are M2.3/M2.4, not established by a successful container launch.
+which contains pinned real Codex CLI 0.153.4. See [CLI and sandbox acceptance](WORKER_CLI.md).
+Trusted compiler integration remains M2.4; a successful launch does not prove a
+paid-provider edit or a compiled build.
 
 ## Configuration and authority
 
@@ -32,7 +33,8 @@ manager use, configure:
 
 | Variable | Default / requirement |
 | --- | --- |
-| `PAGEWRIGHT_WORKER_IMAGE` | `pagewright-worker:m2.1`; explicit non-latest tag or digest |
+| `PAGEWRIGHT_WORKER_IMAGE` | `pagewright-worker:m2.3`; explicit non-latest tag or digest |
+| `PAGEWRIGHT_WORKER_APPARMOR_PROFILE` | Empty for Docker default; only `pagewright-worker` accepted as an override, after explicit host profile loading |
 | `PAGEWRIGHT_WORKER_NETWORK` | Required dedicated Docker network; root Compose supplies it |
 | `PAGEWRIGHT_DOCKER_SOCKET` | `/var/run/docker.sock`; absolute Unix path |
 | `PAGEWRIGHT_WORKER_WORK_DIR` | `/work`; clean path at or below `/work` |
@@ -47,7 +49,10 @@ JWT secret, Redis password and manager environment are not copied. Job/secret
 values and raw Docker errors are not logged or returned by the spawner.
 The worker retains its image-defined entrypoint and working directory; writable
 job data goes into a private, 256 MiB tmpfs at the configured workspace path.
-Capabilities are dropped and privilege escalation is disabled. Containers do not
+UID/GID 1000 owns the workspace; capabilities are dropped and privilege escalation
+is disabled. An embedded default-deny seccomp profile adds only the nested-user-
+namespace/mount operations required by bubblewrap. The outer process cannot mount;
+the CLI enforces workspace writes and no command networking. Containers do not
 restart automatically or auto-remove, preserving daemon evidence for recovery.
 
 **The manager alone receives the host Docker socket. This is host-level authority,

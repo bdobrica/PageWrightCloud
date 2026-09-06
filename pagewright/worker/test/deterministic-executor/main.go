@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -17,7 +18,12 @@ func main() {
 }
 
 func execute() error {
-	if len(os.Args) != 3 || os.Args[1] != "exec" || os.Args[2] != "Set the homepage heading to Deterministic M1 round trip." {
+	// This build-tag-only fixture stands in for the CLI, including its preflight.
+	if len(os.Args) > 1 && os.Args[1] == "sandbox" {
+		return nil
+	}
+	prompt, err := io.ReadAll(os.Stdin)
+	if err != nil || len(os.Args) < 3 || os.Args[1] != "exec" || string(prompt) != "Set the homepage heading to Deterministic M1 round trip." {
 		return fmt.Errorf("unsupported fixture request")
 	}
 	// Edit source only: all public bytes must come from the real compiler.

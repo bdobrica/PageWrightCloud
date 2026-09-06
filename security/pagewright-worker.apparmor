@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright The Moby Authors
+# SPDX-License-Identifier: Apache-2.0
+# Derived from moby/profiles 61eaf32614c7c71b60bd8927d3e6a4ffc8ff1f31.
+# Worker-only delta: nested user namespaces, mount and pivot_root. Kernel
+# capability checks still apply; use ONLY with UID 1000 and CapDrop ALL.
+abi <abi/4.0>,
+#include <tunables/global>
+
+profile pagewright-worker flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  network,
+  network unix,
+  deny network alg,
+  deny network vsock,
+  capability,
+  file,
+  userns,
+  mount,
+  umount,
+  pivot_root,
+  signal (receive) peer=unconfined,
+  signal (receive) peer=runc,
+  signal (receive) peer=crun,
+  signal (receive) peer=/usr/bin/docker,
+  signal (send,receive) peer=pagewright-worker,
+  deny @{PROC}/* w,
+  deny @{PROC}/{[^1-9/],[^1-9/][^0-9/],[^1-9s/][^0-9y/][^0-9s/],[^1-9/][^0-9/][^0-9/][^0-9/]*}/** w,
+  deny @{PROC}/sys/[^k]** w,
+  deny @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny @{PROC}/kcore rwklx,
+  deny /sys/[^f]*/** wklx,
+  deny /sys/f[^s]*/** wklx,
+  deny /sys/fs/[^c]*/** wklx,
+  deny /sys/fs/c[^g]*/** wklx,
+  deny /sys/fs/cg[^r]*/** wklx,
+  deny /sys/firmware/** rwklx,
+  deny /sys/devices/virtual/powercap/** rwklx,
+  deny /sys/kernel/security/** rwklx,
+  ptrace (trace,tracedby,read,readby) peer=pagewright-worker,
+}
