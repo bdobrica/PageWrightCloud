@@ -24,7 +24,7 @@ There is useful implementation across all services, but the application is still
 | Compilation | M1.8 adds compiler fixtures; M2.4 integrates trusted compilation/static checks; M2.5 verifies accumulated edits. M2.12 verifies a paid Luna edit through the actual sandboxed CLI and compiler. Serving validates archive structure. | Browser checks remain unperformed; one synthetic paid edit and static checks do not establish safe HTML for remote multi-user hosting. |
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
 | Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped history and intersects completed submissions with committed storage. M3.2 (`b1af7d6`) polls active jobs on the current history page with bounded backoff and refreshes versions on completion. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; polling pauses at explicit limits and supports manual resume. Actual browser acceptance remains M3.12. |
-| Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
+| Live updates | M3.2 supplies bounded owner-checked history polling. M3.3 (`7f99456`) removes the broken browser socket transport and gateway hub/upgrader; `/ws` returns 501. | Polling is the MVP transport. Future sockets require browser-compatible authentication, strict origins, owner/site filtering, real event delivery/resynchronization and tested reconnect cleanup; no re-enable flag exists. |
 | Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
 | Hosting | [Compose](docker-compose.yaml) separates serving and nginx, but serving executes local `nginx -s reload`. Preview activation does not create nginx config. | Make nginx configuration/reload part of a supported topology; first preview must work before first publish. |
@@ -874,6 +874,29 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.3 completed (2026-09-06) in `7f99456`.
+[WebSocket retirement and re-enable gate](docs/JOB_HISTORY_API.md) documents the
+polling-only MVP. Removed the browser connection hook, reconnect timer, query-token
+URL, socket configuration/build arguments, gateway upgrader/broadcast hub/pumps and
+unused Go dependency. Removed code is retained in Git history, not behind a flag.
+The public `/ws` retirement handler returns no-store HTTP 501 without inspecting
+or echoing credentials; generic CORS OPTIONS preflight remains 200. M3.2 polling
+and gateway recovery/dispatch semantics are unchanged. Rebuild/reload older UI
+clients; private `.env` values were not edited and obsolete socket settings are ignored.
+
+Verification passed: six-module Go package baseline, gateway race/vet, UI contracts
+and polling tests, zero-warning lint/type checking/build, script syntax/whitespace
+checks and isolated production root-stack startup/recreation. Handshake tests cover
+credentials and same/foreign/missing origins. The rebuilt served UI bundle contains
+no socket transport, and the production endpoint returns 501 before and after
+container recreation. Source/config regression guards run in existing CI checks.
+Two existing serving skips remain. Disposable test services/volumes were removed;
+application data was untouched. No paid calls, remote deployment or push occurred.
+Full rendered-browser acceptance remains M3.12; the full service integration suite
+was not rerun for this transport-removal milestone.
+
+Next: **M3.4**, make Preview activate deployment before opening its returned URL.
+
 M3.2 completed (2026-09-06) in `b1af7d6`.
 [Polling contract](docs/JOB_HISTORY_API.md) defines sequential checks of active jobs
 on the current history page, with 2/4/8/15-second backoff, 10-second transport
@@ -898,7 +921,7 @@ the existing CI contract-test command. No backend code changed, so Go/Docker sui
 were not rerun for this UI-only milestone. Actual rendered-browser acceptance remains
 M3.12. No paid calls, remote changes, application-data changes or push occurred.
 
-Next: **M3.3**, remove the broken/unused WebSocket connection for the polling MVP.
+At M3.2 handoff, next was **M3.3**, remove the broken/unused WebSocket connection for the polling MVP.
 
 M3.1 completed (2026-09-06) in `38e908e`.
 [Owner-scoped history contract](docs/JOB_HISTORY_API.md) documents the authenticated
