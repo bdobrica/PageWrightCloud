@@ -25,11 +25,11 @@ There is useful implementation across all services, but the application is still
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
 | Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped history and intersects completed submissions with committed storage. M3.2 (`b1af7d6`) polls active jobs on the current history page with bounded backoff and refreshes versions on completion. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; polling pauses at explicit limits and supports manual resume. Actual browser acceptance remains M3.12. |
 | Live updates | M3.2 supplies bounded owner-checked history polling. M3.3 (`7f99456`) removes the broken browser socket transport and gateway hub/upgrader; `/ws` returns 501. | Polling is the MVP transport. Future sockets require browser-compatible authentication, strict origins, owner/site filtering, real event delivery/resynchronization and tested reconnect cleanup; no re-enable flag exists. |
-| Deploy / preview | M3.4 (`e22362d`) activates Preview through the deployment API before opening a validated, scheme/port-configured response URL, with popup fallback and failure feedback. | Update remaining UI links and verify preview assets/navigation in M3.6; actual browser journey remains M3.12. |
+| Deploy / preview | M3.4 activates Preview before opening its validated URL. M3.6 (`830c476`) shares configured URLs across API/UI entry points and serves preview on `preview.<site-fqdn>/`; nested navigation/assets and exact-artifact promotion pass real compiler/nginx integration. | Configure DNS/TLS for both hosts and migrate existing generated configs by reactivating Preview; custom configs require operator review. Actual browser journey remains M3.12. |
 | Deployment consistency | M3.4 preserves the opposite DB pointer and checks write errors. Serving still removes the old symlink before creating the new one. | Reconcile partial activation in M3.7; replace symlinks atomically in M3.8. A failed activation can already have changed serving state. |
-| Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx together behind a fixed public proxy; config mutations are validated, generation-acknowledged, journaled and recoverable. Production and integration share this topology. | Upgrade serving/proxy together without deleting volumes. Preview assets/remaining URLs are M3.6; DB reconciliation and atomic artifact pointers remain M3.7/M3.8; pilot security remains M4. |
+| Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy; config mutations are validated, generation-acknowledged, journaled and recoverable. M3.6 adds separate preview hosts and safe legacy config migration. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. DB reconciliation and atomic artifact pointers remain M3.7/M3.8; pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
-| User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. Site links assume HTTPS without the local port. | Ship only working controls, configure returned hosting URLs, and complete recovery before remote access. |
+| User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. M3.6 removes hard-coded site hosting links. | Ship only working controls and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
@@ -874,6 +874,53 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.6 completed (2026-09-06) in `830c476`.
+[Hosting URLs and preview upgrade guidance](docs/PREVIEW_ACTIVATION.md) define
+shared gateway scheme/port URL generation for site create/list/detail and deployment
+responses. Dashboard and Chat validate/use these destinations, disable unavailable
+links, and Chat refreshes hosting state after successful preview/publish operations.
+
+Preview is now `preview.<site-fqdn>/`, a separate nginx virtual host selecting the
+preview artifact's public output. No HTML rewriting or recompilation is involved;
+root-relative and relative navigation, nested pages, theme assets and page-local
+images remain on their selected host. Relative directory redirects preserve the
+external scheme/port. Promotion selects the exact same immutable artifact.
+Live aliases do not become preview aliases. The first `preview` DNS label is
+reserved for preview hosts; new site/alias collisions and existing conflicting
+nginx host claims fail before config mutation. Existing exact generated legacy
+configs migrate transactionally on Preview activation, preserving aliases and
+disabled state; unknown/custom legacy configs require operator review.
+
+Verification passed: six-module Go baseline, gateway/serving race tests and vet,
+full race-enabled service integration, UI contract tests/zero-warning lint/build,
+production root-stack hosting/nginx-crash/recreation smoke, script syntax and
+whitespace checks. Real compiler output includes a nested page and page image;
+the journey resolves generated links on both hosts, checks directory redirects,
+all public bytes and private/missing-path 404s, previews before publication, keeps
+live independent of a later preview, then promotes and compares every public file
+on both hosts with the unchanged second archive. URL configuration/identity,
+namespace rejection and enabled/disabled legacy migration have focused tests.
+The existing real-nginx validation/rollback acceptance also passes.
+
+Earlier verification attempts exposed test-fixture issues (duplicate variable,
+compiler asset path and changed-file manifest expectations), all corrected before
+the passing integration run. Root smoke also observed briefly stale routing while
+old nginx workers drain; fresh-connection bounded convergence checks now cover
+both hosts and pass, without claiming instantaneous global cutover. Two pre-existing
+serving skips remain (`TestCleanupOldVersions`, `TestLoadConfigDefaults`).
+Evidence: `/tmp/pagewright-m36-verified-integration.log`,
+`/tmp/pagewright-m36-unit.log`, `/tmp/pagewright-m36-smoke-final.log`.
+
+Upgrade gateway/serving/UI together; DNS and HTTPS certificates must cover both
+live and preview names. Existing configs are not rewritten automatically at startup:
+reactivate Preview after auditing reserved-name conflicts/custom configs. No remote
+deployment, paid calls, application-data changes or push occurred; disposable test
+stacks were removed. Preview remains public, not an authenticated private workspace.
+Distributed deployment reconciliation remains M3.7, atomic artifact-pointer changes
+M3.8, and full rendered-browser acceptance M3.12.
+
+Next: **M3.7**, reconcile partial activation and define concurrent deployment policy.
+
 M3.5 completed (2026-09-06) in `2e1eea2`.
 [Supervised hosting lifecycle](docs/HOSTING_LIFECYCLE.md) defines the production
 topology: the serving API and hosting nginx share a Tini/Go-supervised container;
@@ -906,7 +953,7 @@ in place. The local-domain no-op reload override was removed. Disposable test st
 were removed; private `.env` and application data were untouched. No paid calls,
 remote deployment or push occurred. Full rendered-browser acceptance remains M3.12.
 
-Next: **M3.6**, configured URLs across UI entry points and preview assets/navigation.
+At M3.5 handoff, next was **M3.6**, configured URLs across UI entry points and preview assets/navigation.
 
 M3.4 completed (2026-09-06) in `e22362d`.
 [Preview activation contract](docs/PREVIEW_ACTIVATION.md) documents staging,
