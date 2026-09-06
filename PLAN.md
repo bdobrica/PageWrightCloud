@@ -29,7 +29,7 @@ There is useful implementation across all services, but the application is still
 | Deployment consistency | M3.7 (`ec47934`) persists sequenced intent and reconciles exact serving receipts into one DB pointer transaction. M3.8 (`4466271`) replaces pointers atomically and protects active/receipt-pinned cache versions through retention and rollback. | Preserve sequence/receipt evidence and single-writer operation. Post-rename errors remain uncertain, not speculative rollbacks. Atomic pointer selection is not a multi-request browser snapshot; enrolled-site deletion remains guarded until a coordinated tombstone protocol exists. |
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
-| User-facing gaps | M3.9 (`d61a2e2`) removes unsupported upload/alias/OAuth/delete controls and gates backend actions. Creation uses the gateway's configured platform domain. Reset email is a TODO and reset tokens are logged. M3.6 removes hard-coded site hosting links. | Upgrade UI/gateway together and set the namespace before resuming creation. Draft recovery remains M3.10, browser acceptance M3.12 and reset-email/pilot security M4. |
+| User-facing gaps | M3.9 (`d61a2e2`) gates unsupported capabilities. M3.10 (`5ad744d`) preserves account/site-scoped tab drafts and retry identities, adds publication feedback and refreshes confirmed deployment state. Reset email remains a TODO and reset tokens are logged. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Full keyboard/mobile audit remains M3.11, real-service browser acceptance M3.12 and reset-email/pilot security M4. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
@@ -874,6 +874,55 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.10 completed (2026-09-06) in `5ad744d`.
+[Draft recovery and publication feedback](docs/DRAFT_RECOVERY.md) defines the
+account/site-scoped, current-tab storage contract. Text changes are saved
+synchronously; exact payload fingerprints and request keys are persisted before
+dispatch. Reload or same-account re-authentication restores uncertain submissions
+for explicit same-key retry, without auto-submitting. Clarification questions,
+original text and answers survive browser reload; confirmed responses clear the
+sent draft or store the next clarification.
+
+Protected-request expiry remembers an allowlisted local return route, while
+failed login credentials stay on the form and late 401s from replaced tokens are
+ignored. Account changes remount protected UI, and the client checks draft
+ownership immediately before dispatch without sending the local guard marker.
+Late/unmounted build responses do not rewrite another account's state. Explicit
+logout clears this tab's drafts; expiry preserves them. Invalid/unavailable storage
+is reported, blocks sending before dispatch and supports retrying reads or an
+explicit discard. Existing in-memory gateway clarification context is not made
+durable: after its loss, restarting with saved original/answer text is an explicit
+new-request action, with no silent truncation or automatic duplicate work.
+
+Chat now exposes submission/uncertainty/storage feedback. Version lists offer
+retry/refresh, older/newer pagination, timestamps, exact IDs and independent
+confirmed Live/Preview labels. Publishing has visible progress and actionable
+failure messages; success and uncertainty both refresh the hosting snapshot.
+Dashboard reads confirmed state on entry, focus/visibility return, manual refresh
+and after enable/disable attempts. Duplicate toggles are guarded, stale data is
+identified after failed reads, and local booleans are not speculatively flipped.
+Read requests are bounded to 10 seconds and build/deploy/toggle requests to 30;
+timeouts do not imply server cancellation. Read cleanup and mounted/account checks
+prevent stale callbacks from replacing current UI state.
+
+Verification passed: UI contracts, zero-warning lint/type-check/production build,
+focused rendered Firefox regression with an intercepted gateway, and final
+production Compose startup/nginx-crash/recreation smoke. Browser tests exercise
+draft reload, expiry, bad credentials, same-account return, exact-key uncertain
+retries, account isolation, clarification recovery, publishing failures/success,
+toggle failures/success, focus refresh, version retry, storage failure/repair and
+explicit logout. Pure tests cover malformed storage, safe return routes,
+stale-token handling, deletion scope and independent version labels. The installed
+Firefox harness uses its native viewport for protocol compatibility. No browser
+dependencies were installed. No backend/schema changes or full Go-suite rerun
+were needed for this UI-only change; no paid provider calls, remote changes,
+application-data migration or push occurred. Disposable stacks were removed.
+
+Next: **M3.11**, full keyboard/focus and mobile/desktop usability verification.
+The mocked rendered regression does not complete M3.12's real-service browser
+journey. Tab-local storage is not encrypted backup, cross-device persistence or
+server-side conversation history.
+
 M3.9 completed (2026-09-06) in `d61a2e2`.
 [Text-only MVP capabilities](docs/MVP_CAPABILITIES.md) documents the release boundary,
 API behavior and legacy-site upgrade path. This release is MVP-only, without a
@@ -913,7 +962,7 @@ remains (`TestLoadConfigDefaults`). UI checks cover contracts/source wiring and
 builds, not rendered browser acceptance. Disposable stacks/data were removed;
 no paid provider calls, remote changes or push occurred.
 
-Next: **M3.10**, preserve drafts across session expiry/re-authentication and improve
+At M3.9 handoff, next was **M3.10**, preserve drafts across session expiry/re-authentication and improve
 progress, retry/empty states, version labels and dashboard refresh.
 
 M3.8 completed (2026-09-06) in `4466271`.
