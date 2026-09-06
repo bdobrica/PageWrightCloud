@@ -29,7 +29,7 @@ There is useful implementation across all services, but the application is still
 | Deployment consistency | M3.7 (`ec47934`) persists sequenced intent and reconciles exact serving receipts into one DB pointer transaction. M3.8 (`4466271`) replaces pointers atomically and protects active/receipt-pinned cache versions through retention and rollback. | Preserve sequence/receipt evidence and single-writer operation. Post-rename errors remain uncertain, not speculative rollbacks. Atomic pointer selection is not a multi-request browser snapshot; enrolled-site deletion remains guarded until a coordinated tombstone protocol exists. |
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
-| User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. M3.6 removes hard-coded site hosting links. | Ship only working controls and complete recovery before remote access. |
+| User-facing gaps | M3.9 (`d61a2e2`) removes unsupported upload/alias/OAuth/delete controls and gates backend actions. Creation uses the gateway's configured platform domain. Reset email is a TODO and reset tokens are logged. M3.6 removes hard-coded site hosting links. | Upgrade UI/gateway together and set the namespace before resuming creation. Draft recovery remains M3.10, browser acceptance M3.12 and reset-email/pilot security M4. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
@@ -874,6 +874,48 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.9 completed (2026-09-06) in `d61a2e2`.
+[Text-only MVP capabilities](docs/MVP_CAPABILITIES.md) documents the release boundary,
+API behavior and legacy-site upgrade path. This release is MVP-only, without a
+switch that enables unaccepted features. The gateway's `PAGEWRIGHT_SITE_DOMAIN`
+(default `pagewright.dev`, local-domain override `pagewright.io`) is authoritative.
+Public, no-store capabilities include the platform domain and disabled feature
+flags; OPTIONS support permits the cross-origin UI's authorization/JSON preflight.
+The old Vite default-domain configuration has been removed.
+
+Creation validates one DNS label under the configured domain, reserves app/api/www/
+preview, and rejects arbitrary or nested domains before database/bootstrap writes.
+The UI loads configuration with timeout/retry and fails closed without a fallback.
+Resume Setup locks the original name; incompatible legacy names display an
+operator-recovery message rather than creating a replacement. Existing sites,
+aliases, artifacts, owner-scoped builds and deployments are preserved. This
+does not provision DNS/certificates or verify arbitrary domain ownership.
+
+Chat now explicitly supports text only, retaining clarification and idempotent
+submission semantics. Attachment components, file state, multipart submission and
+alias UI/client paths are removed. Gateway rejects explicit non-JSON build media
+types with 415 and unknown attachment fields with 400 before downstream calls.
+Legacy JSON callers without Content-Type remain compatible. Both Google endpoints
+and all alias actions return no-store 501 without inspecting provider credentials
+or writing state. All site deletion is conservatively unavailable until coordinated
+DB/storage/serving cleanup exists; lower-level deployment-record and active-output
+guards are retained, and no application data was deleted or migrated.
+
+Verification passed: six-module package baseline, gateway race/vet, full isolated
+race-enabled integration, UI contracts/zero-warning lint/build, and final production
+Compose startup/nginx-crash/recreation smoke. Tests exercise invalid namespace
+bypasses, nil-dependency rejection before side effects, OAuth without redirects/
+cookies, text-only identity, locked resume policy, capabilities preflight and
+disabled direct API calls while preserving bootstrap/build/preview/publish/rollback.
+Verification caught and corrected a leftover attachment-state reference; final
+smoke includes the OPTIONS route added during review. One existing serving skip
+remains (`TestLoadConfigDefaults`). UI checks cover contracts/source wiring and
+builds, not rendered browser acceptance. Disposable stacks/data were removed;
+no paid provider calls, remote changes or push occurred.
+
+Next: **M3.10**, preserve drafts across session expiry/re-authentication and improve
+progress, retry/empty states, version labels and dashboard refresh.
+
 M3.8 completed (2026-09-06) in `4466271`.
 [Atomic activation and retention guide](docs/ATOMIC_ACTIVATION.md) defines the
 filesystem and upgrade contract. Compiled output is validated/extracted privately,
@@ -927,7 +969,7 @@ request-lifetime lease. Hidden crash-left staging directories remain for operato
 inspection. Full rendered-browser acceptance remains M3.12; arbitrary disk loss,
 coordinated backup/restore and security remain M4 work.
 
-Next: **M3.9**, hide/disable unsupported MVP controls and backend actions.
+At M3.8 handoff, next was **M3.9**, hide/disable unsupported MVP controls and backend actions.
 
 M3.7 completed (2026-09-06) in `ec47934`.
 [Deployment consistency/recovery runbook](docs/DEPLOYMENT_RECOVERY.md) defines the
