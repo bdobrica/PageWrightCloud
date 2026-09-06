@@ -110,63 +110,23 @@ func TestActivateVersion(t *testing.T) {
 }
 
 func TestCleanupOldVersions(t *testing.T) {
-	t.Skip("Skipping flaky cleanup test - cleanup logic is correct")
-
-	tmpDir := t.TempDir()
-
-	mgr := &Manager{
-		wwwRoot:            tmpDir,
-		maxVersionsPerSite: 3,
+	m := NewManager(t.TempDir(), 3)
+	archive := writeTestArchive(t, validEntries())
+	for i, v := range []string{"v1", "v2", "v3", "v4", "v5"} {
+		require.NoError(t, m.DeployArtifact("blog.example.com", v, archive))
+		stamp := time.Unix(100+int64(i), 0)
+		require.NoError(t, os.Chtimes(m.GetArtifactPath("blog.example.com", v), stamp, stamp))
 	}
-
-	// Deploy 5 versions with unique names
-	versions := []string{"v1", "v2", "v3", "v4", "v5"}
-	for _, v := range versions {
-		// Create artifact in temp dir
-		artifactDir := filepath.Join(tmpDir, "tmp-artifacts")
-		os.MkdirAll(artifactDir, 0755)
-		artifactPath := createTestArtifact(t, artifactDir)
-
-		err := mgr.DeployArtifact("blog.example.com", v, artifactPath)
-		require.NoError(t, err)
-		time.Sleep(10 * time.Millisecond) // Ensure different access times
+	require.NoError(t, m.ActivateVersion("blog.example.com", "v3", false))
+	require.NoError(t, m.CleanupOldVersions("blog.example.com"))
+	entries, err := os.ReadDir(filepath.Join(m.GetSitePath("blog.example.com"), "artifacts"))
+	require.NoError(t, err)
+	names := []string{}
+	for _, e := range entries {
+		names = append(names, e.Name())
 	}
-
-	// Activate one version as public
-	sitePath := mgr.GetSitePath("blog.example.com")
-	artifactsPath := filepath.Join(sitePath, "artifacts")
-
-	entries, err := os.ReadDir(artifactsPath)
-	require.NoError(t, err)
-	require.Len(t, entries, 5, "Should have 5 versions initially")
-
-	// Activate middle version (v3)
-	err = mgr.ActivateVersion("blog.example.com", "v3", false)
-	require.NoError(t, err)
-
-	// Clean up old versions
-	err = mgr.CleanupOldVersions("blog.example.com")
-	require.NoError(t, err)
-
-	// Should have max 3 versions left (including the protected one)
-	entries, err = os.ReadDir(artifactsPath)
-	require.NoError(t, err)
-	assert.LessOrEqual(t, len(entries), 3, "Should keep at most 3 versions")
-
-	// Verify activated version (v3) is still present
-	found := false
-	for _, entry := range entries {
-		if entry.Name() == "v3" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "Activated version v3 should still be present")
-
-	// Verify public symlink still works
-	publicLink := filepath.Join(sitePath, "public")
-	_, err = os.Stat(publicLink)
-	require.NoError(t, err, "Public symlink should still exist")
+	require.Equal(t, []string{"v3", "v4", "v5"}, names)
+	require.FileExists(t, filepath.Join(m.GetSitePath("blog.example.com"), "public", "index.html"))
 }
 
 func TestRemoveSite(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/nginx"
@@ -42,10 +43,24 @@ func TestDurableFencedDeployment(t *testing.T) {
 		w.Write(archive.Bytes())
 	}))
 	defer upstream.Close()
-	am := artifact.NewManager(t.TempDir(), 10)
-	nm := nginx.NewManager(t.TempDir(), "true", "/tmp/503.html")
+	am := artifact.NewManager(t.TempDir(), 0)
+	configDir := t.TempDir()
+	nm := nginx.NewManager(configDir, "true", "/tmp/503.html")
 	sc := storage.NewClient(upstream.URL)
 	h := NewHandler(am, nm, sc)
+	// A legacy site without a receipt is still protected by its active pointer;
+	// deletion must not remove nginx routing before discovering that guard.
+	legacy := "legacy.example.test"
+	legacyArchive := filepath.Join(t.TempDir(), "legacy.tar.gz")
+	require.NoError(t, os.WriteFile(legacyArchive, archive.Bytes(), 0600))
+	require.NoError(t, am.DeployArtifact(legacy, "v1", legacyArchive))
+	require.NoError(t, am.ActivateVersion(legacy, "v1", false))
+	require.NoError(t, nm.CreateSiteConfig(legacy, am.GetSitePath(legacy), nil, true))
+	deletion := httptest.NewRecorder()
+	h.SetupRoutes().ServeHTTP(deletion, httptest.NewRequest("DELETE", "/sites/"+legacy, nil))
+	require.Equal(t, 500, deletion.Code)
+	require.FileExists(t, filepath.Join(configDir, legacy))
+	require.FileExists(t, filepath.Join(am.GetSitePath(legacy), "public", "index.html"))
 	d := deploymentReceipt{SiteID: "site-id", FQDN: "site.example.test", Sequence: 1, Version: "v1", Target: "live", Status: "pending"}
 	send := func(h *Handler, d deploymentReceipt) *httptest.ResponseRecorder {
 		data, _ := json.Marshal(d)
@@ -116,8 +131,32 @@ func TestDurableFencedDeployment(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "artifacts/v1/public", target)
 	// Corrupt receipts cannot reset the sequence or overwrite serving state.
+	// Evict an inactive cache entry, then roll back via a newer fenced operation.
+	next := d
+	next.Sequence = 4
+	next.Version = "v3"
+	require.Equal(t, 200, send(h, next).Code)
+	stamp := time.Unix(100, 0)
+	for _, v := range []string{"v1", "v2"} {
+		require.NoError(t, os.Chtimes(am.GetArtifactPath(d.FQDN, v), stamp, stamp))
+	}
+	require.NoError(t, am.CleanupOldVersions(d.FQDN))
+	require.NoDirExists(t, am.GetArtifactPath(d.FQDN, "v1"))
+	require.DirExists(t, am.GetArtifactPath(d.FQDN, "v2"))
+	before := fetches.Load()
+	rollback := d
+	rollback.Sequence = 5
+	require.Equal(t, 200, send(h, rollback).Code)
+	require.Equal(t, before+1, fetches.Load())
+	target, err = os.Readlink(link)
+	require.NoError(t, err)
+	require.Equal(t, "artifacts/v1/public", target)
+	preview, err := os.Readlink(filepath.Join(am.GetSitePath(d.FQDN), "preview"))
+	require.NoError(t, err)
+	require.Equal(t, "artifacts/v2/public", preview)
+	require.Equal(t, 409, send(h, next).Code)
 	require.NoError(t, os.WriteFile(h.receiptPath(d.FQDN), []byte("corrupt"), 0600))
-	failed.Sequence = 4
+	failed.Sequence = 6
 	require.Equal(t, 503, send(h, failed).Code)
 	target, err = os.Readlink(link)
 	require.NoError(t, err)

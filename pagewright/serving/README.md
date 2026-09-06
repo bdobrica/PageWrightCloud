@@ -145,13 +145,14 @@ server {
 ## Version Cleanup
 
 Automatic cleanup after each deployment:
-1. List all versions in `artifacts/` directory
-2. Read `public` and `preview` symlinks (protected)
-3. Sort remaining versions by access time (newest first)
-4. Keep up to `MAX_VERSIONS_PER_SITE` (default: 10)
-5. Delete oldest excess versions
 
-Protected versions are never deleted.
+1. Protect exact live/preview and receipt-pinned versions, plus a one-minute grace period.
+2. Leave staging/private entries alone; refuse cleanup on uncertain pointer/receipt evidence.
+3. Retain newest inactive entries within `PAGEWRIGHT_MAX_VERSIONS_PER_SITE` (default 10), a soft total budget.
+4. Remove only excess serving-cache copies; canonical storage archives remain available for rollback.
+
+Protected versions can exceed the budget and are never deleted. See [atomic activation,
+retention, rollback and upgrade boundaries](../../docs/ATOMIC_ACTIVATION.md).
 
 ## nginx Reload
 

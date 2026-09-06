@@ -81,12 +81,12 @@ Existing preview DNS/config upgrade requirements remain in
 Site deletion is refused once it has a deployment record (even a failed one), so a
 delayed request cannot recreate content after its sequence tombstone is removed.
 Deletion of never-enrolled sites is serialized with enrollment and stops on serving
-failure. Coordinated deletion/tombstone retention is not yet implemented; M3.9
-should hide unsupported controls. The fenced route retains staged artifacts rather
-than running the old unsafe retention routine. Active-version-aware retention and
-atomic symlink replacement remain **M3.8**: a switch still has a remove/create gap,
-and interrupted activation may temporarily leave the selected host unavailable.
-This is restart/retry reconciliation, not instantaneous globally atomic publishing.
+failure. Coordinated deletion/tombstone retirement is not yet implemented; M3.9
+should hide unsupported controls. M3.8 adds [atomic pointer replacement and safe
+serving-cache retention](ATOMIC_ACTIVATION.md): live, preview, receipt-pinned and
+recently switched output is protected, and rollback can restage an evicted copy.
+The pointer no longer has a remove/create gap. This is restart/retry reconciliation
+and atomic pointer replacement, not instantaneous globally atomic publishing.
 Internal service authentication and private preview access remain M4 work.
 
 ## Verification

@@ -4,22 +4,17 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
 	"github.com/gorilla/mux"
 )
 
-type deploymentReceipt struct {
-	SiteID   string `json:"site_id"`
-	Sequence int64  `json:"sequence"`
-	FQDN     string `json:"fqdn"`
-	Version  string `json:"version"`
-	Target   string `json:"target"`
-	Status   string `json:"status"`
-}
+type deploymentReceipt = artifact.DeploymentReceipt
 
 var deploymentID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
 
@@ -165,6 +160,11 @@ func (h *Handler) ApplyDeployment(w http.ResponseWriter, r *http.Request) {
 	if err = saveReceipt(path, &d); err != nil {
 		http.Error(w, "cannot confirm deployment receipt", 503)
 		return
+	}
+	// Cache maintenance is not part of the committed activation outcome. Active
+	// pointers and receipt identity remain pinned; never report rollback on error.
+	if err := h.artifactMgr.CleanupOldVersions(d.FQDN); err != nil {
+		log.Printf("deployment retention deferred: %v", err)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(d)

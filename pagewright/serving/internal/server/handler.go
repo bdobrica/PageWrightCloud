@@ -95,7 +95,7 @@ func (h *Handler) DeployArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Cleanup old versions
-	if err := h.artifactMgr.CleanupOldVersions(fqdn); err != nil {
+	if err := h.artifactMgr.CleanupOldVersions(fqdn, req.Version); err != nil {
 		fmt.Printf("Warning: failed to cleanup old versions: %v\n", err)
 	}
 
@@ -242,14 +242,9 @@ func (h *Handler) RemoveSite(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
-	// Remove nginx config
-	if err := h.nginxMgr.RemoveSiteConfig(fqdn); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to remove nginx config: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Remove site files
-	if err := h.artifactMgr.RemoveSite(fqdn); err != nil {
+	// Check active pointers/evidence before removing routing, under the artifact
+	// writer lock so activation cannot race the deletion guard.
+	if err := h.artifactMgr.RemoveSite(fqdn, func() error { return h.nginxMgr.RemoveSiteConfig(fqdn) }); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to remove site files: %v", err), http.StatusInternalServerError)
 		return
 	}

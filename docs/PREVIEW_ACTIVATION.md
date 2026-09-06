@@ -82,6 +82,7 @@ validation, acknowledged reloads, rollback and restart recovery. Integration use
 that production supervisor and fixed public proxy. Routing is confirmed before
 changing an artifact pointer; unavailable reloads fail without opening a success URL.
 M3.7 reconciles durable intent/receipts and preserves the opposite pointer; it does
-not promise a compensating rollback. Atomic symlink replacement remains M3.8.
+not promise a compensating rollback. M3.8 adds [atomic symlink replacement and
+active-version-aware cache retention](ATOMIC_ACTIVATION.md).
 Full rendered-browser acceptance remains M3.12. No private preview access
 control or safe-generated-content claim is made; pilot hardening remains M4.

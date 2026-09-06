@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -67,6 +68,8 @@ func TestCleanupDoesNotRemoveDeploymentStages(t *testing.T) {
 	base := filepath.Dir(m.GetArtifactPath("test.example.test", "v1"))
 	require.NoError(t, os.MkdirAll(filepath.Join(base, ".deploy-in-progress"), 0755))
 	require.NoError(t, os.MkdirAll(filepath.Join(base, "v1"), 0755))
+	stamp := time.Unix(100, 0)
+	require.NoError(t, os.Chtimes(filepath.Join(base, "v1"), stamp, stamp))
 	require.NoError(t, m.CleanupOldVersions("test.example.test"))
 	_, err := os.Stat(filepath.Join(base, ".deploy-in-progress"))
 	require.NoError(t, err)

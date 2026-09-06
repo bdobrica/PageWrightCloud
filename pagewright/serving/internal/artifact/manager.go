@@ -6,12 +6,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 type Manager struct {
+	mu sync.Mutex
+	// Optional filesystem seam for deterministic rename-failure tests.
+	renameLink         func(string, string) error
 	wwwRoot            string
 	maxVersionsPerSite int
 }
@@ -36,8 +39,13 @@ func (m *Manager) GetArtifactPath(fqdn, version string) string {
 
 // DeployArtifact unpacks an artifact to the version directory
 func (m *Manager) DeployArtifact(fqdn, version, archivePath string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if !safeIdentifier(fqdn) || !safeIdentifier(version) {
 		return fmt.Errorf("invalid site or version")
+	}
+	if err := m.checkSitePath(fqdn); err != nil {
+		return err
 	}
 	dest := m.GetArtifactPath(fqdn, version)
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
@@ -62,10 +70,13 @@ func (m *Manager) DeployArtifact(fqdn, version, archivePath string) error {
 		return copyErr
 	}
 	digest := fmt.Sprintf("%x", hash.Sum(nil))
-	if _, err := os.Lstat(dest); err == nil {
+	if info, err := os.Lstat(dest); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("artifact version is not a real directory")
+		}
 		prior, err := os.ReadFile(filepath.Join(dest, ".archive-sha256"))
 		if err == nil && string(prior) == digest {
-			return nil
+			return syncDirectory(filepath.Dir(dest))
 		}
 		return fmt.Errorf("version already exists with different or unverified content")
 	} else if !os.IsNotExist(err) {
@@ -77,15 +88,18 @@ func (m *Manager) DeployArtifact(fqdn, version, archivePath string) error {
 	if err := os.Chmod(stage, 0755); err != nil {
 		return err
 	}
+	if err := syncTree(stage); err != nil {
+		return err
+	}
 	if err := os.Rename(stage, dest); err != nil {
 		// A concurrent identical deployment may have published while we validated.
 		prior, readErr := os.ReadFile(filepath.Join(dest, ".archive-sha256"))
 		if readErr == nil && string(prior) == digest {
-			return nil
+			return syncDirectory(filepath.Dir(dest))
 		}
 		return err
 	}
-	return nil
+	return syncDirectory(filepath.Dir(dest))
 }
 
 func safeIdentifier(value string) bool {
@@ -106,15 +120,26 @@ func safeIdentifier(value string) bool {
 
 // ActivateVersion creates/updates symlink for public or preview
 func (m *Manager) ActivateVersion(fqdn, version string, isPreview bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if !safeIdentifier(fqdn) || !safeIdentifier(version) {
 		return fmt.Errorf("invalid site or version")
+	}
+	if err := m.checkSitePath(fqdn); err != nil {
+		return err
+	}
+	if err := realDirectory(filepath.Join(m.GetSitePath(fqdn), "artifacts")); err != nil {
+		return err
 	}
 	sitePath := m.GetSitePath(fqdn)
 	artifactPath := m.GetArtifactPath(fqdn, version)
 
 	// Verify artifact exists
 	publicPath := filepath.Join(artifactPath, "public")
-	if _, err := os.Stat(publicPath); err != nil {
+	if err := realDirectory(artifactPath); err != nil {
+		return err
+	}
+	if err := realDirectory(publicPath); err != nil {
 		return fmt.Errorf("artifact public directory not found: %w", err)
 	}
 
@@ -126,104 +151,76 @@ func (m *Manager) ActivateVersion(fqdn, version string, isPreview bool) error {
 
 	linkPath := filepath.Join(sitePath, linkName)
 
-	// Remove existing symlink if any
-	os.Remove(linkPath)
-
-	// Create relative symlink path (artifacts/{version}/public)
+	// Validate without unlinking anything. Unknown regular files/directories or
+	// noncanonical pointers require operator review, not destructive replacement.
+	old, err := activeVersion(linkPath)
+	if err != nil {
+		return err
+	}
+	// Delay cache eviction of recently selected/retired output for in-flight reads.
+	for _, v := range []string{old, version} {
+		if v == "" {
+			continue
+		}
+		path := m.GetArtifactPath(fqdn, v)
+		if err := realDirectory(path); err != nil {
+			return err
+		}
+		now := time.Now()
+		if err := os.Chtimes(path, now, now); err != nil {
+			return err
+		}
+	}
 	relTarget := filepath.Join("artifacts", version, "public")
-
-	// Create new symlink
-	if err := os.Symlink(relTarget, linkPath); err != nil {
+	stage, err := os.MkdirTemp(sitePath, ".activate-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	tmpLink := filepath.Join(stage, "link")
+	if err := os.Symlink(relTarget, tmpLink); err != nil {
 		return fmt.Errorf("failed to create symlink: %w", err)
 	}
-
-	return nil
+	rename := m.renameLink
+	if rename == nil {
+		rename = os.Rename
+	}
+	if err := rename(tmpLink, linkPath); err != nil {
+		return fmt.Errorf("failed to replace symlink: %w", err)
+	}
+	// A sync error after rename is uncertain, not evidence that activation failed.
+	return syncDirectory(sitePath)
 }
 
 // CleanupOldVersions removes old artifact versions, keeping max configured
-func (m *Manager) CleanupOldVersions(fqdn string) error {
-	sitePath := m.GetSitePath(fqdn)
-	artifactsDir := filepath.Join(sitePath, "artifacts")
-
-	// List all version directories
-	entries, err := os.ReadDir(artifactsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // No artifacts yet
-		}
-		return fmt.Errorf("failed to read artifacts directory: %w", err)
-	}
-
-	// Get current active versions
-	publicVersion, _ := m.getSymlinkTarget(filepath.Join(sitePath, "public"))
-	previewVersion, _ := m.getSymlinkTarget(filepath.Join(sitePath, "preview"))
-
-	// Collect versions with access times
-	type versionInfo struct {
-		name       string
-		accessTime time.Time
-		protected  bool
-	}
-
-	var versions []versionInfo
-	for _, entry := range entries {
-		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".deploy-") {
-			continue
-		}
-
-		versionPath := filepath.Join(artifactsDir, entry.Name())
-		info, err := os.Stat(versionPath)
-		if err != nil {
-			continue
-		}
-
-		protected := strings.Contains(publicVersion, entry.Name()) ||
-			strings.Contains(previewVersion, entry.Name())
-
-		versions = append(versions, versionInfo{
-			name:       entry.Name(),
-			accessTime: info.ModTime(),
-			protected:  protected,
-		})
-	}
-
-	// Sort by access time (newest first)
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].accessTime.After(versions[j].accessTime)
-	})
-
-	// Count unprotected versions
-	unprotectedCount := 0
-	for _, v := range versions {
-		if !v.protected {
-			unprotectedCount++
-		}
-	}
-
-	// Remove excess old versions
-	if unprotectedCount > m.maxVersionsPerSite {
-		toRemove := unprotectedCount - m.maxVersionsPerSite
-		removed := 0
-
-		// Start from oldest (end of sorted list)
-		for i := len(versions) - 1; i >= 0 && removed < toRemove; i-- {
-			if !versions[i].protected {
-				versionPath := filepath.Join(artifactsDir, versions[i].name)
-				if err := os.RemoveAll(versionPath); err != nil {
-					fmt.Printf("Warning: failed to remove old version %s: %v\n", versions[i].name, err)
-				} else {
-					removed++
-				}
-			}
-		}
-	}
-
-	return nil
+func (m *Manager) CleanupOldVersions(fqdn string, protected ...string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cleanupOldVersions(fqdn, protected)
 }
 
-// RemoveSite removes all site data
-func (m *Manager) RemoveSite(fqdn string) error {
+// RemoveSite never deletes active output or durable sequence evidence. The
+// optional infrastructure step runs under the same guard before removing files.
+func (m *Manager) RemoveSite(fqdn string, beforeRemove ...func() error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !safeIdentifier(fqdn) {
+		return fmt.Errorf("invalid site")
+	}
+	if err := m.checkSitePath(fqdn); err != nil {
+		return err
+	}
 	sitePath := m.GetSitePath(fqdn)
+	for _, name := range []string{"public", "preview", ".deployment.json"} {
+		if _, err := os.Lstat(filepath.Join(sitePath, name)); !os.IsNotExist(err) {
+			return fmt.Errorf("site has active output or deployment evidence")
+		}
+	}
+	for _, before := range beforeRemove {
+		if err := before(); err != nil {
+			return err
+		}
+	}
 	return os.RemoveAll(sitePath)
 }
 
