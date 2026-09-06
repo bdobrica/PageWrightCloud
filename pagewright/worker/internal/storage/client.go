@@ -13,12 +13,22 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/types"
 )
 
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	ctx        context.Context
+	attempt    string
+}
+
+func (c *Client) WithAttempt(job *types.Job) *Client {
+	copy := *c
+	data, _ := json.Marshal(map[string]any{"job_id": job.JobID, "site_id": job.SiteID, "owner_id": job.OwnerID, "source_version": job.SourceVersion, "target_version": job.TargetVersion, "lock_token": job.LockToken, "fencing_token": job.FencingToken})
+	copy.attempt = string(data)
+	return &copy
 }
 
 // A per-job copy keeps cancellation scoped without mutating a shared client.
@@ -33,7 +43,11 @@ func (c *Client) request(method, url string, body io.Reader) (*http.Request, err
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return http.NewRequestWithContext(ctx, method, url, body)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	if err == nil && method != http.MethodGet && c.attempt != "" {
+		req.Header.Set("X-Pagewright-Attempt", c.attempt)
+	}
+	return req, err
 }
 
 func NewClient(baseURL string) *Client {

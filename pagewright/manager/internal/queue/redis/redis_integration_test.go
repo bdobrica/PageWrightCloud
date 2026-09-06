@@ -30,7 +30,7 @@ func isolatedBackend(t *testing.T) (*RedisBackend, *types.Job) {
 	prefix := "pagewright:contract-test:" + uuid.NewString() + ":"
 	backend.queueKey = prefix + "queue"
 	backend.jobKeyPrefix = prefix + "job:"
-	job := &types.Job{JobID: uuid.NewString(), SiteID: "site", OwnerID: "owner", Prompt: "edit", SourceVersion: "v1", TargetVersion: "v2", Status: types.JobStatusPending, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	job := &types.Job{JobID: uuid.NewString(), SiteID: uuid.NewString(), OwnerID: "owner", Prompt: "edit", SourceVersion: "v1", TargetVersion: "v2", Status: types.JobStatusPending, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 	t.Cleanup(func() {
 		keys, _ := backend.client.Keys(context.Background(), prefix+"*").Result()
 		if len(keys) > 0 {
@@ -126,9 +126,14 @@ func TestRedisUpdatesPreserveTTLAndDoNotResurrectJobs(t *testing.T) {
 	if _, _, err := b.CreateJob(ctx, j); err != nil {
 		t.Fatal(err)
 	}
+	j, err := beginTestAttempt(t, b, claim(t, b, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approveParts(t, b, j)
 	j.Status = types.JobStatusCompleted
 	j.Result = "done"
-	j.ManifestPath = "manifest"
+	j.ManifestPath = "/sites/" + j.SiteID + "/artifacts/" + j.TargetVersion + "/manifest"
 	if err := b.UpdateJob(ctx, j); err != nil {
 		t.Fatal(err)
 	}
@@ -138,11 +143,11 @@ func TestRedisUpdatesPreserveTTLAndDoNotResurrectJobs(t *testing.T) {
 	if err := b.client.Expire(ctx, b.jobKeyPrefix+j.JobID, time.Minute).Err(); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.UpdateJob(ctx, j); err != nil {
-		t.Fatal(err)
+	if err := b.UpdateJob(ctx, j); !errors.Is(err, queue.ErrFenced) {
+		t.Fatalf("duplicate terminal update accepted: %v", err)
 	}
 	got, err := b.SetWorkerID(ctx, j.JobID, "worker")
-	if err != nil || got.Status != types.JobStatusCompleted || got.ManifestPath != "manifest" || got.WorkerID != "worker" {
+	if err != nil || got.Status != types.JobStatusCompleted || got.ManifestPath != j.ManifestPath || got.WorkerID != "worker" {
 		t.Fatalf("outcome overwritten: %+v %v", got, err)
 	}
 	if ttl := b.client.TTL(ctx, b.jobKeyPrefix+j.JobID).Val(); ttl <= 0 || ttl > time.Minute {

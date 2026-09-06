@@ -122,7 +122,7 @@ acceptance pass. No successful hosted CI run is claimed. Go 1.24.10 is required
 for the Engine API acceptance launcher. Containers are deleted by their returned
 IDs after logs/inspection; no unrelated containers are selected for cleanup.
 
-Manager/Compose/example defaults select the distinct `pagewright-worker:m2.6`
+Manager/Compose/example defaults select the distinct `pagewright-worker:m2.7`
 image tag. Build with `docker compose --env-file /dev/null --profile worker build worker`.
 On the AppArmor host, also set the manager's profile variable as above. The legacy
 manual Compose worker overlay cannot express this scoped Engine API policy;

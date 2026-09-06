@@ -25,7 +25,7 @@ func (n *NFSBackend) StorePrivateLog(site, version string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	return immutableWrite(n.basePath, path, bytes.NewReader(data))
+	return immutableWrite(n.basePath, path, bytes.NewReader(data), n.writeGuard)
 }
 
 func (n *NFSBackend) FetchPrivateLog(site, version string) ([]byte, error) {
@@ -86,7 +86,7 @@ func (n *NFSBackend) CommitManifest(site, version string, data json.RawMessage) 
 	if err := syncDirectory(filepath.Dir(path)); err != nil {
 		return err
 	}
-	return immutableWrite(n.basePath, path, bytes.NewReader(data))
+	return immutableWrite(n.basePath, path, bytes.NewReader(data), n.writeGuard)
 }
 
 func (n *NFSBackend) FetchManifest(site, version string) (json.RawMessage, error) {

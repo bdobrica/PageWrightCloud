@@ -13,7 +13,14 @@ import (
 )
 
 type NFSBackend struct {
-	basePath string
+	basePath   string
+	writeGuard func(string, int64) error
+}
+
+func (n *NFSBackend) WithWriteGuard(guard func(string, int64) error) storage.Backend {
+	copy := *n
+	copy.writeGuard = guard
+	return &copy
 }
 
 func NewNFSBackend(basePath string) (*NFSBackend, error) {
@@ -41,7 +48,7 @@ func (n *NFSBackend) StoreArtifact(siteID, buildID string, reader io.Reader) err
 	}
 
 	artifactPath := filepath.Join(artifactDir, fmt.Sprintf("%s.tar.gz", buildID))
-	return immutableWrite(n.basePath, artifactPath, reader)
+	return immutableWrite(n.basePath, artifactPath, reader, n.writeGuard)
 }
 
 func (n *NFSBackend) FetchArtifact(siteID, buildID string) (io.ReadCloser, error) {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/artifact"
+	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/types"
 )
 
 // Uses the same fixture and stored bytes subsequently consumed by gateway and
@@ -94,6 +95,11 @@ func TestArtifactTransportIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := NewClient(env["TEST_STORAGE_URL"])
+	var attempt types.Job
+	if err := json.Unmarshal([]byte(transportAttempt(t, env["TEST_ARTIFACT_SITE_ID"], env["TEST_ARTIFACT_VERSION_ID"])), &attempt); err != nil {
+		t.Fatal(err)
+	}
+	client = client.WithAttempt(&attempt)
 	if err := client.UploadArtifact(env["TEST_ARTIFACT_SITE_ID"], env["TEST_ARTIFACT_VERSION_ID"], archive); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +163,7 @@ func TestArtifactTransportIntegration(t *testing.T) {
 			t.Fatalf("listing %+v: %v status %d", listing, err, resp.StatusCode)
 		}
 	}
-	manifest := map[string]interface{}{"site_id": env["TEST_ARTIFACT_SITE_ID"], "build_id": env["TEST_ARTIFACT_VERSION_ID"], "created_at": time.Now().UTC(), "checks_passed": false, "prompt": "private fixture prompt"}
+	manifest := map[string]interface{}{"fencing_token": attempt.FencingToken, "site_id": env["TEST_ARTIFACT_SITE_ID"], "build_id": env["TEST_ARTIFACT_VERSION_ID"], "created_at": time.Now().UTC(), "checks_passed": false, "prompt": "private fixture prompt"}
 	if err := client.UploadManifest(env["TEST_ARTIFACT_SITE_ID"], env["TEST_ARTIFACT_VERSION_ID"], manifest); err == nil {
 		t.Fatal("manifest accepted before log")
 	}

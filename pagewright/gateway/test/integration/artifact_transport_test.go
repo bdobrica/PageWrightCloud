@@ -113,6 +113,7 @@ func TestGatewayArtifactTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Pagewright-Attempt", transportAttempt(t, site.ID, "version"))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

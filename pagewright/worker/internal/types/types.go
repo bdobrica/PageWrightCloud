@@ -61,6 +61,8 @@ type WorkerStatus struct {
 
 // JobResult is sent back to manager when work completes
 type JobResult struct {
+	LockToken     string `json:"lock_token"`
+	FencingToken  int64  `json:"fencing_token"`
 	JobID         string `json:"job_id"`
 	SiteID        string `json:"site_id"`
 	OwnerID       string `json:"owner_id"`
@@ -82,8 +84,8 @@ func (j Job) ValidateLaunch() error {
 			return fmt.Errorf("%s is required", field.name)
 		}
 	}
-	if j.Status != "pending" && j.Status != "running" {
-		return fmt.Errorf("worker launch status must be pending or running")
+	if j.Status != "running" || strings.TrimSpace(j.LockToken) == "" || j.FencingToken <= 0 {
+		return fmt.Errorf("worker launch requires running status and a fenced attempt")
 	}
 	if j.CreatedAt.IsZero() || j.UpdatedAt.IsZero() {
 		return fmt.Errorf("created_at and updated_at are required")

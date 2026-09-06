@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/google/uuid"
@@ -58,8 +59,28 @@ func TestIntegrationConcurrentIdempotentSubmission(t *testing.T) {
 	if created != 1 || total != 16 {
 		t.Fatalf("created=%d responses=%d", created, total)
 	}
-	// A retry after a successful terminal callback returns the stored terminal job.
-	result := types.JobStatusUpdate{JobID: req.JobID, SiteID: req.SiteID, OwnerID: req.OwnerID, SourceVersion: req.SourceVersion, TargetVersion: req.TargetVersion, Status: types.JobStatusCompleted, Result: "done"}
+	// Admission replay stays idempotent; terminal callback replay is rejected.
+	var running types.Job
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		response, err := client.Get(baseURL + "/jobs/" + req.JobID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = json.NewDecoder(response.Body).Decode(&running)
+		response.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if running.Status == types.JobStatusRunning {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if running.Status != types.JobStatusRunning {
+		t.Fatal("job did not dispatch")
+	}
+	result := types.JobStatusUpdate{LockToken: running.LockToken, FencingToken: running.FencingToken, JobID: req.JobID, SiteID: req.SiteID, OwnerID: req.OwnerID, SourceVersion: req.SourceVersion, TargetVersion: req.TargetVersion, Status: types.JobStatusFailed, ErrorMessage: "fixture ended"}
 	resultData, _ := json.Marshal(result)
 	resp, err := client.Post(baseURL+"/jobs/"+req.JobID+"/result", "application/json", bytes.NewReader(resultData))
 	if err != nil {
@@ -78,7 +99,7 @@ func TestIntegrationConcurrentIdempotentSubmission(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&replay); err != nil {
 		t.Fatal(err)
 	}
-	if resp.StatusCode != 200 || replay.Status != types.JobStatusCompleted || replay.Result != "done" {
+	if resp.StatusCode != 200 || replay.Status != types.JobStatusFailed || replay.ErrorMessage != "fixture ended" {
 		t.Fatalf("terminal replay %d %+v", resp.StatusCode, replay)
 	}
 	req.Prompt = "different"

@@ -39,6 +39,7 @@ func (h *Handler) SetupRoutes() *mux.Router {
 	r.HandleFunc("/jobs/{job_id}", h.GetJob).Methods("GET")
 	r.HandleFunc("/jobs/{job_id}/status", h.UpdateJobStatus).Methods("POST")
 	r.HandleFunc("/jobs/{job_id}/result", h.JobResult).Methods("POST")
+	r.HandleFunc("/jobs/{job_id}/write-commit", h.WriteCommit).Methods("POST")
 
 	return r
 }
@@ -76,6 +77,10 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.TargetVersion == "" {
 		req.TargetVersion = uuid.NewString()
+	}
+	if req.TargetVersion == "initial" {
+		writeError(w, 400, "invalid_request", "initial is reserved for bootstrap")
+		return
 	}
 	job := &types.Job{
 		JobID: req.JobID, SiteID: req.SiteID, OwnerID: req.OwnerID, Prompt: req.Prompt,
@@ -190,9 +195,10 @@ func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminal
 		writeLookupError(w, err)
 		return
 	}
-	// Identity validation is not callback authentication or fencing.
+	// The queue repeats these checks atomically with lease and outcome updates.
 	if update.JobID != job.JobID || update.SiteID != job.SiteID || update.OwnerID != job.OwnerID ||
-		update.SourceVersion != job.SourceVersion || update.TargetVersion != job.TargetVersion {
+		update.SourceVersion != job.SourceVersion || update.TargetVersion != job.TargetVersion ||
+		update.LockToken == "" || update.LockToken != job.LockToken || update.FencingToken <= 0 || update.FencingToken != job.FencingToken {
 		writeError(w, http.StatusConflict, "job_conflict", "Callback identity or versions do not match the stored job")
 		return
 	}
@@ -208,26 +214,50 @@ func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminal
 	updated.ManifestPath = update.ManifestPath
 	updated.UpdatedAt = time.Now().UTC()
 	if err := h.queue.UpdateJob(ctx, &updated); err != nil {
+		if errors.Is(err, queue.ErrFenced) {
+			writeError(w, http.StatusConflict, "stale_attempt", "Attempt is expired, terminal or conflicting")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", fmt.Sprintf("Failed to update job: %v", err))
 		return
 	}
 	// Return the merged stored snapshot, not a stale copy from before dispatch
-	// metadata or an identical terminal retry was reconciled atomically.
+	// metadata was merged atomically. Terminal retries are rejected.
 	confirmed, err := h.queue.GetJob(ctx, jobID)
 	if err != nil {
 		writeLookupError(w, err)
 		return
 	}
 	updated = *confirmed
-	if update.Status == types.JobStatusCompleted || update.Status == types.JobStatusFailed {
-		if updated.LockToken != "" {
-			if err := h.lockMgr.Release(ctx, updated.SiteID, updated.LockToken); err != nil {
-				fmt.Printf("Warning: Failed to release lock for site %s: %v\n", updated.SiteID, err)
-			}
-		}
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(&updated)
+}
+
+func (h *Handler) WriteCommit(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	var update types.WriteCommit
+	if err := decodeRequest(r, &update); err != nil {
+		writeError(w, 400, "invalid_request", "Invalid write commit")
+		return
+	}
+	if update.JobID != mux.Vars(r)["job_id"] || blank(update.JobID) || blank(update.LockToken) || update.FencingToken <= 0 {
+		writeError(w, 409, "stale_attempt", "Attempt identity required")
+		return
+	}
+	backend, ok := h.queue.(queue.CommitBackend)
+	if !ok {
+		writeError(w, 503, "unavailable", "Commit authority unavailable")
+		return
+	}
+	if err := backend.AuthorizeWrite(r.Context(), &update); err != nil {
+		if errors.Is(err, queue.ErrFenced) {
+			writeError(w, 409, "stale_attempt", "Write rejected")
+			return
+		}
+		writeError(w, 503, "unavailable", "Commit authority unavailable")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func blank(value string) bool { return strings.TrimSpace(value) == "" }

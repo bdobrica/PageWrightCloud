@@ -44,6 +44,8 @@ type JobRequest struct {
 
 // JobStatusUpdate represents a status update from a worker
 type JobStatusUpdate struct {
+	LockToken     string    `json:"lock_token"`
+	FencingToken  int64     `json:"fencing_token"`
 	JobID         string    `json:"job_id"`
 	SiteID        string    `json:"site_id"`
 	OwnerID       string    `json:"owner_id"`
@@ -62,4 +64,19 @@ type JobResult = JobStatusUpdate
 type APIError struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
+}
+
+// WriteCommit identifies the attempt and exact staged bytes being committed.
+// LockToken is the unique attempt identity allocated at lease acquisition.
+type WriteCommit struct {
+	JobID         string `json:"job_id"`
+	SiteID        string `json:"site_id"`
+	OwnerID       string `json:"owner_id"`
+	SourceVersion string `json:"source_version"`
+	TargetVersion string `json:"target_version"`
+	LockToken     string `json:"lock_token"`
+	FencingToken  int64  `json:"fencing_token"`
+	Part          string `json:"part"`
+	SHA256        string `json:"sha256"`
+	Size          int64  `json:"size"`
 }

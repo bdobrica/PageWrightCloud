@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	lockRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/lock/redis"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,12 +22,29 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
-type dispatchLocks struct{ released atomic.Int32 }
-
-func (l *dispatchLocks) Acquire(context.Context, string, time.Duration) (string, int64, error) {
-	return uuid.NewString(), 1, nil
+type dispatchLocks struct {
+	released atomic.Int32
+	real     *lockRedis.RedisLockManager
+	b        *RedisBackend
+	t        *testing.T
 }
-func (l *dispatchLocks) Release(context.Context, string, string) error              { l.released.Add(1); return nil }
+
+func newDispatchLocks(t *testing.T, b *RedisBackend) *dispatchLocks {
+	l, err := lockRedis.NewRedisLockManager(b.client.Options().Addr, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { l.Close() })
+	return &dispatchLocks{real: l, b: b, t: t}
+}
+func (l *dispatchLocks) Acquire(ctx context.Context, site string, ttl time.Duration) (string, int64, error) {
+	l.t.Cleanup(func() { l.b.client.Del(context.Background(), "lock:site:"+site, "fence:site:"+site) })
+	return l.real.Acquire(ctx, site, ttl)
+}
+func (l *dispatchLocks) Release(ctx context.Context, site, token string) error {
+	l.released.Add(1)
+	return l.real.Release(ctx, site, token)
+}
 func (l *dispatchLocks) Renew(context.Context, string, string, time.Duration) error { return nil }
 func (l *dispatchLocks) Close() error                                               { return nil }
 
@@ -64,10 +83,30 @@ func terminal(t *testing.T, b *RedisBackend, id string) {
 	}
 	j.Status = types.JobStatusCompleted
 	j.Result = "done"
-	j.ManifestPath = "manifest"
+	j.ManifestPath = "/sites/" + j.SiteID + "/artifacts/" + j.TargetVersion + "/manifest"
+	approveParts(t, b, j)
 	if err := b.UpdateJob(context.Background(), j); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func approveParts(t *testing.T, b *RedisBackend, j *types.Job) {
+	t.Helper()
+	for _, part := range []string{"artifact", "logs", "manifest"} {
+		u := &types.WriteCommit{JobID: j.JobID, SiteID: j.SiteID, OwnerID: j.OwnerID, SourceVersion: j.SourceVersion, TargetVersion: j.TargetVersion, LockToken: j.LockToken, FencingToken: j.FencingToken, Part: part, SHA256: strings.Repeat("a", 64), Size: 1}
+		if err := b.AuthorizeWrite(context.Background(), u); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func beginTestAttempt(t *testing.T, b *RedisBackend, c *queue.Claim) (*types.Job, error) {
+	t.Helper()
+	token, fence, err := newDispatchLocks(t, b).Acquire(context.Background(), c.Job.SiteID, time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	return b.BeginDispatch(context.Background(), c, token, fence)
 }
 
 func TestDispatchClaimRecoveryAndIntentBoundary(t *testing.T) {
@@ -87,7 +126,7 @@ func TestDispatchClaimRecoveryAndIntentBoundary(t *testing.T) {
 	if _, err := b.BeginDispatch(ctx, first, "old-lock", 1); !errors.Is(err, queue.ErrClaimLost) {
 		t.Fatalf("stale owner retained authority: %v", err)
 	}
-	running, err := b.BeginDispatch(ctx, recovered, "lock", 2)
+	running, err := beginTestAttempt(t, b, recovered)
 	if err != nil || running.Status != types.JobStatusRunning {
 		t.Fatalf("begin %v %v", running, err)
 	}
@@ -109,7 +148,7 @@ func TestDispatchFastCallbackAndSpawnOutcomes(t *testing.T) {
 			b, base := isolatedBackend(t)
 			j := enqueue(t, b, base)
 			c := claim(t, b, 1)
-			locks := &dispatchLocks{}
+			locks := newDispatchLocks(t, b)
 			d := &dispatcher.Dispatcher{Queue: b, Locks: locks, LockTTL: time.Minute, Spawner: dispatchSpawner(func(_ context.Context, job *types.Job, _ string) (string, error) {
 				if outcome == "fast_callback" {
 					terminal(t, b, job.JobID)
@@ -181,7 +220,7 @@ func TestDispatchGlobalLimitAcrossReplicasAndRestart(t *testing.T) {
 		replica.queueKey, replica.jobKeyPrefix = b.queueKey, b.jobKeyPrefix
 		run, cancel := context.WithCancel(ctx)
 		done := make(chan struct{})
-		d := &dispatcher.Dispatcher{Queue: replica, Locks: &dispatchLocks{}, Spawner: spawn, Limit: 2, Lease: time.Second, LockTTL: time.Minute}
+		d := &dispatcher.Dispatcher{Queue: replica, Locks: newDispatchLocks(t, replica), Spawner: spawn, Limit: 2, Lease: time.Second, LockTTL: time.Minute}
 		go func() { defer close(done); defer replica.Close(); d.Run(run) }()
 		return cancel, done
 	}
@@ -235,7 +274,7 @@ func TestQueuedSiteAdmissionAndTerminalMerge(t *testing.T) {
 		t.Fatalf("pending site not guarded: %+v %v", got, err)
 	}
 	c := claim(t, b, 1)
-	running, err := b.BeginDispatch(ctx, c, "lock", 1)
+	running, err := beginTestAttempt(t, b, c)
 	if err != nil {
 		t.Fatal(err)
 	}

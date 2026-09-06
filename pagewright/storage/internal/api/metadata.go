@@ -74,6 +74,15 @@ func (h *Handler) VersionMetadata(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "manifest requires matching site_id/build_id and created_at", 400)
 			return
 		}
+		if h.attempt != nil {
+			var identity struct {
+				FencingToken int64 `json:"fencing_token"`
+			}
+			if json.Unmarshal(data, &identity) != nil || identity.FencingToken != h.attempt.FencingToken {
+				http.Error(w, "manifest fence does not match attempt", 409)
+				return
+			}
+		}
 		err = backend.CommitManifest(site, version, data)
 	} else {
 		var log struct {
@@ -89,7 +98,7 @@ func (h *Handler) VersionMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		status := 500
-		if errors.Is(err, storage.ErrIncomplete) || errors.Is(err, storage.ErrConflict) {
+		if errors.Is(err, storage.ErrIncomplete) || errors.Is(err, storage.ErrConflict) || errors.Is(err, storage.ErrFenced) {
 			status = 409
 		}
 		http.Error(w, "metadata write failed", status)

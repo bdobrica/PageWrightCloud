@@ -2,7 +2,7 @@
 
 The supported worker is `pagewright/worker`, not the historical
 `pagewright/manager/cmd/worker` prototype. Root Compose, the worker Makefile and
-the manager's worker build targets agree on `pagewright-worker:m2.6`. The old
+the manager's worker build targets agree on `pagewright-worker:m2.7`. The old
 manager `Dockerfile.worker` is retained only as explicitly labelled history.
 
 Before submitting jobs, build the selected image:
@@ -27,13 +27,16 @@ with bounded acknowledgements and HTTP timeouts. The daemon must support that
 API version. Remote TCP/context selection, shell interpolation, image pulls,
 privileged workers, worker host mounts and host-port publication are not used.
 
+M2.7 requires the [fenced attempt/commit contract](FENCED_COMMITS.md); drain and
+upgrade manager, storage and worker together rather than mixing generations.
+
 Root Compose derives the worker network from its own project name, sets `/work`
 and `http://storage:8080`, and supplies the manager callback URL. For standalone
 manager use, configure:
 
 | Variable | Default / requirement |
 | --- | --- |
-| `PAGEWRIGHT_WORKER_IMAGE` | `pagewright-worker:m2.6`; explicit non-latest tag or digest |
+| `PAGEWRIGHT_WORKER_IMAGE` | `pagewright-worker:m2.7`; explicit non-latest tag or digest |
 | `PAGEWRIGHT_WORKER_APPARMOR_PROFILE` | Empty for Docker default; `pagewright-worker-proc` for M2.6 on AppArmor hosts after explicit profile loading. Legacy `pagewright-worker` retains Docker proc defaults. See [isolation policy](WORKER_ISOLATION.md). |
 | `PAGEWRIGHT_WORKER_NETWORK` | Required dedicated Docker network; root Compose supplies it |
 | `PAGEWRIGHT_DOCKER_SOCKET` | `/var/run/docker.sock`; absolute Unix path |
@@ -58,8 +61,8 @@ restart automatically or auto-remove, preserving daemon evidence for recovery.
 **The manager alone receives the host Docker socket. This is host-level authority,
 not a sandbox.** Run this stack locally with trusted operators only; the internal
 manager/storage APIs are not authenticated yet. Credential allowlisting is not
-per-job token issuance or an AI sandbox. Full runtime limits, isolation and
-scoped callback/storage authorization remain M2.6/M4.
+per-job token issuance or an AI sandbox. M2.6 supplies worker runtime limits and
+isolation; scoped service authentication remains M4.
 
 ## Outcomes and retry safety
 
@@ -79,11 +82,11 @@ start is attempted. A name conflict is never adopted or restarted.
   creates a second container. Gateway already treats unknown submission errors
   as uncertain and reconciles the same identity.
 
-The lock still has its existing TTL: retention here means **no early release**,
-not implemented renewal. Do not infer that an expired lock or a container in
-`created`/`exited` state proves execution never happened. Fencing enforcement,
-lease renewal, restart reconciliation and recovery from an ambiguous launch are
-M2.7–M2.9. M2.2 now supplies [bounded asynchronous dispatch](QUEUE_DISPATCH.md):
+M2.7 renews current attempts up to a bounded lifetime and enforces fencing at
+storage/result commit. Do not infer that an expired lock or a container in
+`created`/`exited` state proves execution never happened. Restart reconciliation
+and recovery from an ambiguous launch remain M2.8/M2.9.
+M2.2 supplies [bounded asynchronous dispatch](QUEUE_DISPATCH.md):
 submission acknowledges `201 pending`, and launch failures are read through job
 status rather than returned synchronously. Exited containers retain their environment in daemon metadata until
 removed; cleanup/retention and redacted log policy remain M2.10. No automatic

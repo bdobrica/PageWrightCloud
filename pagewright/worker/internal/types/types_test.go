@@ -6,8 +6,8 @@ import (
 )
 
 func TestValidateLaunch(t *testing.T) {
-	valid := Job{JobID: "job", SiteID: "site", OwnerID: "owner", Prompt: "prompt", SourceVersion: "source", TargetVersion: "target", Status: "pending", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
-	for _, status := range []string{"pending", "running"} {
+	valid := Job{LockToken: "attempt", FencingToken: 1, JobID: "job", SiteID: "site", OwnerID: "owner", Prompt: "prompt", SourceVersion: "source", TargetVersion: "target", Status: "running", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	for _, status := range []string{"running"} {
 		job := valid
 		job.Status = status
 		if err := job.ValidateLaunch(); err != nil {
@@ -40,7 +40,7 @@ func TestValidateLaunch(t *testing.T) {
 			t.Errorf("missing %s accepted", field)
 		}
 	}
-	for _, status := range []string{"completed", "failed", "queued", "succeeded"} {
+	for _, status := range []string{"pending", "completed", "failed", "queued", "succeeded"} {
 		job := valid
 		job.Status = status
 		if err := job.ValidateLaunch(); err == nil {
@@ -59,6 +59,13 @@ func TestValidateLaunch(t *testing.T) {
 			if err := job.ValidateLaunch(); err == nil {
 				t.Errorf("%s launch accepted %s", status, field)
 			}
+		}
+	}
+	for _, mutate := range []func(*Job){func(j *Job) { j.LockToken = "" }, func(j *Job) { j.FencingToken = 0 }} {
+		job := valid
+		mutate(&job)
+		if err := job.ValidateLaunch(); err == nil {
+			t.Fatal("unfenced launch accepted")
 		}
 	}
 }

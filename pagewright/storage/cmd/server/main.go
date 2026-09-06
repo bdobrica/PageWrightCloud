@@ -34,7 +34,14 @@ func main() {
 	}
 
 	// Create API handler
-	handler := api.NewHandler(backend)
+	managerURL := os.Getenv("PAGEWRIGHT_MANAGER_URL")
+	if managerURL == "" {
+		managerURL = "http://manager:8081"
+	}
+	handler, err := api.NewFencedHandler(backend, managerURL)
+	if err != nil {
+		log.Fatal(err)
+	}
 	router := handler.SetupRoutes()
 
 	// Create HTTP server

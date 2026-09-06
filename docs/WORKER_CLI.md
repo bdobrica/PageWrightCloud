@@ -1,6 +1,6 @@
-# Worker CLI and sandbox contract (M2.3–M2.6)
+# Worker CLI and sandbox contract (M2.3–M2.7)
 
-`pagewright-worker:m2.6` packages Codex CLI **0.153.4**, replacing the production
+`pagewright-worker:m2.7` packages Codex CLI **0.153.4**, replacing the production
 mock. The npm lockfile pins both the wrapper and native platform packages with
 integrity hashes; the image checks the installed version. The worker invokes the
 native executable directly so cancellation does not merely kill an npm launcher.
@@ -111,4 +111,5 @@ race/vet and full service integration cover preflight failure, argv/environment,
 redaction/capture limits and existing deterministic build contracts. Two old
 executor/parsing skips and the kill test were restored; two serving skips remain.
 No paid API call or real AI edit was performed. Test containers/data are disposable;
-test images/build caches may remain. M2.7 is the next milestone.
+test images/build caches may remain. M2.7 adds [fenced commits](FENCED_COMMITS.md)
+without changing the pinned CLI or sandbox policy. M2.8 is the next milestone.

@@ -16,7 +16,9 @@ import (
 )
 
 type Handler struct {
-	backend storage.Backend
+	backend   storage.Backend
+	commitURL string
+	attempt   *writeCommit
 }
 
 func NewHandler(backend storage.Backend) *Handler {
@@ -32,10 +34,10 @@ func (h *Handler) SetupRoutes() *mux.Router {
 	r.HandleFunc("/health", h.HealthCheck).Methods("GET")
 
 	// Artifact endpoints
-	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}", h.StoreArtifact).Methods("PUT")
+	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}", h.fencedWrite("artifact", h.StoreArtifact)).Methods("PUT")
 	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}", h.FetchArtifact).Methods("GET")
-	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}/manifest", h.VersionMetadata).Methods("POST", "GET")
-	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}/logs", h.VersionMetadata).Methods("POST", "GET")
+	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}/manifest", h.fencedWrite("manifest", h.VersionMetadata)).Methods("POST", "GET")
+	r.HandleFunc("/sites/{site_id}/artifacts/{build_id}/logs", h.fencedWrite("logs", h.VersionMetadata)).Methods("POST", "GET")
 
 	// Log and version endpoints
 	r.HandleFunc("/sites/{site_id}/logs", h.WriteLog).Methods("POST")
@@ -73,7 +75,7 @@ func (h *Handler) StoreArtifact(w http.ResponseWriter, r *http.Request) {
 	// Store the gzip file bytes verbatim, not a multipart envelope. Archive
 	// structure/size/security validation is a separate acceptance gate.
 	if err := h.backend.StoreArtifact(siteID, buildID, r.Body); err != nil {
-		if errors.Is(err, storage.ErrConflict) {
+		if errors.Is(err, storage.ErrConflict) || errors.Is(err, storage.ErrFenced) {
 			http.Error(w, "immutable version conflict", http.StatusConflict)
 			return
 		}

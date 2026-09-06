@@ -166,13 +166,15 @@ func TestIntegrationUpdateJobStatus(t *testing.T) {
 	// Update job status
 	job = waitForDispatch(t, client, job.JobID)
 	statusUpdate := types.JobStatusUpdate{
+		LockToken:     job.LockToken,
+		FencingToken:  job.FencingToken,
 		JobID:         job.JobID,
 		SiteID:        job.SiteID,
 		OwnerID:       job.OwnerID,
 		SourceVersion: job.SourceVersion,
 		TargetVersion: job.TargetVersion,
-		Status:        types.JobStatusCompleted,
-		Result:        "Contact page added successfully",
+		Status:        types.JobStatusRunning,
+		Result:        "Contact page edit in progress",
 	}
 
 	jsonData, err = json.Marshal(statusUpdate)
@@ -188,8 +190,8 @@ func TestIntegrationUpdateJobStatus(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&updatedJob)
 	require.NoError(t, err)
 
-	assert.Equal(t, types.JobStatusCompleted, updatedJob.Status)
-	assert.Equal(t, "Contact page added successfully", updatedJob.Result)
+	assert.Equal(t, types.JobStatusRunning, updatedJob.Status)
+	assert.Equal(t, "Contact page edit in progress", updatedJob.Result)
 }
 
 func TestIntegrationLockPreventsMultipleJobs(t *testing.T) {

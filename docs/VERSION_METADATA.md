@@ -1,5 +1,11 @@
 # Version metadata and completion (M1.4)
 
+M2.7 adds [attempt-bound digest reservations](FENCED_COMMITS.md) before immutable
+publication. Non-bootstrap POST/PUT requests require the current worker attempt
+header; manifest fencing must match. Identical object retries require a live
+attempt, and terminal callback duplicates now return 409. The ordering below
+remains; recovery of reserved-but-not-materialized bytes remains M2.8/M2.9.
+
 Storage treats the manifest as the final commit record. M1.5 adds
 [write-once publication and byte-identical retries](IMMUTABLE_VERSIONS.md). The worker performs:
 

@@ -145,7 +145,22 @@ func TestGatewayManagerJobContract(t *testing.T) {
 	}
 
 	// Canonical result round-trips without confusing job_id and target_version.
-	body, err := json.Marshal(map[string]string{"job_id": job.JobID, "site_id": job.SiteID, "owner_id": job.OwnerID, "source_version": job.SourceVersion, "target_version": job.TargetVersion, "status": "failed", "error_message": "deterministic test failure"})
+	// Fetch private attempt fields directly: the gateway's public job DTO must
+	// continue to omit them.
+	private, err := http.Get(managerURL + "/jobs/" + job.JobID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attempt struct {
+		LockToken    string `json:"lock_token"`
+		FencingToken int64  `json:"fencing_token"`
+	}
+	err = json.NewDecoder(private.Body).Decode(&attempt)
+	private.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{"lock_token": attempt.LockToken, "fencing_token": attempt.FencingToken, "job_id": job.JobID, "site_id": job.SiteID, "owner_id": job.OwnerID, "source_version": job.SourceVersion, "target_version": job.TargetVersion, "status": "failed", "error_message": "deterministic test failure"})
 	if err != nil {
 		t.Fatal(err)
 	}

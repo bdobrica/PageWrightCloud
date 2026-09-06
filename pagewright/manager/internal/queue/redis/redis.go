@@ -138,11 +138,15 @@ func (r *RedisBackend) UpdateJob(ctx context.Context, job *types.Job) error {
 		return fmt.Errorf("failed to marshal job: %w", err)
 	}
 
-	if err := updateOutcome.Run(ctx, r.client, append(r.dispatchKeys(), jobKey), string(jobData)).Err(); err != nil {
+	result, err := updateOutcome.Run(ctx, r.client, append(r.dispatchKeys(), jobKey, r.receiptKey(job.SiteID, job.TargetVersion), "lock:site:"+job.SiteID, "fence:site:"+job.SiteID), string(jobData)).Int()
+	if err != nil {
 		if err == redis.Nil {
 			return queue.ErrJobNotFound
 		}
 		return fmt.Errorf("failed to update job: %w", err)
+	}
+	if result != 1 {
+		return queue.ErrFenced
 	}
 
 	return nil
@@ -150,19 +154,25 @@ func (r *RedisBackend) UpdateJob(ctx context.Context, job *types.Job) error {
 
 // Merge callback outcome fields atomically with dispatch metadata and slot release.
 // Terminal jobs cannot be reopened by a late running callback.
-var updateOutcome = redis.NewScript(dispatchPrelude + `
+var updateOutcome = redis.NewScript(dispatchPrelude + fenceCheck + `
 local raw = redis.call('GET', KEYS[8])
 if not raw then return false end
 local job = cjson.decode(raw)
 local update = cjson.decode(ARGV[1])
-if job.status == 'completed' or job.status == 'failed' then
- if update.status ~= job.status then return redis.error_reply('terminal job cannot change status') end
- return 1
+if not validAttempt(job, update) then return -1 end
+if update.status ~= 'running' and update.status ~= 'completed' and update.status ~= 'failed' then return -1 end
+if update.status == 'completed' then
+ local rawReceipt = redis.call('GET', KEYS[9])
+ if not rawReceipt then return -1 end
+ local receipt = cjson.decode(rawReceipt)
+ if receipt.job_id ~= job.job_id or receipt.lock_token ~= job.lock_token or receipt.fencing_token ~= job.fencing_token or not receipt.manifest then return -1 end
+ if update.manifest_path ~= '/sites/'..job.site_id..'/artifacts/'..job.target_version..'/manifest' then return -1 end
 end
 for _,key in ipairs({'status','result','error_message','error_code','manifest_path','updated_at'}) do job[key] = update[key] end
 local data = cjson.encode(job)
 redis.call('SET', KEYS[8], data, 'XX', 'KEEPTTL')
 if job.status == 'completed' or job.status == 'failed' then
+ redis.call('DEL', KEYS[10])
  redis.call('SREM', KEYS[2], job.job_id)
  redis.call('ZREM', KEYS[3], job.job_id)
  redis.call('HSET', KEYS[5], job.job_id, 'terminal')

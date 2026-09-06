@@ -2,6 +2,7 @@ package nfs
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 // Publish a fully written inode with a no-replace hard link. Unlike rename,
 // this is atomic across independent processes without overwriting a winner.
 // Supported deployment: Linux local filesystem / Docker named volume.
-func immutableWrite(root, path string, reader io.Reader) error {
+func immutableWrite(root, path string, reader io.Reader, guards ...func(string, int64) error) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -33,6 +34,15 @@ func immutableWrite(root, path string, reader io.Reader) error {
 	}
 	if err := f.Close(); err != nil {
 		return err
+	}
+	// All bytes are staged and synced. The authority's atomic digest reservation
+	// is the logical write commit; the following no-replace link materializes it.
+	for _, guard := range guards {
+		if guard != nil {
+			if err := guard(hex.EncodeToString(hash.Sum(nil)), size); err != nil {
+				return err
+			}
+		}
 	}
 	if err := os.Link(f.Name(), path); err != nil {
 		if !os.IsExist(err) {

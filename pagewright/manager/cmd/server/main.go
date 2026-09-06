@@ -24,6 +24,9 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
+	if cfg.LockTTL < time.Second || cfg.LockRenewInterval <= 0 || cfg.LockRenewInterval > cfg.LockTTL/3 || cfg.WorkerTimeout < cfg.LockTTL {
+		log.Fatal("Require lock TTL >= 1s, renewal interval <= TTL/3, and worker timeout >= TTL")
+	}
 	if cfg.DispatchConcurrency < 1 || cfg.DispatchConcurrency > 128 || cfg.DispatchClaimTTL < time.Second || cfg.DispatchClaimTTL > time.Minute {
 		log.Fatal("Invalid dispatch concurrency or claim TTL")
 	}
@@ -94,6 +97,11 @@ func main() {
 	endInitialization()
 	dispatcherContext, stopDispatch := context.WithCancel(context.Background())
 	dispatcherDone := make(chan struct{})
+	leasesDone := make(chan struct{})
+	go func() {
+		defer close(leasesDone)
+		queueBackend.(*queueRedis.RedisBackend).MaintainLeases(dispatcherContext, cfg.LockTTL, cfg.LockRenewInterval, cfg.WorkerTimeout)
+	}()
 	dispatch := &dispatcher.Dispatcher{Queue: dispatchQueue, Locks: lockMgr, Spawner: workerSpawner, ManagerURL: managerURL, Limit: cfg.DispatchConcurrency, Lease: cfg.DispatchClaimTTL, LockTTL: cfg.LockTTL}
 	go func() { defer close(dispatcherDone); dispatch.Run(dispatcherContext) }()
 
@@ -124,6 +132,7 @@ func main() {
 
 	log.Println("Shutting down server...")
 	stopDispatch()
+	<-leasesDone
 	select {
 	case <-dispatcherDone:
 	case <-time.After(45 * time.Second):

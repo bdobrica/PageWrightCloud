@@ -138,7 +138,7 @@ func create(t *testing.T, h http.Handler) types.Job {
 	return j
 }
 func callback(j types.Job) types.JobStatusUpdate {
-	return types.JobStatusUpdate{JobID: j.JobID, SiteID: j.SiteID, OwnerID: j.OwnerID, SourceVersion: j.SourceVersion, TargetVersion: j.TargetVersion, Status: types.JobStatusCompleted, Result: "Done", ManifestPath: "v2/manifest.json"}
+	return types.JobStatusUpdate{LockToken: j.LockToken, FencingToken: j.FencingToken, JobID: j.JobID, SiteID: j.SiteID, OwnerID: j.OwnerID, SourceVersion: j.SourceVersion, TargetVersion: j.TargetVersion, Status: types.JobStatusCompleted, Result: "Done", ManifestPath: "v2/manifest.json"}
 }
 func assertError(t *testing.T, w *httptest.ResponseRecorder, status int, code string) {
 	t.Helper()
@@ -215,6 +215,7 @@ func TestCallbackSuccessAndFailureSnapshots(t *testing.T) {
 				h, q, l := fixture()
 				j := create(t, h)
 				j.Status, j.LockToken = types.JobStatusRunning, "test-lock"
+				j.FencingToken = 1
 				q.jobs[j.JobID] = j
 				update := callback(j)
 				update.Status = status
@@ -235,11 +236,8 @@ func TestCallbackSuccessAndFailureSnapshots(t *testing.T) {
 				if got.Status != status || got.Result != update.Result || got.ErrorMessage != update.ErrorMessage || got.ManifestPath != update.ManifestPath || got.OwnerID != j.OwnerID || got.TargetVersion != j.TargetVersion || got.UpdatedAt.Before(j.UpdatedAt) || q.jobs[j.JobID] != got {
 					t.Fatalf("incorrect callback snapshot: %+v", got)
 				}
-				wantReleased := 1
-				if status == types.JobStatusRunning {
-					wantReleased = 0
-				}
-				if l.released != wantReleased {
+				// Release belongs to the atomic queue commit, not a later HTTP step.
+				if l.released != 0 {
 					t.Fatalf("lock releases: %d", l.released)
 				}
 			})
@@ -327,6 +325,7 @@ func TestErrorEnvelopes(t *testing.T) {
 	assertError(t, call(t, h, "POST", "/jobs/missing/result", u), 404, "job_not_found")
 	j := create(t, h)
 	j.Status, j.LockToken = types.JobStatusRunning, "test-lock"
+	j.FencingToken = 1
 	q.jobs[j.JobID] = j
 	q.failUpdate = true
 	assertError(t, call(t, h, "POST", "/jobs/"+j.JobID+"/result", callback(j)), 500, "internal_error")
@@ -336,7 +335,11 @@ func TestErrorEnvelopes(t *testing.T) {
 }
 
 func TestPendingJobCannotReportExecutionOutcome(t *testing.T) {
- h,q,l:=fixture();j:=create(t,h);writes:=q.writes
- assertError(t,call(t,h,"POST","/jobs/"+j.JobID+"/result",callback(j)),409,"job_conflict")
- if q.writes!=writes || l.released!=0{t.Fatal("pending callback changed reservation")}
+	h, q, l := fixture()
+	j := create(t, h)
+	writes := q.writes
+	assertError(t, call(t, h, "POST", "/jobs/"+j.JobID+"/result", callback(j)), 409, "job_conflict")
+	if q.writes != writes || l.released != 0 {
+		t.Fatal("pending callback changed reservation")
+	}
 }

@@ -89,7 +89,7 @@ services:
       - PAGEWRIGHT_REDIS_DB=${PAGEWRIGHT_REDIS_DB:-0}
       - PAGEWRIGHT_LOCK_TTL=${PAGEWRIGHT_LOCK_TTL:-5m}
       - PAGEWRIGHT_LOCK_RENEW_INTERVAL=${PAGEWRIGHT_LOCK_RENEW_INTERVAL:-1m}
-      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.6}
+      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.7}
       - PAGEWRIGHT_WORKER_APPARMOR_PROFILE=${PAGEWRIGHT_WORKER_APPARMOR_PROFILE:-}
       - PAGEWRIGHT_WORKER_NETWORK=${COMPOSE_PROJECT_NAME:-pagewrightcloud}_pagewright
       - PAGEWRIGHT_WORKER_WORK_DIR=/work
@@ -126,6 +126,7 @@ services:
       - PAGEWRIGHT_PORT=8080
       - PAGEWRIGHT_STORAGE_BACKEND=${PAGEWRIGHT_STORAGE_BACKEND:-nfs}
       - PAGEWRIGHT_NFS_BASE_PATH=/nfs
+      - PAGEWRIGHT_MANAGER_URL=http://manager:8081
     volumes:
       - nfs_data:/nfs
     networks:
@@ -232,7 +233,7 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "2"}
-    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.6}
+    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.7}
     user: "1000:1000"
     cap_drop: [ALL]
     security_opt:

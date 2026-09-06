@@ -28,8 +28,10 @@ Do not delete dispatch markers or expire reservations to force retries.
 
 Terminal callbacks atomically free active capacity and the site's admission
 guard. Outcome updates preserve dispatch metadata and cannot reopen terminal
-jobs. Pending jobs cannot report execution outcomes. Authenticated, fenced
-callbacks and stale-worker enforcement remain M2.7/M4; internal APIs must still
+jobs. Pending jobs cannot report execution outcomes. M2.7 adds
+[lease renewal and fenced storage/result commits](FENCED_COMMITS.md), including
+atomic lock removal and rejection of terminal callback retries. Authentication
+remains M4; internal APIs must still
 be restricted to trusted local operation.
 
 ## Configuration and shutdown
@@ -46,8 +48,9 @@ It does not bound backlog size or individual worker CPU/memory.
 
 Shutdown stops new claims, waits up to 45 seconds for bounded dispatch operations
 while keeping callbacks available, then allows 15 seconds for HTTP shutdown.
-Compose grants 65 seconds. This does not cancel or drain long-running workers,
-renew their locks, or recover lost callbacks. Existing lock TTL behavior remains.
+Compose grants 65 seconds. This does not cancel or drain long-running workers
+or recover lost callbacks. M2.7 renews active leases while a manager is running;
+shutdown stops this replica's renewer, while another replica can continue it.
 
 ## Persistence and upgrades
 

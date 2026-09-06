@@ -4,7 +4,7 @@
 
 Stateless worker that executes AI-powered site edits using Codex in isolated containers.
 
-The selected `pagewright-worker:m2.6` packages pinned Codex CLI 0.153.4,
+The selected `pagewright-worker:m2.7` packages pinned Codex CLI 0.153.4,
 pagewrightc 0.1.0 and read-only starter theme 1.0.0, with non-root nested sandbox execution.
 Read the [trusted build contract](../../docs/WORKER_BUILD.md) and the
 [CLI contract and host prerequisites](../../docs/WORKER_CLI.md); older examples below are historical. Follow the

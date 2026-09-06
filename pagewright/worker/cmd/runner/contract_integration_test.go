@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/storage"
 	"github.com/bdobrica/PageWrightCloud/pagewright/worker/internal/types"
 )
 
@@ -65,6 +67,25 @@ func TestManagerWorkerContractRoundTrip(t *testing.T) {
 			manifest, failure := "/sites/"+siteID+"/artifacts/target-version/manifest", ""
 			if status == "failed" {
 				manifest, failure = "", "fixture execution failed"
+			}
+			if status == "completed" {
+				if err := reportResult(managerURL, &job, status, manifest, failure); err == nil {
+					t.Fatal("completion without storage commit accepted")
+				}
+				archive := filepath.Join(t.TempDir(), "fixture.tar.gz")
+				if err := os.WriteFile(archive, []byte("transport fixture"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				client := storage.NewClient(os.Getenv("TEST_STORAGE_URL")).WithAttempt(&job)
+				if err := client.UploadArtifact(job.SiteID, job.TargetVersion, archive); err != nil {
+					t.Fatal(err)
+				}
+				if err := client.UploadLog(job.SiteID, job.TargetVersion, "fixture"); err != nil {
+					t.Fatal(err)
+				}
+				if err := client.UploadManifest(job.SiteID, job.TargetVersion, types.Manifest{SiteID: job.SiteID, BuildID: job.TargetVersion, CreatedAt: time.Now().UTC(), FencingToken: job.FencingToken}); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if err := reportResult(managerURL, &job, status, manifest, failure); err != nil {
 				t.Fatal(err)

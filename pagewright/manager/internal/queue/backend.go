@@ -10,6 +10,11 @@ import (
 
 var ErrJobNotFound = errors.New("job not found")
 var ErrClaimLost = errors.New("dispatch claim lost")
+var ErrFenced = errors.New("stale attempt or conflicting commit")
+
+type CommitBackend interface {
+	AuthorizeWrite(context.Context, *types.WriteCommit) error
+}
 
 type Claim struct {
 	Job   *types.Job

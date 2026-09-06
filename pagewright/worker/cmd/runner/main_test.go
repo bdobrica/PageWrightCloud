@@ -12,7 +12,7 @@ import (
 )
 
 func contractJob() types.Job {
-	return types.Job{JobID: "job-123", SiteID: "site-456", OwnerID: "owner-789", Prompt: "Update heading", SourceVersion: "source-1", TargetVersion: "target-2", Status: "pending", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	return types.Job{LockToken: "attempt-123", FencingToken: 7, JobID: "job-123", SiteID: "site-456", OwnerID: "owner-789", Prompt: "Update heading", SourceVersion: "source-1", TargetVersion: "target-2", Status: "running", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 }
 
 func TestReportResultWireContract(t *testing.T) {
@@ -32,6 +32,9 @@ func TestReportResultWireContract(t *testing.T) {
 				var payload map[string]any
 				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 					t.Error(err)
+				}
+				if payload["lock_token"] != job.LockToken || payload["fencing_token"] != float64(job.FencingToken) {
+					t.Error("callback lost attempt identity")
 				}
 				for key, want := range map[string]string{"job_id": job.JobID, "site_id": job.SiteID, "owner_id": job.OwnerID, "source_version": job.SourceVersion, "target_version": job.TargetVersion, "status": status} {
 					if payload[key] != want {

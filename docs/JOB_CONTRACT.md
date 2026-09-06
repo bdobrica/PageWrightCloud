@@ -1,4 +1,4 @@
-# Job wire contract — M1.1 / M1.2
+# Job wire contract — M1.1 / M1.2 / M2.7
 
 This is the canonical contract for the selected gateway, manager, worker and UI.
 Go types remain local to their independently built service modules; real HTTP
@@ -19,9 +19,10 @@ module/build dependency. UI parsers validate responses at runtime.
 
 The intended lifecycle is pending → running → completed or failed. M1.1 validates
 vocabulary, callback outcomes and identities; M1.2 adds durable pre-dispatch mapping
-and submission deduplication. Reliable dispatch, callback idempotency, fencing and
-recovery remain M2 work.
-Manager currently marks a job running while calling its placeholder spawner;
+and submission deduplication. M2.2 adds durable dispatch; M2.7 adds
+[lease renewal and fenced storage/result commits](FENCED_COMMITS.md).
+Callback recovery remains M2.8/M2.9; terminal callback duplicates return 409.
+Manager marks a job running while recording irreversible dispatch intent;
 that status alone does not prove a worker ran.
 
 ## Gateway: browser build submission
@@ -117,8 +118,9 @@ summary, not an encoded JSON object), `error_message` and `manifest_path`.
 records manager submission rejection (`job_busy` or `spawn_failed`); callbacks
 clear it. Matching rejected submissions repeat the saved HTTP 409/502 error.
 Empty optional strings
-serialize as absent. The manifest value is an opaque locator; accepting it does
-not verify storage availability or settle M1.4's manifest endpoint.
+serialize as absent. Completed callbacks require the canonical manifest path
+and an attempt-bound storage commit reservation; this is not an availability
+guarantee after a later storage failure.
 
 Internal manager/worker snapshots may additionally contain `lock_token`,
 `fencing_token`, and `worker_id`. Gateway wire types deliberately do not retain
@@ -138,22 +140,28 @@ only accepts pending/running snapshots at launch; terminal jobs are not launchab
   "source_version":"version-1",
   "target_version":"version-2",
   "status":"failed",
-  "error_message":"Compilation failed."
+  "error_message":"Compilation failed.",
+  "lock_token":"attempt-token-from-running-snapshot",
+  "fencing_token":7
 }
 ```
 
 All five identity/version fields are required and nonblank. `status` must be
 `completed` or `failed`; optional `result`, `error_message` and `manifest_path`
 have the snapshot semantics above. `/jobs/{job_id}/status` uses the same payload
-but also permits `running`. It remains available for the manager's legacy mock
-worker. Both endpoints return the updated full snapshot, not an acknowledgment
+but also permits `running`. Unfenced legacy mock callbacks are rejected.
+Both endpoints return the updated full snapshot, not an acknowledgment
 with a different schema.
 
 The route's `job_id` and all stored identity/version fields must match the body.
 Mismatch returns HTTP 409 without updating the job or releasing its lock.
 These are consistency checks, **not authentication**: internal endpoints are
 still unauthenticated and must remain restricted to trusted local development.
-Scoped callback credentials and attempt/fencing verification remain later work.
+Callbacks require nonblank `lock_token` and positive `fencing_token` matching the
+stored attempt and live site lease. These are checked atomically at result commit;
+completion also requires the manifest write reservation. Expired/superseded and
+duplicate terminal callbacks return 409 without altering the result. Admission
+retries remain idempotent. Scoped callback credentials remain M4.
 
 ## Manager errors and compatibility
 

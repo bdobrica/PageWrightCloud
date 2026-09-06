@@ -146,10 +146,12 @@ local raw = redis.call('GET', ARGV[3]..id)
 if not raw then return false end
 local job = cjson.decode(raw)
 if job.status ~= 'pending' then return false end
+if redis.call('GET', KEYS[8]) ~= ARGV[4] or tonumber(redis.call('GET', KEYS[9])) ~= tonumber(ARGV[5]) then return false end
 job.status = 'running'
 job.lock_token = ARGV[4]
 job.fencing_token = tonumber(ARGV[5])
 job.updated_at = ARGV[6]
+job.dispatch_started_ms = now
 local data = cjson.encode(job)
 redis.call('SET', ARGV[3]..id, data, 'XX', 'KEEPTTL')
 redis.call('ZREM', KEYS[3], id)
@@ -158,7 +160,7 @@ return data
 `)
 
 func (r *RedisBackend) BeginDispatch(ctx context.Context, c *queue.Claim, lock string, fence int64) (*types.Job, error) {
-	data, err := beginDispatch.Run(ctx, r.client, r.dispatchKeys(), c.Job.JobID, c.Token, r.jobKeyPrefix, lock, fence, time.Now().UTC().Format(time.RFC3339Nano)).Text()
+	data, err := beginDispatch.Run(ctx, r.client, append(r.dispatchKeys(), "lock:site:"+c.Job.SiteID, "fence:site:"+c.Job.SiteID), c.Job.JobID, c.Token, r.jobKeyPrefix, lock, fence, time.Now().UTC().Format(time.RFC3339Nano)).Text()
 	if err == redis.Nil {
 		return nil, queue.ErrClaimLost
 	}

@@ -76,6 +76,7 @@ func TestIntegrationStoreAndFetchArtifact(t *testing.T) {
 	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/sites/%s/artifacts/%s", baseURL, siteID, buildID), bytes.NewReader(content))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/gzip")
+	req.Header.Set("X-Pagewright-Attempt", transportAttempt(t, siteID, buildID))
 
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
@@ -196,17 +197,20 @@ func TestIntegrationConcurrentWrites(t *testing.T) {
 
 	siteID := fmt.Sprintf("test-site-%d", time.Now().UnixNano())
 	numWrites := 10
+	buildID := "concurrent-retry"
+	attempt := transportAttempt(t, siteID, buildID)
 
 	// Concurrent artifact uploads
 	done := make(chan bool, numWrites)
 	for i := 0; i < numWrites; i++ {
 		go func(idx int) {
-			buildID := fmt.Sprintf("build-%d", idx)
-			content := []byte(fmt.Sprintf("content-%d", idx))
+			// Concurrent identical retries of one immutable, authorized object.
+			content := []byte("identical concurrent content")
 
 			req, err := http.NewRequest("PUT", fmt.Sprintf("%s/sites/%s/artifacts/%s", baseURL, siteID, buildID), bytes.NewReader(content))
 			if err == nil {
 				req.Header.Set("Content-Type", "application/gzip")
+				req.Header.Set("X-Pagewright-Attempt", attempt)
 			}
 			if err != nil {
 				done <- false

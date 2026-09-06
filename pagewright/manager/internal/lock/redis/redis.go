@@ -32,6 +32,18 @@ else
 end
 `
 
+// Acquisition and fence allocation are one Redis operation: a paused acquirer
+// must not obtain a newer fence after its separately acquired lease expires.
+const acquireLuaScript = `
+if redis.call('EXISTS', KEYS[1]) ~= 0 then return 0 end
+local previous = redis.call('GET', KEYS[2])
+-- Conservative bound below Lua cjson's 14-significant-digit serialization limit.
+if previous and tonumber(previous) >= 9999999999999 then return redis.error_reply('fencing counter exhausted') end
+local fence = redis.call('INCR', KEYS[2])
+redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2])
+return fence
+`
+
 type RedisLockManager struct {
 	client *redis.Client
 }
@@ -61,28 +73,25 @@ func (r *RedisLockManager) Acquire(ctx context.Context, siteID string, ttl time.
 	fenceKey := fenceKeyPrefix + siteID
 	token := uuid.New().String()
 
-	// Try to acquire lock
-	success, err := r.client.SetNX(ctx, lockKey, token, ttl).Result()
+	if ttl.Milliseconds() < 1 {
+		return "", 0, fmt.Errorf("lock TTL must be positive")
+	}
+	fencingToken, err := r.client.Eval(ctx, acquireLuaScript, []string{lockKey, fenceKey}, token, ttl.Milliseconds()).Int64()
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to acquire lock: %w", err)
 	}
 
-	if !success {
+	if fencingToken == 0 {
 		return "", 0, fmt.Errorf("lock already held for site: %s", siteID)
-	}
-
-	// Increment fencing token
-	fencingToken, err := r.client.Incr(ctx, fenceKey).Result()
-	if err != nil {
-		// Try to release the lock we just acquired
-		r.Release(ctx, siteID, token)
-		return "", 0, fmt.Errorf("failed to increment fencing token: %w", err)
 	}
 
 	return token, fencingToken, nil
 }
 
 func (r *RedisLockManager) Renew(ctx context.Context, siteID, token string, ttl time.Duration) error {
+	if ttl.Milliseconds() < 1 {
+		return fmt.Errorf("lock TTL must be positive")
+	}
 	lockKey := lockKeyPrefix + siteID
 	ttlMs := ttl.Milliseconds()
 

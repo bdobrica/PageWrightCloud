@@ -179,6 +179,7 @@ func runJob(cfg *config.Config, job *types.Job, storageClient *storage.Client, e
 }
 
 func persistAndReport(storageClient *storage.Client, managerURL string, job *types.Job, outputArtifact string, manifest types.Manifest, logContent string) error {
+	storageClient = storageClient.WithAttempt(job)
 	fmt.Printf("Uploading artifact: site=%s, version=%s\n", job.SiteID, job.TargetVersion)
 	if err := storageClient.UploadArtifact(job.SiteID, job.TargetVersion, outputArtifact); err != nil {
 		return fmt.Errorf("failed to upload artifact: %w", err)
@@ -209,6 +210,8 @@ func reportResult(managerURL string, job *types.Job, status, manifestPath, error
 		return fmt.Errorf("job is required")
 	}
 	result := types.JobResult{
+		LockToken:     job.LockToken,
+		FencingToken:  job.FencingToken,
 		JobID:         job.JobID,
 		SiteID:        job.SiteID,
 		OwnerID:       job.OwnerID,

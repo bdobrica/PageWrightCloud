@@ -20,6 +20,12 @@ See the [metadata contract](../../docs/VERSION_METADATA.md) for schemas, limits,
 legacy visibility changes and privacy boundaries. Storage has no service
 authentication yet; do not expose its port to untrusted networks.
 
+M2.7 requires a matching `X-Pagewright-Attempt` JSON header on non-bootstrap
+artifact/log/manifest writes and a reachable `PAGEWRIGHT_MANAGER_URL` (default
+`http://manager:8081`). See [fenced commits and coordinated upgrade requirements](../../docs/FENCED_COMMITS.md).
+The legacy standalone Compose topology needs an explicitly reachable manager;
+root Compose configures the supported service connection.
+
 ## Request/Response Formats
 
 ### Store Artifact
@@ -28,6 +34,7 @@ authentication yet; do not expose its port to untrusted networks.
 ```bash
 curl -X PUT http://localhost:8080/sites/my-site/artifacts/build-123 \
   --data-binary @artifact.tar.gz \
+  -H "X-Pagewright-Attempt: $PAGEWRIGHT_ATTEMPT_JSON" \
   -H "Content-Type: application/gzip"
 ```
 
