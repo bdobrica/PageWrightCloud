@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -129,12 +130,25 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	workerID, err := h.spawner.Spawn(ctx, job, h.managerURL)
+	// The caller may disconnect after Docker accepts the operation.
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err != nil && !errors.Is(err, spawner.ErrNotStarted) {
+		if workerID != "" {
+			if _, mergeErr := h.queue.SetWorkerID(persistCtx, job.JobID, workerID); mergeErr != nil {
+				writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist uncertain worker identity")
+				return
+			}
+		}
+		writeError(w, http.StatusServiceUnavailable, "spawn_uncertain", "Worker launch outcome unknown; retry the same submission")
+		return
+	}
 	if err != nil {
 		job.Status, job.ErrorCode = types.JobStatusFailed, "spawn_failed"
-		job.ErrorMessage = fmt.Sprintf("Failed to spawn worker: %v", err)
+		job.ErrorMessage = "Worker was not started"
 		job.UpdatedAt = time.Now().UTC()
-		persistErr := h.queue.UpdateJob(ctx, job)
-		h.lockMgr.Release(ctx, req.SiteID, token)
+		persistErr := h.queue.UpdateJob(persistCtx, job)
+		h.lockMgr.Release(persistCtx, req.SiteID, token)
 		if persistErr != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist spawn failure")
 			return
@@ -143,7 +157,7 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Merge only metadata, not a stale running snapshot over a terminal callback.
-	latest, err := h.queue.SetWorkerID(ctx, job.JobID, workerID)
+	latest, err := h.queue.SetWorkerID(persistCtx, job.JobID, workerID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "Failed to persist worker identity")
 		return

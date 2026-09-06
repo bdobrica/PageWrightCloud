@@ -1,3 +1,5 @@
+# Historical manager prototype only. Not the MVP worker image; use ../worker.
+# No supported Makefile/Compose target builds this file.
 FROM golang:1.22-alpine AS builder
 
 WORKDIR /build

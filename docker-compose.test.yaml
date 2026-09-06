@@ -24,12 +24,14 @@ services:
       timeout: 3s
       retries: 30
   manager:
-    build: ./pagewright/manager
+    build:
+      context: ./pagewright/manager
+      dockerfile: ../../tests/manager.Dockerfile
     environment:
       PAGEWRIGHT_PORT: '8081'
       PAGEWRIGHT_REDIS_ADDR: redis:6379
       PAGEWRIGHT_MANAGER_URL: http://manager:8081
-      PAGEWRIGHT_WORKER_SPAWNER: docker
+      PAGEWRIGHT_WORKER_SPAWNER: test-manual
     depends_on:
       redis:
         condition: service_healthy

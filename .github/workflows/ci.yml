@@ -54,6 +54,7 @@ jobs:
         with:
           persist-credentials: false
       - run: make test-integration
+      - run: make test-docker-spawner
   startup:
     runs-on: ubuntu-24.04
     timeout-minutes: 20

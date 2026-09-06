@@ -39,7 +39,7 @@ coverage:
 
 docker-build:
 	@echo "Building Docker image..."
-	docker build -t pagewright-worker:latest .
+	docker build -t pagewright-worker:m2.1 .
 
 clean:
 	@echo "Cleaning..."

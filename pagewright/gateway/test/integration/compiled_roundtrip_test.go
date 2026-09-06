@@ -128,8 +128,8 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	}
 	// Preserve internal lease fields omitted by the gateway's public Job type.
 	payload := request("GET", os.Getenv("TEST_MANAGER_URL")+"/jobs/"+job.JobID, "", 200)
-	// The M2 production spawner is still a stub. Only the test harness launches
-	// this test binary, using the manager's unmodified canonical snapshot.
+	// This contract suite uses the integration-only manual launch bridge.
+	// Real Docker dispatch is tested separately by make test-docker-spawner.
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	worker := exec.CommandContext(ctx, "/usr/local/bin/worker-contract.test", "-test.run=^TestDeterministicWorkerEntrypoint$", "-test.v")

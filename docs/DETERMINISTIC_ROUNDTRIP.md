@@ -38,7 +38,8 @@ it does not use application volumes. Built test images/caches may remain.
 
 ## What this does not prove
 
-The test harness explicitly bridges the manager's still-stubbed Docker spawner.
+The test harness uses the manager's integration-only `test-manual` spawner.
+M2.1's real Docker create/start is tested separately by `make test-docker-spawner`.
 The executor is excluded by the `integration` build tag and only built by
 `tests/Dockerfile`; production images do not contain it. Production AI execution,
 trusted compiler integration, successive edits, resource isolation, callback

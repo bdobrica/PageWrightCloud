@@ -1,50 +1,125 @@
 package docker
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"path"
+	"regexp"
+	"strings"
+	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/google/uuid"
 )
 
+// Engine API v1.45; Unix-only. No ambient Docker context, remote TCP,
+// automatic pulls, shell execution or inherited environment.
+type Config struct{ Image, Network, Socket, WorkDir, StorageURL, LLMURL, LLMKey string }
 type DockerSpawner struct {
-	image string
+	cfg    Config
+	client *http.Client
 }
 
-func NewDockerSpawner(image string) *DockerSpawner {
-	return &DockerSpawner{
-		image: image,
+func NewDockerSpawner(cfg Config) (*DockerSpawner, error) {
+	tagged := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*:[a-zA-Z0-9_][a-zA-Z0-9_.-]*$`)
+	if !tagged.MatchString(cfg.Image) || strings.HasSuffix(cfg.Image, ":latest") {
+		return nil, fmt.Errorf("worker image requires an explicit non-latest tag or digest")
 	}
+	if cfg.Network == "" || cfg.Network == "host" || cfg.Network == "none" || cfg.Network == "bridge" || cfg.Network == "default" || strings.HasPrefix(cfg.Network, "container:") {
+		return nil, fmt.Errorf("worker requires a dedicated Docker network")
+	}
+	if !strings.HasPrefix(cfg.Socket, "/") || path.Clean(cfg.Socket) != cfg.Socket {
+		return nil, fmt.Errorf("Docker socket must be an absolute Unix path")
+	}
+	if (cfg.WorkDir != "/work" && !strings.HasPrefix(cfg.WorkDir, "/work/")) || path.Clean(cfg.WorkDir) != cfg.WorkDir {
+		return nil, fmt.Errorf("worker directory must be /work or a clean child path")
+	}
+	if !validURL(cfg.StorageURL) || !validURL(cfg.LLMURL) {
+		return nil, fmt.Errorf("worker endpoints must be HTTP(S) URLs without credentials, query or fragment")
+	}
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", cfg.Socket)
+	}}
+	return &DockerSpawner{cfg: cfg, client: &http.Client{Transport: transport, Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
+}
+
+func validURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil && u.RawQuery == "" && u.Fragment == ""
 }
 
 func (d *DockerSpawner) Spawn(ctx context.Context, job *types.Job, managerURL string) (string, error) {
-	workerID := uuid.New().String()
-
-	// Marshal job to JSON
-	jobJSON, err := json.Marshal(job)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal job: %w", err)
+	if job == nil || !validURL(managerURL) {
+		return "", fmt.Errorf("%w: invalid job or callback endpoint", spawner.ErrNotStarted)
 	}
-
-	// For PoC, we'll just log the spawn request
-	// In production, this would use Docker API to spawn a container
-	fmt.Printf("DOCKER SPAWN: Would spawn container:\n")
-	fmt.Printf("  Image: %s\n", d.image)
-	fmt.Printf("  Worker ID: %s\n", workerID)
-	fmt.Printf("  Job: %s\n", string(jobJSON))
-	fmt.Printf("  Manager URL: %s\n", managerURL)
-	fmt.Printf("  Env: PAGEWRIGHT_JOB=%s\n", string(jobJSON))
-	fmt.Printf("  Env: PAGEWRIGHT_MANAGER_URL=%s\n", managerURL)
-	fmt.Printf("  Env: PAGEWRIGHT_WORKER_ID=%s\n", workerID)
-
-	// TODO: Actually spawn docker container:
-	// docker run -e PAGEWRIGHT_JOB=<json> -e PAGEWRIGHT_MANAGER_URL=<url> -e PAGEWRIGHT_WORKER_ID=<id> <image>
-
-	return workerID, nil
+	id, err := uuid.Parse(job.JobID)
+	if err != nil || id == uuid.Nil || id.String() != job.JobID || job.SiteID == "" || job.OwnerID == "" || job.Prompt == "" || job.SourceVersion == "" || job.TargetVersion == "" || job.Status != types.JobStatusRunning || job.CreatedAt.IsZero() || job.UpdatedAt.IsZero() {
+		return "", fmt.Errorf("%w: incomplete launch snapshot", spawner.ErrNotStarted)
+	}
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("%w: request canceled before create", spawner.ErrNotStarted)
+	}
+	name := fmt.Sprintf("pagewright-job-%x", sha256.Sum256([]byte(job.JobID)))
+	payload, err := json.Marshal(job)
+	if err != nil {
+		return "", fmt.Errorf("%w: launch snapshot is not valid JSON", spawner.ErrNotStarted)
+	}
+	body := map[string]any{
+		"Image":      d.cfg.Image,
+		"Env":        []string{"PAGEWRIGHT_JOB=" + string(payload), "PAGEWRIGHT_WORKER_ID=" + name, "PAGEWRIGHT_WORK_DIR=" + d.cfg.WorkDir, "PAGEWRIGHT_MANAGER_URL=" + managerURL, "PAGEWRIGHT_STORAGE_URL=" + d.cfg.StorageURL, "PAGEWRIGHT_LLM_KEY=" + d.cfg.LLMKey, "PAGEWRIGHT_LLM_URL=" + d.cfg.LLMURL},
+		"Labels":     map[string]string{"io.pagewright.role": "worker", "io.pagewright.job_id": job.JobID, "io.pagewright.site_id": job.SiteID, "io.pagewright.network": d.cfg.Network},
+		"HostConfig": map[string]any{"NetworkMode": d.cfg.Network, "RestartPolicy": map[string]string{"Name": "no"}, "AutoRemove": false, "Privileged": false, "PublishAllPorts": false, "CapDrop": []string{"ALL"}, "SecurityOpt": []string{"no-new-privileges:true"}, "Tmpfs": map[string]string{d.cfg.WorkDir: "rw,nosuid,nodev,size=268435456,mode=0700"}},
+	}
+	data, _ := json.Marshal(body)
+	status, response, err := d.call(ctx, "POST", "/containers/create?name="+url.QueryEscape(name), data)
+	if err != nil {
+		return name, fmt.Errorf("Docker create outcome unknown")
+	}
+	if status != http.StatusCreated {
+		switch status {
+		case 400, 401, 403, 404, 406, 422:
+			return "", fmt.Errorf("%w: Docker create rejected (HTTP %d)", spawner.ErrNotStarted, status)
+		}
+		return name, fmt.Errorf("Docker create outcome unknown (HTTP %d)", status)
+	}
+	var created struct {
+		ID string `json:"Id"`
+	}
+	if json.Unmarshal(response, &created) != nil || !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(created.ID) {
+		return name, fmt.Errorf("Docker create acknowledgement invalid; outcome unknown")
+	}
+	// Never adopt/start a pre-existing name after conflict or retry. A lost start
+	// response may mean the worker already ran (even if it has since exited).
+	status, _, err = d.call(ctx, "POST", "/containers/"+created.ID+"/start", nil)
+	if err != nil || status != http.StatusNoContent {
+		return created.ID, fmt.Errorf("Docker start outcome unknown")
+	}
+	return created.ID, nil
 }
 
-func (d *DockerSpawner) Close() error {
-	return nil
+func (d *DockerSpawner) call(ctx context.Context, method, endpoint string, body []byte) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, "http://docker/v1.45"+endpoint, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	response, err := d.client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
+	if err != nil || len(data) > 65536 {
+		return response.StatusCode, nil, fmt.Errorf("invalid Docker acknowledgement")
+	}
+	return response.StatusCode, data, nil
 }
+func (d *DockerSpawner) Close() error { d.client.CloseIdleConnections(); return nil }

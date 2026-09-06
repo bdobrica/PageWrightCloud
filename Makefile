@@ -7,9 +7,12 @@ TEST_FQDN ?= demo.pagewright.io
 TEST_EMAIL ?= local-domain-test@pagewright.io
 TEST_PASSWORD ?= TestPass123!
 
+.PHONY: test-docker-spawner
+
 # Default target
 help:
 	@echo "PageWrightCloud - Makefile Commands"
+	@echo "  make test-docker-spawner - Isolated host-Docker launch acceptance (no AI)"
 	@echo ""
 	@echo "Docker Commands:"
 	@echo "  make docker-up           - Start all services (infrastructure + apps)"
@@ -252,6 +255,9 @@ test-compiler:
 # Isolated HTTP/database integration tests; no development volumes or ports.
 test-integration:
 	sh scripts/test-integration.sh
+
+test-docker-spawner:
+	sh scripts/test-docker-spawner.sh
 
 smoke-stack:
 	sh scripts/smoke-stack.sh

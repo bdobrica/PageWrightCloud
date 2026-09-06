@@ -7,16 +7,17 @@ import (
 )
 
 type Config struct {
-	Port              int
-	QueueBackend      string
-	WorkerSpawner     string
-	RedisAddr         string
-	RedisPassword     string
-	RedisDB           int
-	LockTTL           time.Duration
-	LockRenewInterval time.Duration
-	WorkerImage       string
-	WorkerTimeout     time.Duration
+	Port                                                                                     int
+	QueueBackend                                                                             string
+	WorkerSpawner                                                                            string
+	RedisAddr                                                                                string
+	RedisPassword                                                                            string
+	RedisDB                                                                                  int
+	LockTTL                                                                                  time.Duration
+	LockRenewInterval                                                                        time.Duration
+	WorkerImage                                                                              string
+	WorkerTimeout                                                                            time.Duration
+	WorkerNetwork, DockerSocket, WorkerWorkDir, WorkerStorageURL, WorkerLLMURL, WorkerLLMKey string
 }
 
 func LoadConfig() *Config {
@@ -29,7 +30,13 @@ func LoadConfig() *Config {
 		RedisDB:           getEnvInt("PAGEWRIGHT_REDIS_DB", 0),
 		LockTTL:           getEnvDuration("PAGEWRIGHT_LOCK_TTL", 5*time.Minute),
 		LockRenewInterval: getEnvDuration("PAGEWRIGHT_LOCK_RENEW_INTERVAL", 1*time.Minute),
-		WorkerImage:       getEnv("PAGEWRIGHT_WORKER_IMAGE", "pagewright-worker:latest"),
+		WorkerImage:       getEnv("PAGEWRIGHT_WORKER_IMAGE", "pagewright-worker:m2.1"),
+		WorkerNetwork:     getEnv("PAGEWRIGHT_WORKER_NETWORK", ""),
+		DockerSocket:      getEnv("PAGEWRIGHT_DOCKER_SOCKET", "/var/run/docker.sock"),
+		WorkerWorkDir:     getEnv("PAGEWRIGHT_WORKER_WORK_DIR", "/work"),
+		WorkerStorageURL:  getEnv("PAGEWRIGHT_WORKER_STORAGE_URL", "http://storage:8080"),
+		WorkerLLMURL:      getEnv("PAGEWRIGHT_WORKER_LLM_URL", "https://api.openai.com/v1"),
+		WorkerLLMKey:      getEnv("PAGEWRIGHT_WORKER_LLM_KEY", ""),
 		WorkerTimeout:     getEnvDuration("PAGEWRIGHT_WORKER_TIMEOUT", 30*time.Minute),
 	}
 }

@@ -30,8 +30,12 @@ services:
       - PAGEWRIGHT_REDIS_PASSWORD=
       - PAGEWRIGHT_REDIS_DB=0
       - PAGEWRIGHT_LOCK_TTL=5m
-      - PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:latest
+      - PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:m2.1
+      - PAGEWRIGHT_WORKER_NETWORK=${COMPOSE_PROJECT_NAME:-manager}_pagewright-network
+      - PAGEWRIGHT_WORKER_STORAGE_URL=http://storage:8080
       - PAGEWRIGHT_MANAGER_URL=http://manager-service:8081
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8081:8081"
     networks:

@@ -4,6 +4,10 @@
 
 Job queue and worker orchestration with Redis-based distributed locking.
 
+M2.1 implements Docker create/start. See the [launch contract](../../docs/DOCKER_SPAWNER.md)
+for required network/image setup, manager socket authority and ambiguous-outcome
+handling. Queue dispatch/recovery and the real AI worker remain subsequent items.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -131,16 +135,12 @@ fence:site:<site_id>: STRING (integer)
 ## Worker Spawning
 
 ### Docker Spawner
-- Uses Docker SDK (or stub for PoC)
-- Container image: `PAGEWRIGHT_WORKER_IMAGE`
-- Environment variables passed to worker
-- Container removed after completion
+- Uses Unix-socket Engine API v1.45 with an explicit image tag/digest.
+- Injects only job/endpoints/workspace and separate worker-provider credentials.
+- Retains containers and uncertain reservations for later reconciliation.
 
 ### Kubernetes Spawner
-- Uses client-go library
-- Creates Pod with job context
-- ConfigMap for environment
-- Job cleanup policy
+- Historical logging stub, outside the Docker MVP; not a functioning spawner.
 
 ## Configuration
 
@@ -156,7 +156,9 @@ Environment variables (all with `PAGEWRIGHT_` prefix):
 | `REDIS_DB` | `0` | No | Redis database number |
 | `LOCK_TTL` | `5m` | No | Lock expiration time |
 | `LOCK_RENEW_INTERVAL` | `1m` | No | Lock renewal frequency |
-| `WORKER_IMAGE` | `pagewright-worker:latest` | No | Worker container image |
+| `WORKER_IMAGE` | `pagewright-worker:m2.1` | No | Build/load selected worker image before submission |
+| `WORKER_NETWORK` | - | Yes | Dedicated network; root Compose derives its project network |
+| `WORKER_LLM_KEY` | - | No | Worker-only provider credential, not gateway's key |
 | `WORKER_TIMEOUT` | `30m` | No | Worker timeout |
 | `MANAGER_URL` | `http://localhost:8081` | Yes | Manager callback URL |
 

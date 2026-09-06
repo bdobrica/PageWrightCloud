@@ -1,0 +1,16 @@
+# Overlay for the explicitly invoked host-Docker acceptance test only.
+services:
+  spawn-fixture:
+    build:
+      context: .
+      dockerfile: tests/spawn-worker.Dockerfile
+    image: ${COMPOSE_PROJECT_NAME}-spawn-fixture:m2.1
+    profiles: [fixture-image]
+  tests:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      TEST_DOCKER_NETWORK: ${COMPOSE_PROJECT_NAME}_default
+      TEST_DOCKER_IMAGE: ${COMPOSE_PROJECT_NAME}-spawn-fixture:m2.1
+    working_dir: /workspace/pagewright/manager
+    command: [go, test, -count=1, -race, -v, -tags=dockerintegration, ./internal/spawner/docker]

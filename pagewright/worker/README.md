@@ -4,6 +4,11 @@
 
 Stateless worker that executes AI-powered site edits using Codex in isolated containers.
 
+Current boundary: the image still contains a placeholder executor (M2.3 replaces
+it). M2.1 makes this the selected launchable runner, tagged
+`pagewright-worker:m2.1`; older examples below are historical. Follow the
+[Docker launch contract](../../docs/DOCKER_SPAWNER.md) for supported setup.
+
 ## API Endpoints
 
 | Method | Endpoint | Description |

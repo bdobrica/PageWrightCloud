@@ -58,11 +58,18 @@ func main() {
 
 	switch cfg.WorkerSpawner {
 	case "docker":
-		workerSpawner = docker.NewDockerSpawner(cfg.WorkerImage)
+		workerSpawner, err = docker.NewDockerSpawner(docker.Config{Image: cfg.WorkerImage, Network: cfg.WorkerNetwork, Socket: cfg.DockerSocket, WorkDir: cfg.WorkerWorkDir, StorageURL: cfg.WorkerStorageURL, LLMURL: cfg.WorkerLLMURL, LLMKey: cfg.WorkerLLMKey})
+		if err != nil {
+			log.Fatalf("Invalid Docker worker configuration: %v", err)
+		}
 	case "kubernetes":
 		workerSpawner = kubernetes.NewKubernetesSpawner(cfg.WorkerImage, "default")
 	default:
-		log.Fatalf("Unsupported worker spawner: %s", cfg.WorkerSpawner)
+		if factory, ok := testSpawners[cfg.WorkerSpawner]; ok {
+			workerSpawner = factory()
+		} else {
+			log.Fatalf("Unsupported worker spawner: %s", cfg.WorkerSpawner)
+		}
 	}
 	defer workerSpawner.Close()
 
@@ -113,3 +120,6 @@ func main() {
 
 	log.Println("Server stopped")
 }
+
+// Empty in production; integration builds register a manual launch bridge.
+var testSpawners = map[string]func() spawner.Spawner{}

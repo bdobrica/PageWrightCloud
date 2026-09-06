@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 )
 
@@ -100,9 +101,10 @@ func (l *fakeLock) Release(context.Context, string, string) error              {
 func (l *fakeLock) Close() error                                               { return nil }
 
 type fakeSpawner struct {
-	jobs    []types.Job
-	fail    bool
-	onSpawn func(*types.Job)
+	jobs      []types.Job
+	fail      bool
+	uncertain bool
+	onSpawn   func(*types.Job)
 }
 
 func (s *fakeSpawner) Spawn(_ context.Context, j *types.Job, _ string) (string, error) {
@@ -111,7 +113,10 @@ func (s *fakeSpawner) Spawn(_ context.Context, j *types.Job, _ string) (string, 
 		s.onSpawn(j)
 	}
 	if s.fail {
-		return "", errors.New("spawn unavailable")
+		return "", spawner.ErrNotStarted
+	}
+	if s.uncertain {
+		return "worker", errors.New("lost Docker response containing private data")
 	}
 	return "worker", nil
 }

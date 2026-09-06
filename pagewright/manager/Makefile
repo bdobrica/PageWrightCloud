@@ -24,7 +24,7 @@ build:
 # Build the worker binary
 build-worker:
 	@echo "Building worker..."
-	go build -o worker ./cmd/worker
+	$(MAKE) -C ../worker build
 
 # Run all tests
 test: test-unit
@@ -53,14 +53,14 @@ run:
 	PAGEWRIGHT_QUEUE_BACKEND=redis \
 	PAGEWRIGHT_WORKER_SPAWNER=docker \
 	PAGEWRIGHT_REDIS_ADDR=localhost:6379 \
-	PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:latest \
-	go run ./cmd/server/main.go
+	PAGEWRIGHT_WORKER_IMAGE=pagewright-worker:m2.1 \
+	go run ./cmd/server
 
 # Build Docker images
 docker-build:
 	@echo "Building Docker images..."
 	docker build -t pagewright-manager:latest -f Dockerfile .
-	docker build -t pagewright-worker:latest -f Dockerfile.worker .
+	docker build -t pagewright-worker:m2.1 ../worker
 
 # Clean build artifacts
 clean:

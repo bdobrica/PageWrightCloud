@@ -85,9 +85,17 @@ services:
       - PAGEWRIGHT_REDIS_DB=${PAGEWRIGHT_REDIS_DB:-0}
       - PAGEWRIGHT_LOCK_TTL=${PAGEWRIGHT_LOCK_TTL:-5m}
       - PAGEWRIGHT_LOCK_RENEW_INTERVAL=${PAGEWRIGHT_LOCK_RENEW_INTERVAL:-1m}
-      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:latest}
+      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.1}
+      - PAGEWRIGHT_WORKER_NETWORK=${COMPOSE_PROJECT_NAME:-pagewrightcloud}_pagewright
+      - PAGEWRIGHT_WORKER_WORK_DIR=/work
+      - PAGEWRIGHT_WORKER_STORAGE_URL=http://storage:8080
+      - PAGEWRIGHT_WORKER_LLM_KEY=${PAGEWRIGHT_WORKER_LLM_KEY:-}
+      - PAGEWRIGHT_WORKER_LLM_URL=${PAGEWRIGHT_WORKER_LLM_URL:-https://api.openai.com/v1}
       - PAGEWRIGHT_WORKER_TIMEOUT=${PAGEWRIGHT_WORKER_TIMEOUT:-30m}
       - PAGEWRIGHT_MANAGER_URL=${PAGEWRIGHT_MANAGER_URL:-http://manager:8081}
+    # Manager-only daemon access. Never passed to spawned workers.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       redis:
         condition: service_healthy
@@ -204,6 +212,7 @@ services:
 
   # Worker (optional - use with --profile worker)
   worker:
+    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.1}
     build:
       context: ./pagewright/worker
       dockerfile: Dockerfile
