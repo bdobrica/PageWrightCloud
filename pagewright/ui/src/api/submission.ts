@@ -6,10 +6,12 @@ interface SubmissionPayload {
 
 // One logical submission retains its identity while its delivery is uncertain.
 // The synchronous guard also covers multiple clicks before React rerenders.
-export function createSubmissionIdentity(newKey: () => string = () => crypto.randomUUID()) {
-  let current: { fingerprint: string; key: string } | undefined;
+export interface SubmissionSnapshot { fingerprint: string; key: string }
+export function createSubmissionIdentity(newKey: () => string = () => crypto.randomUUID(), saved?: SubmissionSnapshot) {
+  let current: SubmissionSnapshot | undefined = saved;
   let sending = false;
   return {
+    snapshot(): SubmissionSnapshot | undefined { return current ? { ...current } : undefined; },
     begin(payload: SubmissionPayload): string | null {
       if (sending) return null;
       const fingerprint = JSON.stringify([

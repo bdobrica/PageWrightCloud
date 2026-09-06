@@ -7,10 +7,11 @@ import './SiteCard.css';
 
 interface SiteCardProps {
   site: Site;
+  busy?: boolean;
   onToggleEnabled: (site: Site) => void;
 }
 
-export const SiteCard: React.FC<SiteCardProps> = ({ site, onToggleEnabled }) => {
+export const SiteCard: React.FC<SiteCardProps> = ({ site, onToggleEnabled, busy = false }) => {
   const navigate = useNavigate();
   const pending = site.initialization_status === 'pending';
 
@@ -34,8 +35,8 @@ export const SiteCard: React.FC<SiteCardProps> = ({ site, onToggleEnabled }) => 
         <div className="site-card-actions">
           <HostingLinks site={site} />
           <span>Aliases and site deletion are unavailable in this MVP.</span>
-          <button onClick={() => onToggleEnabled(site)} className="pure-button" disabled={pending}>
-            {site.enabled ? 'Disable' : 'Enable'}
+          <button onClick={() => onToggleEnabled(site)} className="pure-button" disabled={pending || busy}>
+            {busy ? 'Updating…' : site.enabled ? 'Disable' : 'Enable'}
           </button>
           <button onClick={() => navigate(pending ? `/create-site?fqdn=${encodeURIComponent(site.fqdn)}` : chatPath(site.fqdn))} className="pure-button pure-button-primary">
             {pending ? 'Resume Setup' : 'Build'}

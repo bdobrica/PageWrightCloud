@@ -96,7 +96,7 @@ test('durable history restores all lifecycle states with strict pagination and a
  assert.match(component,/apiClient.listJobs\(fqdn, page, signal\)/);
  assert.match(component,/useEffect\(\(\) => startJobPolling/);
  const chat = readFileSync(new URL('../src/pages/Chat.tsx',import.meta.url),'utf8');
- assert.match(chat,/<ChatSession key=\{fqdn\}/);
+ assert.ok(chat.includes('<ChatSession key={JSON.stringify([user.id, fqdn])}'));
  assert.match(chat,/<BuildHistory key=\{historyRefresh\}/);
 });
 import { CHAT_ROUTE, chatPath } from '../src/routes.ts';

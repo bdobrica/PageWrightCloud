@@ -5,6 +5,8 @@
 React/TypeScript user interface with chat-based site editing and real-time updates.
 
 The supported UI is the [text-only MVP](../../docs/MVP_CAPABILITIES.md).
+See [draft recovery and publication feedback](../../docs/DRAFT_RECOVERY.md) for
+same-tab re-authentication recovery, retry identity and the focused browser test.
 Attachments, alias management, custom-domain creation, Google sign-in and site
 deletion are unavailable; historical feature descriptions below are not release
 acceptance claims. Site creation reads the gateway's configured domain at runtime.

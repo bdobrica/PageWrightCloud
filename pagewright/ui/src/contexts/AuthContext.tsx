@@ -1,8 +1,9 @@
-import React, { useState, type ReactNode } from 'react';
+import React, { useEffect, useState, type ReactNode } from 'react';
 import { apiClient } from '../api/client';
 import type { User, AuthResponse, LoginRequest, RegisterRequest } from '../types/api';
 
 import { AuthContext } from './auth';
+import { clearDrafts } from '../api/drafts';
 
 function restoreUser(): User | null {
   const token = localStorage.getItem('token');
@@ -25,6 +26,13 @@ function restoreUser(): User | null {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(restoreUser);
   const isLoading = false;
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.key === 'user' || event.key === 'token' || event.key === null) setUser(restoreUser());
+    };
+    window.addEventListener('storage', changed);
+    return () => window.removeEventListener('storage', changed);
+  }, []);
 
   const login = async (data: LoginRequest) => {
     const response: AuthResponse = await apiClient.login(data);
@@ -41,6 +49,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    try { clearDrafts(sessionStorage); } catch { /* Browser storage may be unavailable. */ }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);

@@ -6,14 +6,16 @@ import './Modal.css';
 
 interface VersionActionModalProps {
   version: Version;
+  label?: string;
   siteId: string;
   onClose: () => void;
   onPreview: () => Promise<string>;
-  onPromote: () => void;
+  onPromote: () => Promise<void>;
 }
 
 export const VersionActionModal: React.FC<VersionActionModalProps> = ({
   version,
+  label = 'Saved build',
   onClose,
   onPreview,
   onPromote,
@@ -21,6 +23,7 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
   const [previewPending, setPreviewPending] = useState(false);
   const [promotePending, setPromotePending] = useState(false);
   const [previewError, setPreviewError] = useState('');
+  const [promoteError, setPromoteError] = useState('');
   const [previewURL, setPreviewURL] = useState('');
   const previewBusy = useRef(false);
   const mounted = useRef(true);
@@ -46,11 +49,13 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
     if (window.confirm('Promote this version to live? This will replace the current live version.')) {
       previewBusy.current = true;
       setPromotePending(true);
+      setPromoteError('');
       try {
         await onPromote();
         onClose();
       } catch (error) {
         console.error('Failed to promote version:', error);
+        if (mounted.current) setPromoteError('Publishing could not be confirmed. Refresh hosting state and retry this same version; it may already be live.');
       } finally {
         previewBusy.current = false;
         if (mounted.current) setPromotePending(false);
@@ -62,7 +67,7 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Version #{version.build_id}</h2>
+          <h2>{label} — {version.build_id}</h2>
           <button className="modal-close" onClick={onClose}>
             ×
           </button>
@@ -76,10 +81,11 @@ export const VersionActionModal: React.FC<VersionActionModalProps> = ({
               {previewPending ? 'Preparing preview…' : 'Preview in New Tab'}
             </button>
             <button className="pure-button pure-button-primary" onClick={handlePromote} disabled={previewPending || promotePending}>
-              Promote to Live
+              {promotePending ? 'Publishing…' : 'Promote to Live'}
             </button>
             <p>Version deletion is unavailable in this MVP.</p>
             {previewError && <p role="alert">{previewError}</p>}
+            {promoteError && <p role="alert">{promoteError}</p>}
             {previewURL && <p>Preview activated. <a href={previewURL} target="_blank" rel="noopener noreferrer">Open preview</a> if a new tab did not open.</p>}
           </div>
         </div>

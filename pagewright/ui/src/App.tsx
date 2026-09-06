@@ -14,13 +14,13 @@ import { Profile } from './pages/Profile';
 
 // Protected route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   
-  return <>{children}</>;
+  return <React.Fragment key={user?.id}>{children}</React.Fragment>;
 };
 
 const App: React.FC = () => {

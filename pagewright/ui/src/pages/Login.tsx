@@ -2,6 +2,7 @@ import { getErrorMessage } from '../utils/errors';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/auth';
+import { consumeReturn, readOwner } from '../api/drafts';
 import './Auth.css';
 
 export const Login: React.FC = () => {
@@ -19,7 +20,8 @@ export const Login: React.FC = () => {
 
     try {
       await login({ email, password });
-      navigate('/');
+      const owner = readOwner(localStorage);
+      navigate(owner ? consumeReturn(sessionStorage, owner) : '/dashboard', { replace: true });
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Login failed. Please check your credentials.'));
     } finally {
@@ -31,6 +33,7 @@ export const Login: React.FC = () => {
     <div className="auth-container">
       <div className="auth-box">
         <h1>Login to PageWright</h1>
+        <p>If your session expired, sign in to the same account in this tab to recover your saved draft. Nothing will be submitted automatically.</p>
 
         <form onSubmit={handleSubmit} className="pure-form pure-form-stacked">
           {error && <div className="error-message">{error}</div>}
