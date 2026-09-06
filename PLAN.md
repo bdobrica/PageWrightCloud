@@ -21,7 +21,7 @@ There is useful implementation across all services, but the application is still
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
-| Compilation | [Worker runner](pagewright/worker/cmd/runner/main.go) edits and repacks source without invoking the compiler; `ChecksPassed` now remains false. [Serving](pagewright/serving/internal/artifact/manager.go) validates compiled archive structure. | Integrate `pagewrightc`, generate fresh `public/index.html`, and derive validation results from actual checks. |
+| Compilation | M1.8 (`6bc86f1`) adds [starter/compiler fixtures and filesystem checks](docs/COMPILER_CONTRACT.md), but the [worker runner](pagewright/worker/cmd/runner/main.go) still does not invoke the compiler and `ChecksPassed` remains false. Serving validates compiled archive structure. | Integrate `pagewrightc` using fresh output, generate `public/index.html`, and derive validation results from actual checks. |
 | Version state | M1.2 commits the job mapping and version using `target_version` before dispatch, with atomic outcome/status writes. [Version listing](pagewright/gateway/internal/handlers/versions.go) still returns storage records that differ from UI types. | Submission mapping fixed; reconcile later completion and normalize version listing in M1.9/M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
 | Deploy / preview | [Gateway serving client](pagewright/gateway/internal/clients/serving.go) sends `version_id`; [serving types](pagewright/serving/internal/types/types.go) require `version`. Preview UI only opens a URL and does not activate a preview. | Repair the payload, preview action, returned URLs, and preview assets/navigation. |
@@ -336,12 +336,56 @@ concurrent deployment retries and staging cleanup protection. Policy-file parity
 shell syntax and staged whitespace checks passed. Disposable test stacks/data
 were removed; application volumes were untouched. Five known skips remain.
 
-M1.8 is next: compiler rendering and adversarial fixture coverage. This milestone
+At M1.7 handoff, M1.8 was next; its completed work is recorded below. M1.7
 does not scan arbitrary content for disguised secrets, prove compiler execution
 or output freshness, repair historical archives/caches, make symlink activation
 atomic, or establish internal-service authorization. Trusted compilation,
 credential isolation and publication remain M2/M3/M4. No paid AI, push or hosted
 CI run occurred; the complete M1 exit remains unverified.
+
+M1.8 completed (2026-09-06) in `6bc86f1`. Committed fixtures exercise the actual
+starter theme with Markdown/MDX home discovery, nested/grouped pages, full navigation
+titles, active links, repeated-heading TOC anchors, component rendering, token
+overrides and exact text/binary asset copying. Adversarial cases cover malformed
+site/theme config, missing/invalid templates, unknown components, malformed props,
+numeric diagnostic locations, raw-script/unsafe-URL escaping, route traversal,
+duplicate routes and input/output symlinks.
+
+The tests reproduced and fixed MDX discovery, overbroad home-prefix removal,
+silent route overwrites, order-dependent navigation titles, lost formatted title
+text, mismatched TOC IDs across components, nondeterministic token ordering and
+asset/write symlink following. Component blocks in fenced code stay literal;
+malformed JSON-looking props, non-string leaves and duplicate/empty keys fail.
+The documented YouTubeVideo component name works with its previous spelling
+retained as an alias. CSS tokens use a conservative string grammar and base URLs
+are limited to HTTP(S) origins.
+
+Compiler output must now be absent/empty and disjoint from source/theme.
+Rendering stages privately and publishes only after every phase succeeds;
+old output and outside sentinel files survive rejected builds. Unique file
+temporaries replace predictable `.tmp` names. Path checks inspect symlinks before
+normalizing `..`, while resolving the inherited working-directory alias.
+These checks assume quiescent local Linux inputs, not a hostile concurrent writer.
+Worker integration must compile fresh output before replacing workspace public
+files; this dependency is recorded in M2.4.
+
+The compiler's binary ignore rule also accidentally excluded `cmd/pagewrightc/`.
+It now applies only to the root binary; CLI source and subprocess exit-code tests
+are tracked. The [compiler contract](docs/COMPILER_CONTRACT.md) and README describe
+the actual scope rather than claiming an AI sandbox or existing worker integration.
+
+Verification passed: six-module package baseline; compiler race tests with 86.3%
+statement coverage across internal packages; compiler vet; original starter and
+gateway bootstrap CLI smoke builds; staged whitespace checks. A fresh export of
+the staged Git index passed compiler race/CLI tests and both smoke builds, proving
+the result does not depend on ignored local CLI files. The disposable export was
+removed; repository/application data were untouched. Five pre-existing worker/
+serving skips remain unchanged; no compiler skips were added. No Docker service
+code changed, and no paid AI, browser journey, push or hosted CI run was performed.
+
+M1.9 is next: serving/version payloads and chat route alignment. Real worker
+compilation, credential/resource isolation, production output validation and
+hosting activation remain M2–M4. The full M1 exit is still unverified.
 
 Repair job, storage, serving and UI contracts together, with tests exercising real HTTP handlers. Bootstrap a site using `starter`, record initial source, and define archive/manifest storage. Compile a deterministic edit fixture and round-trip its archive through storage and serving. Add version deletion support or disable the corresponding UI/API until implemented.
 
