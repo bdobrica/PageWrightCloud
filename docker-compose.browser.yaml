@@ -1,0 +1,30 @@
+# Overlay for scripts/browser-acceptance.mjs; never used with application data.
+services:
+  # Only browser-facing services need a host-reachable network. Workers and the
+  # provider fixture remain attached exclusively to the internal network.
+  gateway:
+    networks: [pagewright, browser]
+  ui:
+    networks: [pagewright, browser]
+  nginx:
+    networks: [pagewright, browser]
+  fixture:
+    image: node:24.11.1-bookworm-slim
+    command: [node, /fixture/browser-provider.mjs]
+    user: '1000:1000'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./scripts/browser-provider.mjs:/fixture/browser-provider.mjs:ro
+    networks: [pagewright]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:8090/health').then(r=>process.exit(r.ok?0:1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+networks:
+  browser:
+    driver: bridge
+  pagewright:
+    internal: true

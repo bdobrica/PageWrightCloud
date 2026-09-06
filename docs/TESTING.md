@@ -105,3 +105,12 @@ These use disposable local resources, not production-host cleanup.
 - Local-domain verification targets are seeded hosting diagnostics, not the MVP acceptance test. They mutate the selected development stack and are not isolated like `smoke-stack`.
 
 M1–M3 add the missing pipeline/browser coverage; M4 covers pilot hardening. See [TODO.md](../TODO.md) for acceptance criteria.
+
+## Real-service browser journey
+
+M3.12's [browser acceptance runbook](BROWSER_ACCEPTANCE.md) describes the isolated
+production-service suite in `scripts/browser-acceptance.mjs`. It uses actual UI
+actions and the installed sandboxed CLI/compiler, with only provider responses
+replaced by a deterministic internal fixture. No manual HTML or database seeding
+is used. It requires an installed matching Playwright/Firefox pair and a local
+Docker host compatible with the production sandbox; it is not part of hosted CI.
