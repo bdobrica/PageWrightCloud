@@ -17,11 +17,11 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 adds pinned CLI 0.153.4 and tested non-root sandbox execution. M2.4 (`ef864e5`) selects `pagewright-worker:m2.4` with trusted compiler 0.1.0/theme 1.0.0, validated source changes, fresh compilation and truthful static-check manifests. Kubernetes remains a historical logging stub. | Draft-base selection, paid-provider validation, broader recovery and full isolation remain M2.5 onward. Manager-only Docker socket access still requires trusted local operation; AppArmor enforcement requires host verification. |
+| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3 adds pinned CLI 0.153.4 and tested non-root sandbox execution. M2.4 (`ef864e5`) selects `pagewright-worker:m2.4` with trusted compiler 0.1.0/theme 1.0.0, validated changes and fresh compilation. M2.5 (`cb9c35e`) selects and displays the latest completed draft base, with tested accumulation of unpublished edits. Kubernetes remains a historical logging stub. | Paid-provider validation, broader recovery and full isolation remain M2.6 onward. Manager-only Docker socket access still requires trusted local operation; AppArmor enforcement requires host verification. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
-| Compilation | M1.8 (`6bc86f1`) adds [starter/compiler fixtures and filesystem checks](docs/COMPILER_CONTRACT.md), but the [worker runner](pagewright/worker/cmd/runner/main.go) still does not invoke the compiler and `ChecksPassed` remains false. Serving validates compiled archive structure. | Integrate `pagewrightc` using fresh output, generate `public/index.html`, and derive validation results from actual checks. |
+| Compilation | M1.8 (`6bc86f1`) adds [compiler fixtures and filesystem checks](docs/COMPILER_CONTRACT.md). M2.4 integrates trusted compilation and named static checks; M2.5 verifies two accumulated edits through the production runner. Serving validates compiled archive structure. | Browser checks and paid-provider acceptance remain unverified; static checks do not establish safe HTML for remote multi-user hosting. |
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
 | Version state | M1.2 persists the job/target mapping before dispatch. M1.9 (`8609d32`) normalizes committed-storage versions into validated UI fields, status and UTC timestamps. | Pending/failed job history and DB/storage completion reconciliation remain M3.1. |
 | Live updates | [UI socket](pagewright/ui/src/hooks/useWebSocket.ts) sends a query token; [auth middleware](pagewright/gateway/internal/middleware/auth.go) accepts only a bearer header. [Hub](pagewright/gateway/internal/websocket/hub.go) has no caller publishing build results and no implemented ownership filter. M1.1 aligns status vocabulary to `pending/running/completed/failed` and validates UI payloads. | Schema mismatch fixed; delivery and authorization remain broken. Implement owner-checked retrieval/polling and repair WebSockets before enabling them. |
@@ -454,6 +454,30 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.5 completed (2026-09-06) in `cb9c35e`. New submissions choose the latest
+manifest-committed non-bootstrap build from owner-scoped storage, then live,
+then bootstrap. Sorting matches version history (manifest timestamp descending,
+build ID ascending for ties); stale gateway status rows are not completion
+evidence. Publishing/rollback does not discard newer draft history. Unavailable
+or malformed storage responses stop new submissions before reservation/dispatch.
+The existing durable submission pins the base across retry, restart, newer drafts
+and storage outages. Chat displays the actual accepted `source_version`.
+
+Acceptance passed: six-module package suite; full isolated service integration;
+gateway race/vet; UI contract tests, zero-warning lint and production build.
+The HTTP/database replay test proves source pinning and no fallback dispatch on
+storage failure. The service round trip performs two unpublished source edits
+through the production worker/compiler, verifies both changes in source and HTML,
+preserves the first draft bytes and leaves live unset before explicit publication.
+Three existing skips remain. Disposable integration containers/networks were
+removed; application data was untouched. No paid calls, browser/hosted-CI
+acceptance or push. The selected worker remains `pagewright-worker:m2.4` because
+this milestone changes gateway/UI selection and test-only executor fixtures.
+
+Next: **M2.6**, complete the broader worker isolation/resource/cancellation gate.
+Durable browser history remains M3. Selection is a persisted submission-time
+snapshot, not a queued-job rebase. See [build source semantics](docs/BUILD_SOURCE.md).
 
 M2.4 completed (2026-09-06) in `ef864e5`. The selected image is
 `pagewright-worker:m2.4`, retaining the pinned CLI and existing unprivileged
