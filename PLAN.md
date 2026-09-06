@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3–M2.6 add pinned CLI, trusted compilation, edit accumulation and tested worker isolation. M2.7 (`9740d79`) selects `pagewright-worker:m2.7` with bounded lease renewal and attempt-fenced storage/result commits. Kubernetes remains a historical logging stub. | Uncertain-result recovery, retention and real-provider acceptance remain M2.8 onward. Drain/reconcile before coordinated manager/storage/worker upgrades; manager Docker access and internal APIs require trusted operation. |
+| Execution | M2.1/M2.2 implement Docker launch and bounded dispatch. M2.3–M2.6 add pinned CLI, trusted compilation, edit accumulation and tested worker isolation. M2.7 adds lease renewal/fenced commits; M2.8 (`e0c484e`) selects `pagewright-worker:m2.8` with bounded callbacks and receipt/worker-exit/timeout reconciliation. Kubernetes remains a historical logging stub. | Broader restart durability, retention and real-provider acceptance remain M2.9 onward. Drain/reconcile before coordinated manager/storage/worker upgrades; manager Docker access and internal APIs require trusted operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -28,7 +28,7 @@ There is useful implementation across all services, but the application is still
 | Deploy / preview | M1.9 aligns gateway deploy/live/preview bodies with serving's `version` field. Preview UI still only opens a URL and does not activate a preview. | Implement the preview action, correct returned URLs and verify preview assets/navigation in M3. |
 | Deployment consistency | [DB update](pagewright/gateway/internal/database/sites.go) sets both live and preview IDs, clearing one when the other changes. Serving removes the old symlink before creating the new one. | Preserve the other pointer, handle DB failures, and replace symlinks using an atomic rename. |
 | Hosting | [Compose](docker-compose.yaml) separates serving and nginx, but serving executes local `nginx -s reload`. Preview activation does not create nginx config. | Make nginx configuration/reload part of a supported topology; first preview must work before first publish. |
-| Job reliability | M2.2 (`5da77ad`) adds [durable bounded dispatch](docs/QUEUE_DISPATCH.md), atomic pending admission, shared active slots and token-fenced pre-intent recovery. Root/standalone Redis now use AOF and a persistent volume. | Ambiguous/irreversible intent retains capacity without replay. Lock renewal, timeouts, callback reconciliation and broader recovery remain M2.7–M2.9; existing Redis data needs operator migration before container replacement. |
+| Job reliability | M2.2 (`5da77ad`) adds [durable bounded dispatch](docs/QUEUE_DISPATCH.md), atomic pending admission, shared active slots and token-fenced pre-intent recovery. Redis uses AOF and a persistent volume. M2.7/M2.8 add bounded renewal, fenced commits and [result/exit/timeout recovery](docs/RESULT_RECOVERY.md). | Intent is never replayed. Missing/legacy evidence and storage outages retain capacity pending safe recovery. Broader restart durability remains M2.9; existing Redis data needs operator migration before container replacement. |
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. Site links assume HTTPS without the local port. | Ship only working controls, configure returned hosting URLs, and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
@@ -454,6 +454,39 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.8 completed (2026-09-06) in `e0c484e`. Selected image/build defaults now use
+`pagewright-worker:m2.8`. Result delivery makes at most four identical attempts
+within 25 seconds, bounds each response and resolves ambiguous acknowledgements
+through exact job-outcome lookup. Terminal callback duplicates still return 409.
+Uncertain manifest/completion delivery no longer sends a contradictory failure.
+
+The manager's bounded Docker reconciler verifies container ownership and attempt
+identity, observes exits or Redis-clock lifetime expiry, and checks artifact,
+private-log and manifest bytes against the exact durable digest reservations.
+Complete materializations can recover completion after lease expiry without
+granting new write authority. Missing/incomplete bytes fail conservatively while
+preserving receipts. Redis compares the observed receipt and current attempt,
+then atomically records terminal outcome and releases matching lease/site/capacity
+reservations. Definite spawn failure now releases its lease in the same atomic
+dispatch outcome. See [recovery semantics and limits](docs/RESULT_RECOVERY.md).
+
+Acceptance passed: repository-wide package suite, full race-enabled service
+integration, manager/worker race and vet, selected production worker image build,
+installed CLI/compiler isolation regressions, and real-Docker launch/ownership
+inspection. Recovery tests cover disconnected callback responses, exact terminal
+lookup, bounded retry/deadline behavior, stale receipts and terminal races,
+replacement-lease protection, missing materialization, expired-attempt completion,
+timeout and atomic spawn-failure release. Two existing serving skips remain.
+No privileged containers, isolation relaxation, paid calls, remote changes,
+production deployment or push were part of M2.8.
+
+Next: **M2.9**, broader restart durability and missing-evidence recovery policy.
+Storage outages retain capacity until evidence is available. Legacy/corrupt Redis
+records remain fail-closed. Already-reserved bytes may materialize late without
+reopening a conservative failed job. Timeout fencing does not guarantee a worker
+was killed when Docker is unavailable; orphan cleanup/retention remains M2.10.
+Drain/reconcile before coordinated upgrades; service authentication remains M4.
 
 M2.7 completed (2026-09-06) in `9740d79`. Selected image/build defaults now use
 `pagewright-worker:m2.7`. The existing random lock token is the attempt identity;
