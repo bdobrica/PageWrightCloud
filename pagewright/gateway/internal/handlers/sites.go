@@ -197,14 +197,11 @@ func (h *SitesHandler) DeleteSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete from serving infrastructure
-	if err := h.servingClient.DeleteSite(fqdn); err != nil {
-		// Log error but continue with database deletion
-		// In production, consider using a background job for cleanup
-	}
-
-	// Delete from database
-	if err := h.db.DeleteSite(fqdn); err != nil {
+	if err := h.db.DeleteUndeployedSite(r.Context(), site.ID, func() error { return h.servingClient.DeleteSite(fqdn) }); err != nil {
+		if errors.Is(err, database.ErrDeploymentBusy) {
+			respondError(w, 409, "deployment records must be retained; coordinated site deletion is not yet supported")
+			return
+		}
 		respondError(w, http.StatusInternalServerError, "failed to delete site")
 		return
 	}

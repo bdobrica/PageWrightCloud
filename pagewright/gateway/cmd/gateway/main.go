@@ -65,6 +65,8 @@ func main() {
 	defer stopRecovery()
 	recoveryDone := make(chan struct{})
 	go func() { defer close(recoveryDone); buildHandler.RunRecovery(recoveryContext) }()
+	deploymentRecoveryDone := make(chan struct{})
+	go func() { defer close(deploymentRecoveryDone); versionsHandler.RunDeploymentRecovery(recoveryContext) }()
 
 	// Setup router
 	r := mux.NewRouter()
@@ -104,6 +106,7 @@ func main() {
 
 	// Versions
 	api.HandleFunc("/sites/{fqdn}/versions", versionsHandler.ListVersions).Methods("GET", "OPTIONS")
+	api.HandleFunc("/sites/{fqdn}/deployment", versionsHandler.DeploymentStatus).Methods("GET", "OPTIONS")
 	api.HandleFunc("/sites/{fqdn}/versions/{version_id}/deploy", versionsHandler.DeployVersion).Methods("POST", "OPTIONS")
 	api.HandleFunc("/sites/{fqdn}/versions/{version_id}", versionsHandler.DeleteVersion).Methods("DELETE", "OPTIONS")
 	api.HandleFunc("/sites/{fqdn}/versions/{version_id}/download", versionsHandler.DownloadVersion).Methods("GET", "OPTIONS")
@@ -142,4 +145,5 @@ func main() {
 	}
 	stopRecovery()
 	<-recoveryDone
+	<-deploymentRecoveryDone
 }

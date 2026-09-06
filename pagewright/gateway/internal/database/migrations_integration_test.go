@@ -72,10 +72,10 @@ func execSQL(t *testing.T, db *DB, sql string) {
 func assertSchema(t *testing.T, db *DB) {
 	t.Helper()
 	var versions int
-	if err := db.Get(&versions, "SELECT count(*) FROM schema_migrations"); err != nil || versions != 9 {
+	if err := db.Get(&versions, "SELECT count(*) FROM schema_migrations"); err != nil || versions != 10 {
 		t.Fatalf("migration count = %d, error = %v", versions, err)
 	}
-	for _, table := range []string{"users", "sites", "site_aliases", "versions", "password_reset_tokens", "build_submissions"} {
+	for _, table := range []string{"users", "sites", "site_aliases", "versions", "password_reset_tokens", "build_submissions", "deployments"} {
 		var exists bool
 		if err := db.Get(&exists, "SELECT to_regclass($1) IS NOT NULL", table); err != nil || !exists {
 			t.Fatalf("missing table %s: %v", table, err)

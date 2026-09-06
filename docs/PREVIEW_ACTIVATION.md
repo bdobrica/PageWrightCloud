@@ -44,7 +44,8 @@ policy, and reloaded. Preview does not create a live symlink. Nil arguments to
 `UpdateSiteVersions` now mean “leave that pointer unchanged,” so preview cannot
 clear live and publishing cannot clear preview. Gateway checks database write
 errors. This narrow prerequisite is brought forward from M3.7; distributed
-activation/DB reconciliation and concurrent deployment policy remain there.
+activation/DB reconciliation and concurrent deployment policy are now implemented
+by the [M3.7 durable deployment protocol](DEPLOYMENT_RECOVERY.md).
 
 ## Existing-installation upgrade
 
@@ -80,6 +81,7 @@ now supplies the [supervised hosting lifecycle](HOSTING_LIFECYCLE.md), config
 validation, acknowledged reloads, rollback and restart recovery. Integration uses
 that production supervisor and fixed public proxy. Routing is confirmed before
 changing an artifact pointer; unavailable reloads fail without opening a success URL.
-Atomic symlink replacement and deployment-wide rollback remain M3.7/M3.8.
+M3.7 reconciles durable intent/receipts and preserves the opposite pointer; it does
+not promise a compensating rollback. Atomic symlink replacement remains M3.8.
 Full rendered-browser acceptance remains M3.12. No private preview access
 control or safe-generated-content claim is made; pilot hardening remains M4.

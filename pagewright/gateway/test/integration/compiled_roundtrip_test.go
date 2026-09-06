@@ -300,10 +300,23 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		}
 		return resp.StatusCode, data
 	}
+	// Old nginx workers may briefly drain after new-generation acknowledgment.
+	// Bound convergence for expected public resources; missing/private paths still
+	// assert their first response directly and never accept a successful fallback.
+	hostedResource := func(path string, previewHost bool) (int, []byte) {
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			status, data := hosted(path, previewHost)
+			if status == 200 || time.Now().After(deadline) {
+				return status, data
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
 	checkNavigation := func(previewHost bool) {
 		t.Helper()
 		for _, path := range []string{"/", "/guide/nested/"} {
-			status, data := hosted(path, previewHost)
+			status, data := hostedResource(path, previewHost)
 			if status != 200 {
 				t.Fatalf("nested route %s preview=%v: %d", path, previewHost, status)
 			}
@@ -330,7 +343,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 					path += "/"
 					name += "/index.html"
 				}
-				if status, body := hosted(path, previewHost); status != 200 || !bytes.Equal(body, files[name]) {
+				if status, body := hostedResource(path, previewHost); status != 200 || !bytes.Equal(body, files[name]) {
 					t.Fatalf("linked resource %s preview=%v differs: %d", path, previewHost, status)
 				}
 			}
@@ -378,7 +391,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	}
 	for name, expected := range files {
 		if strings.HasPrefix(name, "public/") && !strings.HasSuffix(name, "/") {
-			if status, data := hosted("/"+strings.TrimPrefix(name, "public/"), true); status != 200 || !bytes.Equal(data, expected) {
+			if status, data := hostedResource("/"+strings.TrimPrefix(name, "public/"), true); status != 200 || !bytes.Equal(data, expected) {
 				t.Errorf("preview file differs from artifact: %s (status %d)", name, status)
 			}
 		}
@@ -414,7 +427,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	}
 	for name, expected := range files {
 		if strings.HasPrefix(name, "public/") && !strings.HasSuffix(name, "/") {
-			if status, data := hosted("/" + strings.TrimPrefix(name, "public/")); status != 200 || !bytes.Equal(data, expected) {
+			if status, data := hostedResource("/"+strings.TrimPrefix(name, "public/"), false); status != 200 || !bytes.Equal(data, expected) {
 				t.Errorf("hosted file differs from archive: %s (status %d)", name, status)
 			}
 		}
@@ -438,9 +451,66 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	}
 	for name, expected := range secondFiles {
 		for _, previewHost := range []bool{false, true} {
-			if status, data := hosted("/"+strings.TrimPrefix(name, "public/"), previewHost); status != 200 || !bytes.Equal(data, expected) {
+			if status, data := hostedResource("/"+strings.TrimPrefix(name, "public/"), previewHost); status != 200 || !bytes.Equal(data, expected) {
 				t.Fatalf("promoted resource %s preview=%v differs: %d", name, previewHost, status)
 			}
 		}
 	}
+	// Lose the actual serving acknowledgment after it switched live. A new
+	// gateway recovery instance must reconcile the receipt, not invent a rollback.
+	lostAck := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream, err := http.NewRequest("POST", os.Getenv("TEST_SERVING_URL")+r.URL.Path, r.Body)
+		if err != nil {
+			t.Error(err)
+			http.Error(w, "proxy", 502)
+			return
+		}
+		upstream.Header.Set("Content-Type", "application/json")
+		resp, err := client.Do(upstream)
+		if err != nil {
+			t.Error(err)
+			http.Error(w, "proxy", 502)
+			return
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Errorf("real activation failed: %d", resp.StatusCode)
+		}
+		http.Error(w, "injected lost acknowledgment", 502)
+	}))
+	defer lostAck.Close()
+	uncertain := handlers.NewVersionsHandler(testDB, storage, clients.NewServingClient(lostAck.URL), 25)
+	faultRouter := mux.NewRouter()
+	faultRouter.Handle("/sites/{fqdn}/versions/{version_id}/deploy", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(uncertain.DeployVersion)))
+	faultGateway := httptest.NewServer(faultRouter)
+	defer faultGateway.Close()
+	request("POST", faultGateway.URL+"/sites/"+fqdn+"/versions/"+job.TargetVersion+"/deploy", `{"target":"live"}`, 500)
+	stale, err := testDB.GetSiteByFQDN(fqdn)
+	if err != nil || stale.LiveVersionID == nil || *stale.LiveVersionID != second.TargetVersion {
+		t.Fatalf("uncertain deployment wrote DB: %+v %v", stale, err)
+	}
+	if status, data := hosted("/index.html"); status != 200 || !bytes.Equal(data, html) {
+		t.Fatal("lost ack fixture did not switch real hosting")
+	}
+	recoveryCtx, stopRecovery := context.WithCancel(context.Background())
+	defer stopRecovery()
+	recovered := make(chan struct{})
+	go func() {
+		defer close(recovered)
+		handlers.NewVersionsHandler(testDB, storage, serving, 25).RunDeploymentRecovery(recoveryCtx)
+	}()
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		state, err := testDB.GetSiteByFQDN(fqdn)
+		if err == nil && state.LiveVersionID != nil && *state.LiveVersionID == job.TargetVersion && state.PreviewVersionID != nil && *state.PreviewVersionID == second.TargetVersion {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("restart reconciliation did not restore DB/serving agreement")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	stopRecovery()
+	<-recovered
 }

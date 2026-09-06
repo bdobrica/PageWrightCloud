@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/nginx"
@@ -15,9 +16,10 @@ import (
 )
 
 type Handler struct {
-	artifactMgr *artifact.Manager
-	nginxMgr    *nginx.Manager
-	storageCli  *storage.Client
+	deploymentMu sync.Mutex
+	artifactMgr  *artifact.Manager
+	nginxMgr     *nginx.Manager
+	storageCli   *storage.Client
 }
 
 func NewHandler(artifactMgr *artifact.Manager, nginxMgr *nginx.Manager, storageCli *storage.Client) *Handler {
@@ -35,6 +37,7 @@ func (h *Handler) SetupRoutes() *mux.Router {
 
 	// Site management
 	r.HandleFunc("/sites/{fqdn}/artifacts", h.DeployArtifact).Methods("POST")
+	r.HandleFunc("/sites/{fqdn}/deployment", h.ApplyDeployment).Methods("POST")
 	r.HandleFunc("/sites/{fqdn}/activate", h.ActivatePublic).Methods("POST")
 	r.HandleFunc("/sites/{fqdn}/preview", h.ActivatePreview).Methods("POST")
 	r.HandleFunc("/sites/{fqdn}/aliases", h.ManageAliases).Methods("POST")
@@ -62,6 +65,11 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeployArtifact(w http.ResponseWriter, r *http.Request) {
+	h.deploymentMu.Lock()
+	defer h.deploymentMu.Unlock()
+	if !h.legacyDeploymentAllowed(w, r) {
+		return
+	}
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
@@ -100,6 +108,11 @@ func (h *Handler) DeployArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ActivatePublic(w http.ResponseWriter, r *http.Request) {
+	h.deploymentMu.Lock()
+	defer h.deploymentMu.Unlock()
+	if !h.legacyDeploymentAllowed(w, r) {
+		return
+	}
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
@@ -129,6 +142,11 @@ func (h *Handler) ActivatePublic(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ActivatePreview(w http.ResponseWriter, r *http.Request) {
+	h.deploymentMu.Lock()
+	defer h.deploymentMu.Unlock()
+	if !h.legacyDeploymentAllowed(w, r) {
+		return
+	}
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
@@ -216,6 +234,11 @@ func (h *Handler) EnableSite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RemoveSite(w http.ResponseWriter, r *http.Request) {
+	h.deploymentMu.Lock()
+	defer h.deploymentMu.Unlock()
+	if !h.legacyDeploymentAllowed(w, r) {
+		return
+	}
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 

@@ -44,28 +44,33 @@ func TestPreviewDeploymentOrderFailureAndOwnership(t *testing.T) {
 		calls                                  int
 	}{
 		{"anonymous", 200, 200, 401, "", 0}, {"foreign", 200, 200, 403, foreign, 0},
-		{"artifact-failure", 500, 200, 500, token, 1}, {"activation-failure", 200, 500, 500, token, 2},
-		{"success", 200, 200, 200, token, 2},
+		{"artifact-failure", 500, 200, 500, token, 1}, {"activation-failure", 200, 500, 500, token, 1},
+		{"success", 200, 200, 200, token, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			paths := []string{}
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				paths = append(paths, r.URL.Path)
-				var payload map[string]string
+				var payload map[string]any
 				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil || payload["version"] != "draft" {
 					t.Errorf("invalid serving payload %v %v", payload, err)
 				}
-				if strings.HasSuffix(r.URL.Path, "/artifacts") {
-					w.WriteHeader(tc.artifactStatus)
-				} else {
+				if tc.activateStatus != 200 {
 					w.WriteHeader(tc.activateStatus)
+					return
 				}
+				payload["status"] = "completed"
+				if tc.artifactStatus != 200 {
+					payload["status"] = "failed"
+				}
+				json.NewEncoder(w).Encode(payload)
 			}))
 			defer upstream.Close()
 			h := handlers.NewVersionsHandler(testDB, nil, clients.NewServingClient(upstream.URL), 25)
 			h.SetHostingAddress("https", "443")
 			router := mux.NewRouter()
 			router.Handle("/sites/{fqdn}/versions/{version_id}/deploy", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(h.DeployVersion)))
+			router.Handle("/sites/{fqdn}/deployment", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(h.DeploymentStatus)))
 			r := httptest.NewRequest("POST", "/sites/"+site.FQDN+"/versions/draft/deploy", strings.NewReader(`{"target":"preview"}`))
 			if tc.auth != "" {
 				r.Header.Set("Authorization", "Bearer "+tc.auth)
@@ -75,7 +80,7 @@ func TestPreviewDeploymentOrderFailureAndOwnership(t *testing.T) {
 			if w.Code != tc.status || len(paths) != tc.calls {
 				t.Fatalf("response %d %s paths %v", w.Code, w.Body.String(), paths)
 			}
-			if len(paths) == 2 && (!strings.HasSuffix(paths[0], "/artifacts") || !strings.HasSuffix(paths[1], "/preview")) {
+			if len(paths) == 1 && !strings.HasSuffix(paths[0], "/deployment") {
 				t.Fatal(paths)
 			}
 			if tc.status == 200 {
@@ -92,6 +97,24 @@ func TestPreviewDeploymentOrderFailureAndOwnership(t *testing.T) {
 			}
 			if tc.status != 200 && saved.PreviewVersionID != nil {
 				t.Fatal("failed activation changed preview DB")
+			}
+			statusRequest := httptest.NewRequest("GET", "/sites/"+site.FQDN+"/deployment", nil)
+			if tc.auth != "" {
+				statusRequest.Header.Set("Authorization", "Bearer "+tc.auth)
+			}
+			statusResponse := httptest.NewRecorder()
+			router.ServeHTTP(statusResponse, statusRequest)
+			want := 200
+			if tc.auth == "" {
+				want = 401
+			} else if tc.auth == foreign {
+				want = 403
+			}
+			if statusResponse.Code != want {
+				t.Fatalf("status authorization: %d", statusResponse.Code)
+			}
+			if want == 200 && statusResponse.Header().Get("Cache-Control") != "no-store" {
+				t.Fatal("deployment status must not be cached")
 			}
 		})
 	}

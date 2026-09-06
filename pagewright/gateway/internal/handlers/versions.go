@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -146,9 +147,15 @@ func (h *VersionsHandler) DeployVersion(w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 	versionID := vars["version_id"]
+	if !versionIDPattern.MatchString(versionID) {
+		respondError(w, 400, "invalid version identifier")
+		return
+	}
 
 	var req types.DeployVersionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil || decoder.Decode(new(any)) != io.EOF {
 		respondError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -175,32 +182,18 @@ func (h *VersionsHandler) DeployVersion(w http.ResponseWriter, r *http.Request) 
 		respondError(w, 500, "invalid public hosting configuration")
 		return
 	}
-	if err := h.servingClient.DeployArtifact(fqdn, site.ID, versionID); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to deploy artifact")
+	d, err := h.db.ReserveDeployment(r.Context(), site.ID, versionID, req.Target)
+	if errors.Is(err, database.ErrDeploymentBusy) {
+		respondError(w, 409, "another deployment is being reconciled; retry its selected version first")
 		return
 	}
-
-	// Activate the version
-	if req.Target == "live" {
-		if err := h.servingClient.ActivateVersion(fqdn, versionID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to activate version")
-			return
-		}
-		// Update database
-		if err := h.db.UpdateSiteVersions(fqdn, &versionID, nil); err != nil {
-			respondError(w, 500, "activation may have succeeded but its database state could not be saved; retry the same version")
-			return
-		}
-	} else {
-		if err := h.servingClient.ActivatePreview(fqdn, versionID); err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to activate preview")
-			return
-		}
-		// Update database
-		if err := h.db.UpdateSiteVersions(fqdn, nil, &versionID); err != nil {
-			respondError(w, 500, "activation may have succeeded but its database state could not be saved; retry the same version")
-			return
-		}
+	if err != nil {
+		respondError(w, 503, "cannot persist deployment intent")
+		return
+	}
+	if err = h.reconcileDeployment(r.Context(), d); err != nil {
+		respondError(w, 500, "deployment not confirmed; recovery retains the selected target; retry the same version")
+		return
 	}
 
 	respondJSON(w, map[string]string{
