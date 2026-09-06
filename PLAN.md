@@ -874,6 +874,52 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.12 completed (2026-09-06) in `77b4f14`.
+[Real-service browser acceptance](docs/BROWSER_ACCEPTANCE.md) records the runner,
+provider boundary, prerequisites, evidence and cleanup. A uniquely named Compose
+stack runs the production gateway (including background reconciliation), Redis
+dispatcher, sandboxed installed CLI, compiler, storage, hosting supervisor/nginx
+and built UI. Only model-provider responses are deterministic local fixtures;
+the CLI's actual exec_command tool edits source, and all application mutations
+come from browser actions. No SQL, manually uploaded HTML, manually launched jobs,
+injected auth state or intercepted application APIs are used.
+
+The browser registers and creates starter source, reloads an active build and
+recovers its completion, activates preview before publication with live still
+404, enables the initially disabled site through Dashboard and publishes through
+version actions. It opens the real View Live link, submits a second source edit
+which preserves the first, proves building alone changes neither hosted target,
+and activates the new preview without changing live. The invalid-source third
+build starts from the latest unpublished version and fails without a saved
+completed version or hosted-content changes. Publishing version two and rolling
+live back to version one leaves preview on version two. Reloads preserve exact
+job outcomes, labels and dashboard pointers; both hosting links and compiled
+theme assets resolve on the configured real live/preview hosts.
+
+Workers/provider stay on an internal network; only browser-facing services have
+an additional host-reachable network and random loopback ports. The runner skips
+the private .env, uses dummy keys, rejects remote Docker contexts and cleans only
+its own labelled workers, Compose containers and volumes. Isolation and the
+production sandbox remain unchanged, with no privileged containers or fallback.
+OpenAI Docs informed SSE framing for the narrow provider fixture; this does not
+replace the separate explicitly authorized paid-provider M2.12 acceptance.
+
+Verification passed: two clean full-journey runs plus the extended Enable/link
+run, four provider-fixture cases, UI contracts, zero-warning lint, type checking/
+production build, existing rendered draft-recovery regression, screenshot review
+and JavaScript/whitespace checks. Tested cached Playwright 1.58.2 / Firefox 146.0.1
+(revision 1509); final trace/screenshots: `/tmp/pagewright-browser-r2EDsz`.
+Harness timeout/lock, Docker internal-network ports, starter-source expectations
+and cache revalidation were corrected before acceptance. No production code or
+schema changed; full Go suites were not rerun for this test-only addition.
+Read-only post-run checks found no disposable containers, networks or volumes.
+No provider spending, remote deployment, application-data changes or push occurred.
+
+M3 is complete for the deterministic local browser journey. Hosted CI, production
+DNS/TLS, other browser engines and model quality are not implied. Next: **M4.1**,
+invitation/operator provisioning and bounded per-user/site usage before a remote
+pilot. M4 remains a release gate, not authorization to expose this stack publicly.
+
 M3.11 completed (2026-09-06) in `375def7`.
 [Keyboard/focus and responsive acceptance](docs/UI_ACCESSIBILITY.md) records the
 behavior, repeatable audit and verification limits. Version actions now use
@@ -913,7 +959,7 @@ This audit is not WCAG certification: screen-reader speech, real-device touch/
 virtual keyboards, actual zoom, forced colors and other browser engines remain
 unverified. The viewport tests and synthetic IME events do not imply those checks.
 
-Next: **M3.12**, the real-service browser journey, sequential edits, independent
+At M3.11 handoff, next was **M3.12**, the real-service browser journey, sequential edits, independent
 preview/live state, refresh, build failure and rollback without manual HTML/DB seeding.
 
 M3.10 completed (2026-09-06) in `5ad744d`.
