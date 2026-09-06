@@ -17,7 +17,7 @@ There is useful implementation across all services, but the application is still
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
 | Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
-| Execution | M2.1–M2.9 implement Docker launch, bounded dispatch, pinned CLI/compiler, isolation, fenced commits, durable history and restart recovery. M2.10 (`ddbb163`) adds verified terminal cleanup, staging retention and bounded redacted diagnostics. Selected worker: `pagewright-worker:m2.10`; Kubernetes remains a historical logging stub. | Broader runner fault and real-provider acceptance remain M2.11/M2.12. Missing evidence stays quarantined, never speculatively redispatched or deleted. Drain/reconcile before coordinated upgrades, including all storage writers; internal services require trusted operation. |
+| Execution | M2.1–M2.10 implement Docker launch, bounded dispatch, pinned CLI/compiler, isolation, fenced commits, durable history, recovery and verified resource retention. M2.11 (`bb5f877`) adds actual runner fault and fresh-manager recovery acceptance. Selected worker: `pagewright-worker:m2.11`; Kubernetes remains a historical logging stub. | Explicitly cost-bounded real-provider acceptance remains M2.12. Missing evidence stays quarantined, never speculatively redispatched or deleted. Drain/reconcile before coordinated upgrades, including all storage writers; internal services require trusted operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
 | Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
@@ -454,6 +454,39 @@ Repair job, storage, serving and UI contracts together, with tests exercising re
 **Exit:** without an AI dependency, create a fresh site, submit the canonical job, obtain a valid immutable artifact and fetch its `public/index.html` through hosting. No manually seeded serving files or direct DB edits.
 
 ### M2 — Real worker and recoverable job lifecycle (4–7 days)
+
+M2.11 completed (2026-09-06) in `bb5f877`. Selected worker is now
+`pagewright-worker:m2.11`. The [runner acceptance matrix](docs/RUNNER_ACCEPTANCE.md)
+uses production-main subprocesses with a deterministic test-only CLI and the real
+compiler. It verifies exact upload/callback order and exit codes across successful
+compilation, instruction tampering, invalid compiled references, compiler errors,
+artifact/log/manifest failures, callback retry exhaustion/lost acknowledgements,
+SIGTERM and SIGKILL before/after manifest. A small context boundary permits a
+short deadline test through the actual pipeline; production signal handling,
+15-minute job deadline, 10-minute executor limit and 16-minute watchdog remain.
+No runtime isolation bypass or adjustable production timeout was added.
+
+Restart acceptance reconnects a fresh manager backend/reconciler to durable Redis
+evidence. Complete materialization recovers completion; missing bytes fail
+conservatively, preserving receipts and releasing terminal reservations. Existing
+dispatch and root-stack restart checks verify no launch-intent replay and durable
+history/uncertainty recovery. These are layered checks, not one end-to-end
+paid-provider crash test or a disk-loss/HA guarantee. Workers are not restarted
+to replay fenced attempts. Executor parsing/cancellation tests restored in M2.3
+and M2.6 remain enabled; the obsolete skip inventory was corrected.
+
+Acceptance passed: repository package suite, full race-enabled service integration
+twice, final runner matrix repeated three times in a container without external
+networking, worker/manager race and vet, selected production image build, installed
+CLI/compiler checks, real-Docker launch/cleanup and isolated root-stack crash/restart
+smoke. Two unrelated serving skips remain. Only disposable test resources were
+removed; no paid calls, remote cleanup/deployment, privileged containers, isolation
+relaxation or push occurred.
+
+Next: **M2.12**, one explicitly invoked, cost-bounded provider smoke test verifying
+the requested change in compiled HTML. M2 is not fully accepted until that gate;
+browser publish/owner history and service authentication remain M3/M4. Retain the
+coordinated upgrade and storage-writer drain requirements from M2.10.
 
 M2.10 completed (2026-09-06) in `ddbb163`. Selected worker is now
 `pagewright-worker:m2.10`; sandbox isolation and pinned CLI/compiler are unchanged.
