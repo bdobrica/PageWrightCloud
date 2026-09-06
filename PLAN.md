@@ -27,7 +27,7 @@ There is useful implementation across all services, but the application is still
 | Live updates | M3.2 supplies bounded owner-checked history polling. M3.3 (`7f99456`) removes the broken browser socket transport and gateway hub/upgrader; `/ws` returns 501. | Polling is the MVP transport. Future sockets require browser-compatible authentication, strict origins, owner/site filtering, real event delivery/resynchronization and tested reconnect cleanup; no re-enable flag exists. |
 | Deploy / preview | M3.4 (`e22362d`) activates Preview through the deployment API before opening a validated, scheme/port-configured response URL, with popup fallback and failure feedback. | Update remaining UI links and verify preview assets/navigation in M3.6; actual browser journey remains M3.12. |
 | Deployment consistency | M3.4 preserves the opposite DB pointer and checks write errors. Serving still removes the old symlink before creating the new one. | Reconcile partial activation in M3.7; replace symlinks atomically in M3.8. A failed activation can already have changed serving state. |
-| Hosting | M3.4 provisions first-preview nginx routing and verifies it with real nginx in integration. [Compose](docker-compose.yaml) still separates serving/nginx while serving executes local `nginx -s reload`. | Production supervision, reload coordination, validation and rollback remain M3.5. The integration topology is not a production lifecycle fix. |
+| Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx together behind a fixed public proxy; config mutations are validated, generation-acknowledged, journaled and recoverable. Production and integration share this topology. | Upgrade serving/proxy together without deleting volumes. Preview assets/remaining URLs are M3.6; DB reconciliation and atomic artifact pointers remain M3.7/M3.8; pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | File uploads are multipart in the UI but build handler decodes JSON. Reset email is a TODO and reset tokens are logged. Site links assume HTTPS without the local port. | Ship only working controls, configure returned hosting URLs, and complete recovery before remote access. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
@@ -874,6 +874,40 @@ Replace request-handler launching with a queue dispatcher with bounded concurren
 
 ### M3 — Complete browser journey and publishing (3–5 days)
 
+M3.5 completed (2026-09-06) in `2e1eea2`.
+[Supervised hosting lifecycle](docs/HOSTING_LIFECYCLE.md) defines the production
+topology: the serving API and hosting nginx share a Tini/Go-supervised container;
+the existing public nginx is a fixed proxy preserving Host and re-resolving Docker
+DNS after replacement. Either supervised child's exit terminates its sibling;
+Compose restarts the pair. Readiness checks nginx as well as configuration state.
+No Docker-daemon socket, privileged container or host PID access was added.
+
+An exclusive writer lock and manager mutex protect config transactions. Prior
+bytes/existence and generation state are journaled/synced before atomic file
+replacement. Validation precedes reload; new nginx workers must return the exact
+loopback-only generation token before success. Failure restores and confirms the
+old generation; uncertain rollback retains its journal and rejects writes. Startup
+restores interrupted changes before validating nginx. Routing confirmation now
+precedes artifact pointer changes, avoiding pointer changes on reload failure.
+Artifact symlink atomicity and DB/serving reconciliation remain M3.8 and M3.7.
+
+Verification passed: six-module Go baseline, serving race/vet, full race-enabled
+service integration with the production supervisor/config/proxy, real-nginx invalid
+syntax and no-op reload rollback, and root-stack proxy/routing, nginx-master crash,
+container restart and abrupt recreation checks. Writer exclusion and conservative
+restart recovery have focused tests. The first root smoke failed because Node fetch
+ignored its custom Host header; a local diagnostic confirmed this and the corrected
+HTTP client passed subsequent runs. Script syntax, Compose overlay configuration
+and whitespace checks passed. Two existing serving skips remain. UI source was
+unchanged; root acceptance rebuilt the production UI image and checked its bundle.
+
+Serving and proxy must be upgraded together after backups; existing volumes remain
+in place. The local-domain no-op reload override was removed. Disposable test stacks
+were removed; private `.env` and application data were untouched. No paid calls,
+remote deployment or push occurred. Full rendered-browser acceptance remains M3.12.
+
+Next: **M3.6**, configured URLs across UI entry points and preview assets/navigation.
+
 M3.4 completed (2026-09-06) in `e22362d`.
 [Preview activation contract](docs/PREVIEW_ACTIVATION.md) documents staging,
 activation, first-host routing, checked DB state and returned URL sequencing.
@@ -900,7 +934,7 @@ reload errors. Two existing serving skips remain. Disposable integration service
 were removed; application data and private `.env` were untouched. No paid calls,
 remote deployment or push occurred.
 
-Next: **M3.5**, production serving/nginx lifecycle. M3.4's integration co-locates
+At M3.4 handoff, next was **M3.5**, production serving/nginx lifecycle. M3.4's integration co-locates
 nginx and serving; root Compose still requires reload coordination before production
 preview can succeed. Preview assets and remaining configured URLs are M3.6, durable
 reconciliation/atomic operations M3.7/M3.8, rendered-browser acceptance M3.12.
