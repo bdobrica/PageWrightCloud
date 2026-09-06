@@ -125,92 +125,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GoogleLogin initiates Google OAuth flow
+// GoogleLogin is deliberately unavailable in the text-only MVP.
 func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
-	// Generate state token for CSRF protection
-	state := uuid.New().String()
-
-	// Store state in session/cookie (simplified for PoC)
-	http.SetCookie(w, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    state,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   300, // 5 minutes
-	})
-
-	// Redirect to Google
-	url := h.oauthManager.GetAuthURL(state)
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	mvpUnavailable(w, "Google sign-in")
 }
 
-// GoogleCallback handles the OAuth callback from Google
+// GoogleCallback must not exchange codes or create accounts in the MVP.
 func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
-	// Verify state
-	stateCookie, err := r.Cookie("oauth_state")
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "missing state cookie")
-		return
-	}
-
-	state := r.URL.Query().Get("state")
-	if state != stateCookie.Value {
-		respondError(w, http.StatusBadRequest, "invalid state parameter")
-		return
-	}
-
-	// Get code
-	code := r.URL.Query().Get("code")
-	if code == "" {
-		respondError(w, http.StatusBadRequest, "missing code parameter")
-		return
-	}
-
-	// Exchange code for token
-	token, err := h.oauthManager.Exchange(r.Context(), code)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to exchange code")
-		return
-	}
-
-	// Get user info from Google
-	googleUser, err := h.oauthManager.GetUserInfo(r.Context(), token)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to get user info")
-		return
-	}
-
-	// Check if user exists
-	user, err := h.db.GetUserByOAuth("google", googleUser.ID)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to check user")
-		return
-	}
-
-	// Create user if doesn't exist
-	if user == nil {
-		provider := "google"
-		user, err = h.db.CreateUser(googleUser.Email, "", &provider, &googleUser.ID)
-		if err != nil {
-			respondError(w, http.StatusInternalServerError, "failed to create user")
-			return
-		}
-	}
-
-	// Generate JWT
-	jwtToken, err := h.jwtManager.GenerateToken(user.ID, user.Email)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to generate token")
-		return
-	}
-
-	// Return token (in real app, redirect to frontend with token)
-	respondJSON(w, types.AuthResponse{
-		Token:     jwtToken,
-		ExpiresIn: h.jwtManager.GetExpirationSeconds(),
-		User:      *user,
-	})
+	mvpUnavailable(w, "Google sign-in")
 }
 
 // ForgotPassword initiates password reset flow

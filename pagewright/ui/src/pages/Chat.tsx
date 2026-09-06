@@ -7,7 +7,6 @@ import { ChatMessage } from '../components/ChatMessage';
 import { BuildHistory } from '../components/BuildHistory';
 import { HostingLinks } from '../components/HostingLinks';
 import type { Site } from '../types/api';
-import { FileAttachment } from '../components/FileAttachment';
 import { apiClient } from '../api/client';
 import { createSubmissionIdentity, isRejectedSubmission } from '../api/submission';
 import './Chat.css';
@@ -27,7 +26,6 @@ export const Chat: React.FC = () => {
 const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
   const [versionRefresh, setVersionRefresh] = useState(0);
@@ -53,8 +51,8 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!inputText.trim() && files.length === 0) return;
-    const requestKey = submission.current.begin({ fqdn: fqdn!, message: inputText, conversation_id: conversationId, files });
+    if (!inputText.trim()) return;
+    const requestKey = submission.current.begin({ fqdn: fqdn!, message: inputText, conversation_id: conversationId });
     if (!requestKey) return;
 
     const userMessage: Message = {
@@ -71,7 +69,6 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
       const response = await apiClient.build(fqdn!, {
         message: inputText,
         conversation_id: conversationId,
-        files,
         requestKey,
       });
       submission.current.finish('success');
@@ -108,7 +105,6 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
       }
 
       setInputText('');
-      setFiles([]);
     } catch (err: unknown) {
       submission.current.finish(isRejectedSubmission(err) ? 'rejected' : 'uncertain');
       setMessages((prev) => [
@@ -151,7 +147,7 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
         </div>
 
         <div className="chat-input">
-          <FileAttachment files={files} onFilesChange={setFiles} disabled={isLoading} />
+          <p>Text-only requests. Attachments are not supported in this MVP.</p>
           <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
@@ -167,7 +163,7 @@ const ChatSession: React.FC<{ fqdn: string }> = ({ fqdn }) => {
           />
           <button
             onClick={handleSend}
-            disabled={isLoading || (!inputText.trim() && files.length === 0)}
+            disabled={isLoading || !inputText.trim()}
             className="pure-button pure-button-primary"
           >
             {isLoading ? 'Sending...' : 'Send'}

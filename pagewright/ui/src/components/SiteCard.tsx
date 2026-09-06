@@ -1,19 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { chatPath } from '../routes';
 import { useNavigate } from 'react-router-dom';
-import { ManageAliasesModal } from './ManageAliasesModal';
 import { HostingLinks } from './HostingLinks';
 import type { Site } from '../types/api';
 import './SiteCard.css';
 
 interface SiteCardProps {
   site: Site;
-  onDelete: (fqdn: string) => void;
   onToggleEnabled: (site: Site) => void;
 }
 
-export const SiteCard: React.FC<SiteCardProps> = ({ site, onDelete, onToggleEnabled }) => {
-  const [showAliases, setShowAliases] = useState(false);
+export const SiteCard: React.FC<SiteCardProps> = ({ site, onToggleEnabled }) => {
   const navigate = useNavigate();
   const pending = site.initialization_status === 'pending';
 
@@ -36,24 +33,15 @@ export const SiteCard: React.FC<SiteCardProps> = ({ site, onDelete, onToggleEnab
 
         <div className="site-card-actions">
           <HostingLinks site={site} />
-          <button onClick={() => setShowAliases(true)} className="pure-button">
-            Aliases
-          </button>
+          <span>Aliases and site deletion are unavailable in this MVP.</span>
           <button onClick={() => onToggleEnabled(site)} className="pure-button" disabled={pending}>
             {site.enabled ? 'Disable' : 'Enable'}
           </button>
           <button onClick={() => navigate(pending ? `/create-site?fqdn=${encodeURIComponent(site.fqdn)}` : chatPath(site.fqdn))} className="pure-button pure-button-primary">
             {pending ? 'Resume Setup' : 'Build'}
           </button>
-          <button onClick={() => onDelete(site.fqdn)} className="pure-button button-error">
-            Delete
-          </button>
         </div>
       </div>
-
-      {showAliases && (
-        <ManageAliasesModal siteId={site.id} fqdn={site.fqdn} onClose={() => setShowAliases(false)} />
-      )}
     </>
   );
 };

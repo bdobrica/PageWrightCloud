@@ -3,6 +3,33 @@ import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseSiteHosting, parseBuildResponse, parseJobSnapshot, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from '../src/api/contracts.ts';
 import { openActivatedPreview } from '../src/api/preview.ts';
+import { parseSiteDomain, platformLabel } from '../src/api/capabilities.ts';
+
+test('MVP creation uses the server namespace and fails closed for invalid resume names', () => {
+ assert.equal(parseSiteDomain({mode:'mvp',site_domain:'example.test'}),'example.test');
+ for (const value of [null,{}, {mode:'other',site_domain:'example.test'}, ...['','localhost','https://example.test','*.test','example.test:80'].map(site_domain=>({mode:'mvp',site_domain}))]) {
+  assert.throws(()=>parseSiteDomain(value));
+ }
+ assert.equal(platformLabel('one.example.test','example.test'),'one');
+ for (const fqdn of ['example.test','one.other.test','one.example.test.evil','nested.one.example.test','preview.example.test','app.example.test','api.example.test','www.example.test','-one.example.test','one-.example.test']) {
+  assert.equal(platformLabel(fqdn,'example.test'),null);
+ }
+ const create=readFileSync(new URL('../src/pages/CreateSite.tsx',import.meta.url),'utf8');
+ assert.match(create,/apiClient.getSiteDomain/);
+ assert.doesNotMatch(create,/config.defaultDomain|Use my own domain|setFqdn/);
+ assert.match(create,/unsupportedResume/);
+ assert.match(create,/disabled=\{isLoading \|\| !valid\}/);
+});
+
+test('MVP entry points do not expose unsupported actions or multipart requests', () => {
+ const read=path=>readFileSync(new URL('../src/'+path,import.meta.url),'utf8');
+ assert.doesNotMatch(read('pages/Chat.tsx'),/FileAttachment|setFiles|files/);
+ assert.match(read('pages/Chat.tsx'),/Text-only requests/);
+ assert.doesNotMatch(read('api/client.ts'),/FormData|multipart\/form-data|async deleteSite/);
+ assert.doesNotMatch(read('pages/Login.tsx'),/auth\/google|google-btn/);
+ assert.doesNotMatch(read('components/SiteCard.tsx'),/ManageAliasesModal|onDelete|setShowAliases/);
+ assert.doesNotMatch(read('pages/Dashboard.tsx'),/deleteSite|handleDelete/);
+});
 
 test('preview opens only after confirmed activation and ignores a closed modal', async () => {
  let resolve;
@@ -112,7 +139,7 @@ import { createSubmissionIdentity, isRejectedSubmission } from '../src/api/submi
 
 test('site creation selects starter and offers pending setup recovery', () => {
   const create = readFileSync(new URL('../src/pages/CreateSite.tsx', import.meta.url), 'utf8');
-  assert.match(create, /useState\('starter'\)/);
+  assert.match(create, /template_id: 'starter'/);
   assert.doesNotMatch(create, /template-1/);
   const card = readFileSync(new URL('../src/components/SiteCard.tsx', import.meta.url), 'utf8');
   assert.match(card, /Resume Setup/);
@@ -249,8 +276,7 @@ test('failed accepted responses preserve errors and reject mismatched error meta
   assert.throws(() => parseBuildResponse({ ...accepted, error_message: 'Worker failed' }), /error_message/);
 });
 
-const payload = { fqdn: 'site.example.test', message: 'Update title', conversation_id: 'conversation-1',
-  files: [{ name: 'photo.png', size: 12, lastModified: 123 }] };
+const payload = { fqdn: 'site.example.test', message: 'Update title', conversation_id: 'conversation-1' };
 function identity() {
   let counter = 0;
   return createSubmissionIdentity(() => `key-${++counter}`);
@@ -268,9 +294,7 @@ test('ambiguous retries reuse identity and synchronous duplicate sends are block
 test('every changed payload field rotates identity after an uncertain attempt', () => {
   for (const changed of [
     { ...payload, fqdn: 'other.example.test' }, { ...payload, message: 'New title' },
-    { ...payload, conversation_id: 'conversation-2' }, { ...payload, files: [] },
-    ...[{ name: 'other.png' }, { size: 13 }, { lastModified: 124 }].map(change =>
-      ({ ...payload, files: [{ ...payload.files[0], ...change }] })),
+    { ...payload, conversation_id: 'conversation-2' },
   ]) {
     const retry = identity();
     const first = retry.begin(payload);

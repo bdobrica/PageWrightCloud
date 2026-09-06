@@ -14,11 +14,9 @@ COPY . .
 
 # Build arguments for Vite
 ARG VITE_PAGEWRIGHT_API_URL=http://localhost:8085
-ARG VITE_PAGEWRIGHT_DEFAULT_DOMAIN=pagewright.io
 
 # Set environment variables for build
 ENV VITE_PAGEWRIGHT_API_URL=$VITE_PAGEWRIGHT_API_URL
-ENV VITE_PAGEWRIGHT_DEFAULT_DOMAIN=$VITE_PAGEWRIGHT_DEFAULT_DOMAIN
 
 # Build the application
 RUN npm run build

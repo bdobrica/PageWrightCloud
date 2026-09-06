@@ -57,6 +57,9 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, jwtManager, oauthManager)
 	sitesHandler := handlers.NewSitesHandler(db, servingClient, storageClient, cfg.DefaultPageSize)
 	sitesHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
+	if err := sitesHandler.SetSiteDomain(cfg.SiteDomain); err != nil {
+		log.Fatal(err)
+	}
 	aliasesHandler := handlers.NewAliasesHandler(db, servingClient)
 	versionsHandler := handlers.NewVersionsHandler(db, storageClient, servingClient, cfg.DefaultPageSize)
 	versionsHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
@@ -116,6 +119,8 @@ func main() {
 	api.HandleFunc("/sites/{fqdn}/jobs", buildHandler.Jobs).Methods("GET", "OPTIONS")
 	api.HandleFunc("/sites/{fqdn}/jobs/{job_id}", buildHandler.Jobs).Methods("GET", "OPTIONS")
 
+	// Public MVP configuration (OPTIONS is needed by the cross-origin UI).
+	r.HandleFunc("/capabilities", sitesHandler.Capabilities).Methods("GET", "OPTIONS")
 	// Health check
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

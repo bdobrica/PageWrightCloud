@@ -21,6 +21,7 @@ type SitesHandler struct {
 	servingClient   *clients.ServingClient
 	storageClient   *clients.StorageClient
 	defaultPageSize int
+	siteDomain      string
 	hostingAddress
 }
 
@@ -30,6 +31,7 @@ func NewSitesHandler(db *database.DB, servingClient *clients.ServingClient, stor
 		servingClient:   servingClient,
 		storageClient:   storageClient,
 		defaultPageSize: defaultPageSize,
+		siteDomain:      "pagewright.dev",
 		hostingAddress:  hostingAddress{"http", "8084"},
 	}
 }
@@ -60,8 +62,8 @@ func (h *SitesHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req.FQDN = strings.ToLower(strings.TrimSpace(req.FQDN))
-	if !validSiteFQDN(req.FQDN) || (req.TemplateID != "starter" && req.TemplateID != "template-1") {
-		respondError(w, http.StatusBadRequest, "valid fqdn and starter template are required")
+	if !h.supportedSiteName(req.FQDN) || (req.TemplateID != "starter" && req.TemplateID != "template-1") {
+		respondError(w, http.StatusBadRequest, "a single platform subdomain and starter template are required")
 		return
 	}
 
@@ -175,38 +177,10 @@ func (h *SitesHandler) GetSite(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, h.publicSite(site))
 }
 
-// DeleteSite deletes a site
+// DeleteSite is disabled until DB, storage and serving deletion is coordinated.
+// The lower-level deployment-record and active-artifact guards remain intact.
 func (h *SitesHandler) DeleteSite(w http.ResponseWriter, r *http.Request) {
-	user, _ := middleware.GetUserFromContext(r)
-	vars := mux.Vars(r)
-	fqdn := vars["fqdn"]
-
-	site, err := h.db.GetSiteByFQDN(fqdn)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to get site")
-		return
-	}
-
-	if site == nil {
-		respondError(w, http.StatusNotFound, "site not found")
-		return
-	}
-
-	if site.UserID != user.UserID {
-		respondError(w, http.StatusForbidden, "access denied")
-		return
-	}
-
-	if err := h.db.DeleteUndeployedSite(r.Context(), site.ID, func() error { return h.servingClient.DeleteSite(fqdn) }); err != nil {
-		if errors.Is(err, database.ErrDeploymentBusy) {
-			respondError(w, 409, "deployment records must be retained; coordinated site deletion is not yet supported")
-			return
-		}
-		respondError(w, http.StatusInternalServerError, "failed to delete site")
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	mvpUnavailable(w, "Site deletion")
 }
 
 // EnableSite enables a site

@@ -58,6 +58,9 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	manager := clients.NewManagerClient(os.Getenv("TEST_MANAGER_URL"))
 	serving := clients.NewServingClient(os.Getenv("TEST_SERVING_URL"))
 	sites := handlers.NewSitesHandler(testDB, serving, storage, 25)
+	if err := sites.SetSiteDomain("example.test"); err != nil {
+		t.Fatal(err)
+	}
 	builds := handlers.NewBuildHandler(testDB, clients.NewLLMClient("test-only", provider.URL), manager, storage)
 	versions := handlers.NewVersionsHandler(testDB, storage, serving, 25)
 	router := mux.NewRouter()

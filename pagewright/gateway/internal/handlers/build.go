@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"sync"
@@ -71,6 +72,16 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 	}
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
+
+	// Older JSON clients omitted Content-Type. Explicit non-JSON uploads are never
+	// interpreted as text requests, even if their bytes happen to be valid JSON.
+	if contentType := r.Header.Get("Content-Type"); contentType != "" {
+		mediaType, _, err := mime.ParseMediaType(contentType)
+		if err != nil || mediaType != "application/json" {
+			respondError(w, http.StatusUnsupportedMediaType, "text-only JSON requests are supported; attachments are unavailable")
+			return
+		}
+	}
 
 	var req types.BuildRequest
 	decoder := json.NewDecoder(r.Body)

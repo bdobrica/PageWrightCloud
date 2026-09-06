@@ -28,17 +28,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handleDelete = async (fqdn: string) => {
-    if (!confirm(`Delete site ${fqdn}?`)) return;
-
-    try {
-      await apiClient.deleteSite(fqdn);
-      setSites(sites.filter((s) => s.fqdn !== fqdn));
-    } catch (err: unknown) {
-      alert(getErrorMessage(err, 'Failed to delete site'));
-    }
-  };
-
   const handleToggleEnabled = async (site: Site) => {
     try {
       if (site.enabled) {
@@ -82,7 +71,6 @@ export const Dashboard: React.FC = () => {
               <SiteCard
                 key={site.id}
                 site={site}
-                onDelete={handleDelete}
                 onToggleEnabled={handleToggleEnabled}
               />
             ))}

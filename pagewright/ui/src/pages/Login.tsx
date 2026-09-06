@@ -67,12 +67,7 @@ export const Login: React.FC = () => {
           <Link to="/register">Don't have an account? Register</Link>
         </div>
 
-        <div className="divider">OR</div>
-
-        <a href={`${import.meta.env.VITE_PAGEWRIGHT_API_URL}/auth/google/login`} className="google-btn">
-          <img src="/google-icon.svg" alt="Google" width="18" height="18" />
-          Continue with Google
-        </a>
+        <p>Sign in with email and password. Google sign-in is not available in this MVP.</p>
       </div>
     </div>
   );

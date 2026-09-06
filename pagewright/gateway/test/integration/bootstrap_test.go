@@ -83,6 +83,9 @@ func TestSiteBootstrapHTTPRecovery(t *testing.T) {
 				t.Helper()
 				// Fresh handler/router on every call: no in-memory retry state.
 				h := handlers.NewSitesHandler(testDB, nil, clients.NewStorageClient(upstream.URL), 25)
+				if err := h.SetSiteDomain("example.test"); err != nil {
+					t.Fatal(err)
+				}
 				router := mux.NewRouter()
 				router.Handle("/sites", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(h.CreateSite)))
 				body, _ := json.Marshal(types.CreateSiteRequest{FQDN: domain, TemplateID: template})
@@ -188,6 +191,9 @@ func TestConcurrentSiteBootstrap(t *testing.T) {
 	token, _ := testJWTManager.GenerateToken(user.ID, user.Email)
 	fqdn := "concurrent-" + uuid.NewString() + ".example.test"
 	h := handlers.NewSitesHandler(testDB, nil, clients.NewStorageClient(os.Getenv("TEST_STORAGE_URL")), 25)
+	if err := h.SetSiteDomain("example.test"); err != nil {
+		t.Fatal(err)
+	}
 	router := mux.NewRouter()
 	router.Handle("/sites", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(h.CreateSite)))
 	server := httptest.NewServer(router)

@@ -66,6 +66,12 @@ docker compose up -d --build --wait
 
 Stopping with `make docker-down` retains database/artifact volumes. Do not use `make docker-clean` or `down --volumes` if you want to keep data. Before upgrading an old installation, back it up and read the [migration notes](docs/DEVELOPMENT.md#database-migrations). If the previous configuration left an obsolete NFS container, `docker compose down --remove-orphans` removes project containers without deleting named volumes; use it only for the intended development project.
 
+The [text-only MVP capability policy](docs/MVP_CAPABILITIES.md) makes the gateway's
+`PAGEWRIGHT_SITE_DOMAIN` authoritative for new sites. The UI loads it at runtime;
+the old Vite default-domain setting is no longer used. Attachments, custom-domain
+creation, aliases, Google sign-in and site deletion are unavailable. Upgrade UI
+and gateway together and configure the namespace before resuming site setup.
+
 ## Run checks
 
 ```bash

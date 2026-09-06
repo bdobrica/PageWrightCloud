@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, AxiosError } from 'axios';
 import { config } from '../config';
+import { parseSiteDomain } from './capabilities';
 import { parseSiteHosting, parseBuildResponse, parseVersionPage, parseBuildHistory, parseBuildHistoryItem, parseDeployment } from './contracts';
 import type {
   AuthResponse,
@@ -12,8 +13,6 @@ import type {
   CreateSiteRequest,
   PaginatedResponse,
   Version,
-  SiteAlias,
-  AddAliasRequest,
   DeployVersionRequest,
   BuildRequest,
   BuildResponse,
@@ -81,6 +80,11 @@ class ApiClient {
   }
 
   // Sites endpoints
+  async getSiteDomain(signal?: AbortSignal): Promise<string> {
+    const response = await this.client.get<unknown>('/capabilities', { signal, timeout: 10000 });
+    return parseSiteDomain(response.data);
+  }
+
   async createSite(data: CreateSiteRequest): Promise<Site> {
     const response = await this.client.post<Site>('/sites', data);
     return parseSiteHosting(response.data);
@@ -98,31 +102,12 @@ class ApiClient {
     return parseSiteHosting(response.data, fqdn);
   }
 
-  async deleteSite(fqdn: string): Promise<void> {
-    await this.client.delete(`/sites/${fqdn}`);
-  }
-
   async enableSite(fqdn: string): Promise<void> {
     await this.client.post(`/sites/${fqdn}/enable`);
   }
 
   async disableSite(fqdn: string): Promise<void> {
     await this.client.post(`/sites/${fqdn}/disable`);
-  }
-
-  // Aliases endpoints
-  async listAliases(fqdn: string): Promise<SiteAlias[]> {
-    const response = await this.client.get<SiteAlias[]>(`/sites/${fqdn}/aliases`);
-    return response.data;
-  }
-
-  async addAlias(fqdn: string, data: AddAliasRequest): Promise<SiteAlias> {
-    const response = await this.client.post<SiteAlias>(`/sites/${fqdn}/aliases`, data);
-    return response.data;
-  }
-
-  async deleteAlias(fqdn: string, alias: string): Promise<void> {
-    await this.client.delete(`/sites/${fqdn}/aliases/${alias}`);
   }
 
   // Versions endpoints
@@ -160,27 +145,7 @@ class ApiClient {
     return job;
   }
 
-  async build(fqdn: string, data: BuildRequest & { files?: File[]; requestKey: string }): Promise<BuildResponse> {
-    // Legacy attachment path is still unsupported by Gateway; tracked in M3.9.
-    if (data.files && data.files.length > 0) {
-      const formData = new FormData();
-      formData.append('message', data.message);
-      if (data.conversation_id) {
-        formData.append('conversation_id', data.conversation_id);
-      }
-      data.files.forEach((file) => {
-        formData.append('files', file);
-      });
-
-      const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Idempotency-Key': data.requestKey,
-        },
-      });
-      return parseBuildResponse(response.data);
-    }
-
+  async build(fqdn: string, data: BuildRequest & { requestKey: string }): Promise<BuildResponse> {
     const payload: BuildRequest = { message: data.message, conversation_id: data.conversation_id };
     const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, payload, {
       headers: { 'Idempotency-Key': data.requestKey },

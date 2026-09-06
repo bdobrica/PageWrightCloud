@@ -58,6 +58,25 @@ assert.ok(registry.themes.some(theme => theme.id === 'starter'));
 if (stage === 'fresh') await request(gateway, '/auth/register', json(credentials));
 const auth = await (await request(gateway, '/auth/login', json(credentials))).json();
 assert.ok(auth.token);
+const preflight = await request(gateway, '/capabilities', {method:'OPTIONS', headers:{
+ Origin:'http://localhost:3000', 'Access-Control-Request-Method':'GET',
+ 'Access-Control-Request-Headers':'authorization,content-type',
+}});
+assert.ok(preflight.headers.get('access-control-allow-headers').includes('Authorization'));
+const capabilities = await request(gateway, '/capabilities');
+assert.equal(capabilities.headers.get('cache-control'), 'no-store');
+assert.deepEqual(await capabilities.json(), {
+ mode: 'mvp', site_domain: 'example.test', attachments: false,
+ custom_domains: false, aliases: false, oauth: false, site_deletion: false,
+});
+for (const path of ['/auth/google/login', '/auth/google/callback?code=unused&state=unused']) {
+ const response = await request(gateway, path, { redirect: 'manual' }, 501);
+ assert.equal(response.headers.get('location'), null);
+ assert.equal(response.headers.get('set-cookie'), null);
+}
+for (const fqdn of ['arbitrary.test', 'example.test', 'nested.site.example.test', 'preview.example.test', 'app.example.test']) {
+ await request(gateway, '/sites', json({fqdn,template_id:'starter'},auth.token), 400);
+}
 for (const headers of [{}, { Authorization: `Bearer ${auth.token}`, Origin: 'https://foreign.example' }]) {
   const retired = await request(gateway, '/ws?token=retired-query-token', {headers}, 501);
   assert.equal(retired.headers.get('cache-control'), 'no-store');
@@ -75,6 +94,18 @@ const sites = await (await request(gateway, '/sites', {
 assert.equal(sites.total_count, 1);
 assert.equal(sites.data[0].fqdn, 'smoke.example.test');
 assert.equal(sites.data[0].initialization_status, 'ready');
+for (const [method, path] of [
+ ['GET','/aliases'], ['POST','/aliases'], ['DELETE','/aliases/other.test'], ['DELETE',''],
+]) {
+ await request(gateway, '/sites/smoke.example.test'+path, {
+  method, headers: {Authorization: 'Bearer '+auth.token},
+ }, 501);
+}
+await request(gateway, '/sites/smoke.example.test/build', {
+ method:'POST', headers:{Authorization:'Bearer '+auth.token,'Content-Type':'multipart/form-data; boundary=test'},
+ body:'upload',
+}, 415);
+await request(gateway, '/sites/smoke.example.test/build', json({message:'edit',files:[]},auth.token), 400);
 // Production proxy -> supervised hosting nginx, with an acknowledged reload.
 // A disabled site's 503 differs from the unknown-host 404 fallback.
 await request(gateway, '/sites/smoke.example.test/disable', json({},auth.token));

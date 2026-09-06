@@ -46,6 +46,7 @@ services:
       - PAGEWRIGHT_STORAGE_URL=${PAGEWRIGHT_STORAGE_URL:-http://storage:8080}
       - PAGEWRIGHT_MANAGER_URL=${PAGEWRIGHT_MANAGER_URL:-http://manager:8081}
       - PAGEWRIGHT_SERVING_URL=${PAGEWRIGHT_SERVING_URL:-http://serving:8083}
+      - PAGEWRIGHT_SITE_DOMAIN=${PAGEWRIGHT_SITE_DOMAIN:-pagewright.dev}
       - PAGEWRIGHT_HOSTING_SCHEME=${PAGEWRIGHT_HOSTING_SCHEME:-http}
       - PAGEWRIGHT_HOSTING_PORT=${PAGEWRIGHT_HOSTING_PORT:-8084}
       - PAGEWRIGHT_JWT_SECRET=${PAGEWRIGHT_JWT_SECRET:-dev-secret-change-in-production}
@@ -209,7 +210,6 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_PAGEWRIGHT_API_URL: ${VITE_PAGEWRIGHT_API_URL:-http://localhost:8085}
-        VITE_PAGEWRIGHT_DEFAULT_DOMAIN: ${VITE_PAGEWRIGHT_DEFAULT_DOMAIN:-pagewright.dev}
     ports:
       - "${PAGEWRIGHT_UI_PORT:-3000}:80"
     depends_on:

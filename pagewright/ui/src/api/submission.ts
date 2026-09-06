@@ -2,7 +2,6 @@ interface SubmissionPayload {
   fqdn: string;
   message: string;
   conversation_id?: string;
-  files?: ReadonlyArray<{ name: string; size: number; lastModified: number }>;
 }
 
 // One logical submission retains its identity while its delivery is uncertain.
@@ -15,7 +14,6 @@ export function createSubmissionIdentity(newKey: () => string = () => crypto.ran
       if (sending) return null;
       const fingerprint = JSON.stringify([
         payload.fqdn, payload.message, payload.conversation_id ?? '',
-        (payload.files ?? []).map(file => [file.name, file.size, file.lastModified]),
       ]);
       if (current?.fingerprint !== fingerprint) current = { fingerprint, key: newKey() };
       sending = true;

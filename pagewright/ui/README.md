@@ -4,6 +4,11 @@
 
 React/TypeScript user interface with chat-based site editing and real-time updates.
 
+The supported UI is the [text-only MVP](../../docs/MVP_CAPABILITIES.md).
+Attachments, alias management, custom-domain creation, Google sign-in and site
+deletion are unavailable; historical feature descriptions below are not release
+acceptance claims. Site creation reads the gateway's configured domain at runtime.
+
 ## Tech Stack
 
 - **Framework**: React 18 + TypeScript
@@ -24,7 +29,6 @@ src/
 │   ├── Layout.tsx         # Main layout with header/sidebar
 │   ├── Layout.css
 │   ├── SiteCard.tsx       # Site display component
-│   ├── ManageAliasesModal.tsx
 │   ├── ChatMessage.tsx
 │   ├── VersionsList.tsx
 │   ├── VersionActionModal.tsx
@@ -56,7 +60,7 @@ src/
 ### Authentication
 - ✅ Email/password login
 - ✅ Email/password registration
-- ✅ Google OAuth (button only)
+- Google OAuth is disabled (UI and gateway).
 - ✅ JWT token management
 - ✅ Auto-redirect on auth failure
 - ✅ Protected routes
@@ -70,14 +74,14 @@ src/
 
 ### Pages
 - [ ] Dashboard: Site cards with actions
-- [ ] CreateSite: FQDN input and template selection
+- [x] CreateSite: Gateway-configured platform subdomain and starter template
 - [x] Chat: Message interface with bounded build-history polling
 - [ ] Profile: User settings and password change
 - [ ] ResetPassword: Token-based password reset
 
 ### Components
 - [ ] SiteCard: Display site info with action buttons
-- [ ] ManageAliasesModal: Add/remove domain aliases
+- Alias controls are removed; gateway alias routes return 501.
 - [ ] ChatMessage: User vs agent message bubbles
 - [ ] VersionsList: Version history browser
 - [ ] VersionActionModal: Deploy/preview/rollback actions
@@ -135,18 +139,17 @@ api.post('/auth/forgot-password', { email })
 api.post('/auth/reset-password', { token, new_password })
 api.post('/auth/update-password', { current_password, new_password })
 
-// Sites
+// Runtime platform domain
+api.get('/capabilities')
+
+// Sites (site deletion is disabled)
 api.post('/sites', { fqdn, template_id })
 api.get('/sites', { params: { page, page_size } })
 api.get(`/sites/${fqdn}`)
-api.delete(`/sites/${fqdn}`)
 api.post(`/sites/${fqdn}/enable`)
 api.post(`/sites/${fqdn}/disable`)
 
-// Aliases
-api.get(`/sites/${fqdn}/aliases`)
-api.post(`/sites/${fqdn}/aliases`, { alias })
-api.delete(`/sites/${fqdn}/aliases/${alias}`)
+// Alias endpoints are disabled (501).
 
 // Versions
 api.get(`/sites/${fqdn}/versions`)
@@ -171,7 +174,8 @@ Environment variables (`.env` file):
 
 ```bash
 VITE_API_URL=http://localhost:8085
-VITE_DEFAULT_DOMAIN=pagewright.dev
+# Site domain is supplied by the gateway /capabilities endpoint.
+# Set PAGEWRIGHT_SITE_DOMAIN=pagewright.dev on the gateway.
 ```
 
 ## Development
