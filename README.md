@@ -1,5 +1,10 @@
 # PageWrightCloud
 
+Pilot access now defaults to operator-provisioned accounts and disabled paid AI.
+See [pilot limits and provisioning](docs/PILOT_LIMITS.md) before upgrading or
+enabling an allowance. Remaining M4 security/release gates still apply; this is
+not yet a remotely deployable pilot release.
+
 An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
 
 ## Current status

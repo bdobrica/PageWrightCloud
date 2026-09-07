@@ -16,6 +16,7 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/handlers"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/pilot"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
@@ -23,6 +24,10 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
+	limits, err := config.LoadPilot()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Connect to database
 	db, err := database.NewDB(cfg.DatabaseURL)
@@ -43,7 +48,11 @@ func main() {
 	storageClient := clients.NewStorageClient(cfg.StorageURL)
 	managerClient := clients.NewManagerClient(cfg.ManagerURL)
 	servingClient := clients.NewServingClient(cfg.ServingURL)
-	llmClient := clients.NewLLMClient(cfg.LLMKey, cfg.LLMURL)
+	provider, err := pilot.NewProvider(db, limits.ProxyToken, cfg.LLMKey, cfg.LLMURL, limits.BudgetCents, limits.Active, limits.DevelopmentSignup)
+	if err != nil {
+		log.Fatal(err)
+	}
+	llmClient := clients.NewLLMClient(limits.ProxyToken, "http://127.0.0.1:8087/v1")
 
 	// Initialize auth manager
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiration)
@@ -57,6 +66,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, jwtManager, oauthManager)
 	sitesHandler := handlers.NewSitesHandler(db, servingClient, storageClient, cfg.DefaultPageSize)
 	sitesHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
+	sitesHandler.RegistrationOpen = limits.DevelopmentSignup
 	if err := sitesHandler.SetSiteDomain(cfg.SiteDomain); err != nil {
 		log.Fatal(err)
 	}
@@ -64,6 +74,8 @@ func main() {
 	versionsHandler := handlers.NewVersionsHandler(db, storageClient, servingClient, cfg.DefaultPageSize)
 	versionsHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
 	buildHandler := handlers.NewBuildHandler(db, llmClient, managerClient, storageClient)
+	buildHandler.SetPilotLimits(db, database.PilotLimits{UserDaily: limits.UserDaily, SiteDaily: limits.SiteDaily, Active: limits.Active})
+	buildHandler.SetPilotAIAllowance(limits.BudgetCents)
 	recoveryContext, stopRecovery := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stopRecovery()
 	recoveryDone := make(chan struct{})
@@ -76,11 +88,12 @@ func main() {
 
 	// Apply CORS middleware
 	r.Use(middleware.CORS)
+	r.Use(middleware.PilotThrottle(db, false))
 
 	// Public routes
 	// Explicit retirement response; never accepts credentials or upgrades.
 	r.HandleFunc("/ws", handlers.WebSocketDisabled)
-	r.HandleFunc("/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
+	r.HandleFunc("/auth/register", middleware.RegistrationGate(limits.DevelopmentSignup, authHandler.Register)).Methods("POST", "OPTIONS")
 	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	r.HandleFunc("/auth/forgot-password", authHandler.ForgotPassword).Methods("POST", "OPTIONS")
 	r.HandleFunc("/auth/reset-password", authHandler.ResetPassword).Methods("POST", "OPTIONS")
@@ -90,6 +103,7 @@ func main() {
 	// Protected routes
 	api := r.PathPrefix("/").Subrouter()
 	api.Use(middleware.AuthMiddleware(jwtManager))
+	api.Use(middleware.PilotThrottle(db, true))
 
 	// Auth
 	api.HandleFunc("/auth/update-password", authHandler.UpdatePassword).Methods("POST", "OPTIONS")
@@ -138,12 +152,33 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+	providerServer := &http.Server{Addr: ":8087", Handler: provider, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 30 * time.Second}
+	go func() {
+		if err := providerServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("internal provider listener failed")
+		}
+	}()
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-recoveryContext.Done():
+				return
+			case <-ticker.C:
+				ctx, cancel := context.WithTimeout(recoveryContext, 5*time.Second)
+				_ = db.PrunePilotRates(ctx)
+				cancel()
+			}
+		}
+	}()
 
 	go func() {
 		<-recoveryContext.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdown)
+		_ = providerServer.Shutdown(shutdown)
 	}()
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server failed: %v", err)

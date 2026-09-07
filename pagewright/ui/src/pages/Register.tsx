@@ -1,5 +1,6 @@
 import { getErrorMessage } from '../utils/errors';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { apiClient } from '../api/client';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/auth';
 import './Auth.css';
@@ -12,6 +13,17 @@ export const Register: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
+  const [policyError, setPolicyError] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setRegistrationOpen(null); setPolicyError(false);
+    apiClient.registrationOpen(controller.signal).then(open => {
+      if (!controller.signal.aborted) setRegistrationOpen(open);
+    }).catch(() => { if (!controller.signal.aborted) setPolicyError(true); });
+    return () => controller.abort();
+  }, [retry]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +50,13 @@ export const Register: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  if (registrationOpen !== true) return <div className="auth-container"><div className="auth-box">
+    <h1>Account access</h1>
+    {policyError ? <><p role="alert">Unable to check account access.</p><button onClick={() => setRetry(n => n + 1)}>Retry</button></>
+      : <p role="status">{registrationOpen === null ? 'Checking account access…' : 'Accounts are provisioned by the operator. Contact the site administrator for access.'}</p>}
+    <Link to="/login">Login</Link>
+  </div></div>;
 
   return (
     <div className="auth-container">

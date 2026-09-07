@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -20,11 +21,26 @@ import (
 )
 
 type BuildHandler struct {
-	db            buildStore
-	llmClient     instructionProvider
-	managerClient *clients.ManagerClient
-	storageClient completedVersionStore
+	db              buildStore
+	llmClient       instructionProvider
+	managerClient   *clients.ManagerClient
+	storageClient   completedVersionStore
+	pilot           pilotAdmission
+	pilotLimits     database.PilotLimits
+	pilotAIDisabled bool
 }
+
+type pilotAdmission interface {
+	AdmitPilot(context.Context, string, string, string, string, database.PilotLimits) error
+	ReleasePilot(context.Context, string, string, string) error
+}
+
+func (h *BuildHandler) SetPilotLimits(store pilotAdmission, limits database.PilotLimits) {
+	h.pilot = store
+	h.pilotLimits = limits
+}
+
+func (h *BuildHandler) SetPilotAIAllowance(cents int) { h.pilotAIDisabled = cents < 100 }
 
 type completedVersionStore interface {
 	ListVersions(string) ([]clients.StorageVersion, error)
@@ -139,6 +155,33 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if this is a clarification response
+	if h.pilot != nil {
+		if h.pilotAIDisabled {
+			w.Header().Set("Retry-After", "60")
+			respondError(w, http.StatusTooManyRequests, "Paid AI is disabled. Contact the operator to configure an allowance.")
+			return
+		}
+		if len(req.Message) > 16000 {
+			respondError(w, http.StatusBadRequest, "build request exceeds 16000 bytes")
+			return
+		}
+		if err := h.pilot.AdmitPilot(r.Context(), user.UserID, site.ID, requestKey, requestHash, h.pilotLimits); err != nil {
+			if err == database.ErrPilotLimit {
+				w.Header().Set("Retry-After", "60")
+				respondError(w, http.StatusTooManyRequests, "Pilot build quota or concurrency limit reached. Wait for active work or contact the operator.")
+			} else if err == database.ErrSubmissionConflict {
+				respondError(w, http.StatusConflict, "Idempotency-Key was already used with different input")
+			} else {
+				respondError(w, http.StatusServiceUnavailable, "Usage checks unavailable; no new build was started")
+			}
+			return
+		}
+		defer func() {
+			ctx, cancel := database.PilotCleanupContext()
+			defer cancel()
+			_ = h.pilot.ReleasePilot(ctx, user.UserID, site.ID, requestKey)
+		}()
+	}
 	if req.ConversationID != nil {
 		h.handleClarification(w, r, site, req, requestKey, requestHash)
 		return
@@ -147,6 +190,11 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 	// Initial request - evaluate if clear
 	evaluation, err := h.llmClient.EvaluateRequest(req.Message)
 	if err != nil {
+		if errors.Is(err, clients.ErrAIAllowance) {
+			w.Header().Set("Retry-After", "60")
+			respondError(w, http.StatusTooManyRequests, "AI allowance is exhausted, disabled or busy. Contact the operator before retrying.")
+			return
+		}
 		respondError(w, http.StatusInternalServerError, "failed to evaluate request")
 		return
 	}
@@ -200,6 +248,11 @@ func (h *BuildHandler) enqueueJob(w http.ResponseWriter, r *http.Request, site *
 	// Generate job instructions using LLM
 	instructions, err := h.llmClient.GenerateJobInstructions(originalMessage, clarification)
 	if err != nil {
+		if errors.Is(err, clients.ErrAIAllowance) {
+			w.Header().Set("Retry-After", "60")
+			respondError(w, http.StatusTooManyRequests, "AI allowance is exhausted, disabled or busy. Contact the operator before retrying.")
+			return
+		}
 		respondError(w, http.StatusInternalServerError, "failed to generate instructions")
 		return
 	}

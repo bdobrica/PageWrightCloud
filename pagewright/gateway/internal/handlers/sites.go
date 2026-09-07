@@ -17,11 +17,12 @@ import (
 )
 
 type SitesHandler struct {
-	db              *database.DB
-	servingClient   *clients.ServingClient
-	storageClient   *clients.StorageClient
-	defaultPageSize int
-	siteDomain      string
+	db               *database.DB
+	servingClient    *clients.ServingClient
+	storageClient    *clients.StorageClient
+	defaultPageSize  int
+	siteDomain       string
+	RegistrationOpen bool
 	hostingAddress
 }
 

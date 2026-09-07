@@ -24,7 +24,7 @@ export function responseFor(body) {
   const item = returned
     ? { id: 'msg_fixture', type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: `SUMMARY: Applied ${marker}` }] }
     : { id: 'fc_fixture', type: 'function_call', call_id: callID, name: 'exec_command', arguments: JSON.stringify({ cmd, max_output_tokens: 1000 }) };
-  const response = { id: 'resp_fixture', status: 'completed', output: [item], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } };
+  const response = { id: 'resp_fixture', model: 'gpt-5.6-luna', status: 'completed', output: [item], usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } };
   return [
     { type: 'response.created', response: { ...response, status: 'in_progress', output: [] } },
     { type: 'response.output_item.added', output_index: 0, item },

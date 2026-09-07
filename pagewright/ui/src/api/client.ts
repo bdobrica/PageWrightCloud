@@ -158,6 +158,11 @@ class ApiClient {
     return job;
   }
 
+  async registrationOpen(signal?: AbortSignal): Promise<boolean> {
+    const response = await this.client.get<{ registration_open?: boolean }>('/capabilities', { signal, timeout: 10000 });
+    return response.data.registration_open === true;
+  }
+
   async build(fqdn: string, data: BuildRequest & { requestKey: string }, owner: string): Promise<BuildResponse> {
     const payload: BuildRequest = { message: data.message, conversation_id: data.conversation_id };
     const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, payload, {

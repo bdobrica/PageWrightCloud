@@ -66,7 +66,7 @@ assert.ok(preflight.headers.get('access-control-allow-headers').includes('Author
 const capabilities = await request(gateway, '/capabilities');
 assert.equal(capabilities.headers.get('cache-control'), 'no-store');
 assert.deepEqual(await capabilities.json(), {
- mode: 'mvp', site_domain: 'example.test', attachments: false,
+ mode: 'mvp', site_domain: 'example.test', attachments: false, registration_open: true,
  custom_domains: false, aliases: false, oauth: false, site_deletion: false,
 });
 for (const path of ['/auth/google/login', '/auth/google/callback?code=unused&state=unused']) {

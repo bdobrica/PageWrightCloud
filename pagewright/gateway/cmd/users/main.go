@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/auth"
@@ -27,6 +29,7 @@ func run() int {
 	createCmd := flag.NewFlagSet("create", flag.ExitOnError)
 	createEmail := createCmd.String("email", "", "User email (required)")
 	createPassword := createCmd.String("password", "", "User password (required)")
+	passwordStdin := createCmd.Bool("password-stdin", false, "Read password from stdin instead of a process argument")
 
 	listCmd := flag.NewFlagSet("list", flag.ExitOnError)
 
@@ -58,6 +61,18 @@ func run() int {
 	switch os.Args[1] {
 	case "create":
 		createCmd.Parse(os.Args[2:])
+		if *passwordStdin {
+			if *createPassword != "" {
+				log.Println("Use only one password input method")
+				return exitError
+			}
+			raw, err := io.ReadAll(io.LimitReader(os.Stdin, 74))
+			if err != nil {
+				log.Println("Cannot read password")
+				return exitError
+			}
+			*createPassword = strings.TrimSuffix(strings.TrimSuffix(string(raw), "\n"), "\r")
+		}
 		if *createEmail == "" || *createPassword == "" {
 			log.Println("Error: Both -email and -password flags are required")
 			createCmd.PrintDefaults()
@@ -93,6 +108,7 @@ func printUsage() {
 	fmt.Println("  create      Create a new user")
 	fmt.Println("    -email string      User email (required)")
 	fmt.Println("    -password string   User password (required)")
+	fmt.Println("    -password-stdin    Read password from stdin (preferred)")
 	fmt.Println("\n  list        List all users")
 	fmt.Println("\n  delete      Delete a user")
 	fmt.Println("    -email string      User email to delete (required)")
@@ -105,6 +121,10 @@ func printUsage() {
 }
 
 func createUser(db *database.DB, email, password string) int {
+	if len(password) < 8 || len(password) > 72 {
+		log.Println("Password must contain 8 to 72 bytes")
+		return exitError
+	}
 	// Check if user already exists
 	existingUser, err := db.GetUserByEmail(email)
 	if err != nil {

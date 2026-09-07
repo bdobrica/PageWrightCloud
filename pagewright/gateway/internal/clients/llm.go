@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -9,6 +10,16 @@ import (
 
 type LLMClient struct {
 	client *openai.Client
+}
+
+var ErrAIAllowance = errors.New("AI allowance unavailable")
+
+func providerError(err error) error {
+	var apiError *openai.APIError
+	if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
+		return ErrAIAllowance
+	}
+	return err
 }
 
 func NewLLMClient(apiKey, baseURL string) *LLMClient {
@@ -59,7 +70,7 @@ Your response:`, userMessage)
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to evaluate request: %w", err)
+		return nil, fmt.Errorf("failed to evaluate request: %w", providerError(err))
 	}
 
 	if len(resp.Choices) == 0 {
@@ -137,7 +148,7 @@ Instructions:`, userMessage)
 	)
 
 	if err != nil {
-		return "", fmt.Errorf("failed to generate instructions: %w", err)
+		return "", fmt.Errorf("failed to generate instructions: %w", providerError(err))
 	}
 
 	if len(resp.Choices) == 0 {

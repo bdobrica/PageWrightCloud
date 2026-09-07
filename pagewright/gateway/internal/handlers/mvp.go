@@ -38,5 +38,6 @@ func (h *SitesHandler) Capabilities(w http.ResponseWriter, r *http.Request) {
 		"mode": "mvp", "site_domain": h.siteDomain,
 		"attachments": false, "custom_domains": false, "aliases": false,
 		"oauth": false, "site_deletion": false,
+		"registration_open": h.RegistrationOpen,
 	})
 }

@@ -40,6 +40,14 @@ reconciled jobs. Gateway background recovery and UI polling observe real jobs.
 
 ## Deterministic provider boundary
 
+M4.1 routes gateway and worker calls through the durable pilot spending proxy
+before this fixture. Its allowance is synthetic and signup explicitly uses
+disposable development mode. After the journey, the runner restarts the gateway
+in closed mode with zero AI allowance, provisions a test account through the
+operator CLI, and checks closed signup, UI login and disabled-AI rejection.
+These are the only additional account writes outside the browser; there are
+still no direct SQL writes. See [pilot limits](PILOT_LIMITS.md).
+
 Only model responses are replaced. A read-only, non-root local HTTP fixture
 answers gateway clarity/instruction requests and emits Responses SSE function
 calls to the installed production CLI. The actual `exec_command` tool writes
