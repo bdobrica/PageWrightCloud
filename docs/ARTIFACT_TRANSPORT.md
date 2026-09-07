@@ -8,7 +8,8 @@ Worker, gateway and serving use the same storage representation:
 | Download | `GET /sites/{site_id}/artifacts/{build_id}`; success `200`, `Content-Type: application/gzip` |
 
 `build_id` here is the artifact version ID, not the job execution ID. Both path
-identifiers match `[A-Za-z0-9][A-Za-z0-9._-]{0,254}`. Clients reject invalid IDs
+identifiers match `[A-Za-z0-9][A-Za-z0-9._-]{0,199}` (M4.4 limits IDs to 200
+bytes, leaving room for extensions and timestamped log filenames). Clients reject invalid IDs
 before sending a request and do not follow redirects. Trailing slashes on the
 configured storage base URL are normalized.
 

@@ -127,6 +127,9 @@ export async function runJourney(browser, baseURL, evidence) {
     await hosted(previewURL, true);
     await page.reload();
     await history(failure.job_id).getByText('failed', { exact: true }).waitFor();
+    // History and versions load independently after refresh. count() does not
+    // auto-wait, so a fast history response must not race the versions request.
+    await page.locator('.version-item').nth(2).waitFor();
     assert.equal(await page.locator('.version-item').count(), 3); // starter source + two compiled builds
     assert.match(await version(first.target_version).innerText(), /Live/);
     assert.match(await version(second.target_version).innerText(), /Preview/);

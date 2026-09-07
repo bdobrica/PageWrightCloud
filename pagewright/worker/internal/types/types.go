@@ -76,6 +76,11 @@ type JobResult struct {
 
 // ValidateLaunch rejects incomplete or terminal snapshots before any work starts.
 func (j Job) ValidateLaunch() error {
+	for _, id := range []string{j.SiteID, j.SourceVersion, j.TargetVersion} {
+		if !launchID.MatchString(id) {
+			return fmt.Errorf("invalid worker path identity")
+		}
+	}
 	for _, field := range []struct{ name, value string }{
 		{"job_id", j.JobID}, {"site_id", j.SiteID}, {"owner_id", j.OwnerID},
 		{"prompt", j.Prompt}, {"source_version", j.SourceVersion}, {"target_version", j.TargetVersion},

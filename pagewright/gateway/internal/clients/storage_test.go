@@ -75,7 +75,7 @@ func TestArtifactTransportFailures(t *testing.T) {
 
 func TestStorageInvalidIDs(t *testing.T) {
 	client := NewStorageClient(":invalid-url")
-	for _, id := range []string{"", ".", "..", "a/b", "a?b", "a#b", "a%2fb", "a b", strings.Repeat("a", 256)} {
+	for _, id := range []string{"", ".", "..", "a/b", "a?b", "a#b", "a%2fb", "a b", strings.Repeat("a", 201)} {
 		if _, err := client.FetchArtifact(id, "version"); err == nil || !strings.Contains(err.Error(), "invalid storage") {
 			t.Errorf("site %q: %v", id, err)
 		}

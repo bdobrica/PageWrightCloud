@@ -120,7 +120,7 @@ type VersionSummary struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-var versionIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+var versionIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 func normalizeVersions(siteID string, stored []clients.StorageVersion) ([]VersionSummary, error) {
 	result := make([]VersionSummary, 0, len(stored))

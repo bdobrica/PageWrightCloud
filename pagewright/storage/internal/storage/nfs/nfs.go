@@ -43,6 +43,9 @@ func (n *NFSBackend) StoreArtifact(siteID, buildID string, reader io.Reader) err
 		return fmt.Errorf("invalid artifact identity")
 	}
 	artifactDir := filepath.Join(n.basePath, "sites", siteID, "artifacts")
+	if err := contained(n.basePath, artifactDir); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(artifactDir, 0755); err != nil {
 		return fmt.Errorf("failed to create artifact directory: %w", err)
 	}
@@ -56,6 +59,9 @@ func (n *NFSBackend) FetchArtifact(siteID, buildID string) (io.ReadCloser, error
 		return nil, fmt.Errorf("invalid artifact identity")
 	}
 	artifactPath := filepath.Join(n.basePath, "sites", siteID, "artifacts", fmt.Sprintf("%s.tar.gz", buildID))
+	if err := contained(n.basePath, artifactPath); err != nil {
+		return nil, err
+	}
 
 	file, err := os.Open(artifactPath)
 	if err != nil {
@@ -73,6 +79,9 @@ func (n *NFSBackend) WriteLogEntry(siteID string, entry *storage.LogEntry) error
 		return fmt.Errorf("invalid event identity")
 	}
 	logDir := filepath.Join(n.basePath, "sites", siteID, "logs")
+	if err := contained(n.basePath, logDir); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
@@ -96,6 +105,9 @@ func (n *NFSBackend) ListVersions(siteID string) ([]*storage.Version, error) {
 		return nil, fmt.Errorf("invalid site identity")
 	}
 	metadataDir := filepath.Join(n.basePath, "sites", siteID, "metadata")
+	if err := contained(n.basePath, metadataDir); err != nil {
+		return nil, err
+	}
 
 	// Check if directory exists
 	if _, err := os.Stat(metadataDir); os.IsNotExist(err) {

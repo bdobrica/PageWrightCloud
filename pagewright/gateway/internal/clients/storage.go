@@ -78,7 +78,7 @@ func (c *StorageClient) FetchArtifact(siteID, versionID string) ([]byte, error) 
 	return io.ReadAll(reader)
 }
 
-var storageID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+var storageID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 func (c *StorageClient) artifactURL(siteID, versionID string) (string, error) {
 	if !storageID.MatchString(siteID) || !storageID.MatchString(versionID) {

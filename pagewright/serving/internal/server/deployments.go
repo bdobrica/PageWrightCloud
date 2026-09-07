@@ -11,17 +11,25 @@ import (
 	"regexp"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/types"
 	"github.com/gorilla/mux"
 )
 
 type deploymentReceipt = artifact.DeploymentReceipt
 
-var deploymentID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+var deploymentID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 func (h *Handler) receiptPath(fqdn string) string {
 	return filepath.Join(h.artifactMgr.GetSitePath(fqdn), ".deployment.json")
 }
 func readReceipt(path string) (*deploymentReceipt, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("unsafe deployment receipt")
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -39,7 +47,7 @@ func readReceipt(path string) (*deploymentReceipt, error) {
 	return &d, nil
 }
 func validDeployment(d deploymentReceipt) bool {
-	return d.Sequence > 0 && len(d.FQDN) <= 245 && deploymentID.MatchString(d.SiteID) && deploymentID.MatchString(d.Version) && deploymentID.MatchString(d.FQDN) && (d.Target == "live" || d.Target == "preview")
+	return d.Sequence > 0 && types.ValidHost(d.FQDN) && deploymentID.MatchString(d.SiteID) && deploymentID.MatchString(d.Version) && (d.Target == "live" || d.Target == "preview")
 }
 func saveReceipt(path string, d *deploymentReceipt) error {
 	dir := filepath.Dir(path)
@@ -85,6 +93,10 @@ func (h *Handler) ApplyDeployment(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&d) != nil || decoder.Decode(new(any)) != io.EOF || !validDeployment(d) || d.Status != "pending" || d.FQDN != mux.Vars(r)["fqdn"] {
 		http.Error(w, "invalid deployment", 400)
+		return
+	}
+	if err := h.artifactMgr.CheckSitePath(d.FQDN); err != nil {
+		http.Error(w, "invalid site path", 400)
 		return
 	}
 	path := h.receiptPath(d.FQDN)
@@ -173,8 +185,12 @@ func (h *Handler) ApplyDeployment(w http.ResponseWriter, r *http.Request) {
 // Unfenced legacy writes/deletion may not bypass an enrolled site's sequence.
 func (h *Handler) legacyDeploymentAllowed(w http.ResponseWriter, r *http.Request) bool {
 	fqdn := mux.Vars(r)["fqdn"]
-	if !deploymentID.MatchString(fqdn) {
+	if !types.ValidHost(fqdn) {
 		http.Error(w, "invalid site", 400)
+		return false
+	}
+	if err := h.artifactMgr.CheckSitePath(fqdn); err != nil {
+		http.Error(w, "invalid site path", 400)
 		return false
 	}
 	if _, err := os.Lstat(h.receiptPath(fqdn)); !os.IsNotExist(err) {

@@ -74,7 +74,7 @@ Back up first and drain dispatch/active workers. Configure independent service a
 Redis credentials, rebuild the coordinated services **and worker image**, then
 restart the stack and verify readiness/login. Old worker images cannot send scoped
 credentials and must not remain configured as the root manager's worker image.
-The default tag is now `pagewright-worker:m4.3`; update any older explicit image
+The default tag is now `pagewright-worker:m4.4`; update any older explicit image
 pin in deployment configuration. Build it with `docker compose build worker`
 before starting dispatch. Do not reuse an old local image under the new tag.
 

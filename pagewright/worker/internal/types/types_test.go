@@ -1,12 +1,23 @@
 package types
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestValidateLaunch(t *testing.T) {
 	valid := Job{LockToken: "attempt", FencingToken: 1, JobID: "job", SiteID: "site", OwnerID: "owner", Prompt: "prompt", SourceVersion: "source", TargetVersion: "target", Status: "running", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	for _, id := range []string{"../escape", "a/b", "a%2fb", strings.Repeat("a", 201)} {
+		for field := 0; field < 3; field++ {
+			job := valid
+			fields := []*string{&job.SiteID, &job.SourceVersion, &job.TargetVersion}
+			*fields[field] = id
+			if job.ValidateLaunch() == nil {
+				t.Errorf("accepted launch identity %q", id)
+			}
+		}
+	}
 	for _, status := range []string{"running"} {
 		job := valid
 		job.Status = status

@@ -28,7 +28,14 @@ func (h *SitesHandler) supportedSiteName(fqdn string) bool {
 		return false
 	}
 	label := strings.TrimSuffix(fqdn, suffix)
-	return domainLabel.MatchString(label) && label != "preview" && label != "www" && label != "api" && label != "app"
+	if !domainLabel.MatchString(label) || strings.HasPrefix(label, "xn--") {
+		return false
+	}
+	switch label {
+	case "preview", "www", "api", "app", "admin", "auth", "assets", "cdn", "mail", "status", "support", "ns1", "ns2":
+		return false
+	}
+	return true
 }
 
 // Capabilities is public, non-secret and authoritative for the creation UI.

@@ -9,6 +9,8 @@ Startup requires explicit PostgreSQL and JWT secrets; see
 [configuration security and existing-volume rotation](docs/CONFIGURATION_SECURITY.md).
 Internal services also require separate service/Redis credentials and a rebuilt
 worker image; see [internal access and upgrade guidance](docs/INTERNAL_AUTH.md).
+M4.4 validates identifiers and filesystem boundaries; see the
+[naming policy and pagewright.io deployment notes](docs/IDENTIFIER_SECURITY.md).
 
 An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sync"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
@@ -32,6 +31,21 @@ func NewHandler(artifactMgr *artifact.Manager, nginxMgr *nginx.Manager, storageC
 
 func (h *Handler) SetupRoutes() *mux.Router {
 	r := mux.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if fqdn := mux.Vars(r)["fqdn"]; fqdn != "" {
+				if !types.ValidHost(fqdn) {
+					http.Error(w, "invalid site hostname", 400)
+					return
+				}
+				if err := h.artifactMgr.CheckSitePath(fqdn); err != nil {
+					http.Error(w, "invalid site path", 400)
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	r.HandleFunc("/health", h.HealthCheck).Methods("GET")
 
@@ -80,7 +94,17 @@ func (h *Handler) DeployArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Download artifact from storage
-	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("artifact-%s-%s.tar.gz", req.SiteID, req.Version))
+	if !deploymentID.MatchString(req.SiteID) || !deploymentID.MatchString(req.Version) {
+		http.Error(w, "invalid artifact identity", 400)
+		return
+	}
+	tmp, err := os.CreateTemp("", "pagewright-artifact-*.tar.gz")
+	if err != nil {
+		http.Error(w, "cannot stage artifact", 503)
+		return
+	}
+	tmpFile := tmp.Name()
+	tmp.Close()
 	defer os.Remove(tmpFile)
 
 	if err := h.storageCli.FetchArtifact(req.SiteID, req.Version, tmpFile); err != nil {
@@ -123,6 +147,10 @@ func (h *Handler) ActivatePublic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure nginx config exists
+	if !deploymentID.MatchString(req.Version) {
+		http.Error(w, "invalid version identity", 400)
+		return
+	}
 	sitePath := h.artifactMgr.GetSitePath(fqdn)
 	if err := h.nginxMgr.CreateSiteConfig(fqdn, sitePath, nil, true); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to update nginx config: %v", err), http.StatusInternalServerError)
@@ -156,6 +184,10 @@ func (h *Handler) ActivatePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !deploymentID.MatchString(req.Version) {
+		http.Error(w, "invalid version identity", 400)
+		return
+	}
 	if err := h.nginxMgr.EnsureSiteConfig(fqdn, h.artifactMgr.GetSitePath(fqdn)); err != nil {
 		http.Error(w, "Failed to provision preview routing", http.StatusInternalServerError)
 		return

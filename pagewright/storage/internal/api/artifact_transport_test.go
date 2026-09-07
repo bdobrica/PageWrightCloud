@@ -178,7 +178,7 @@ func TestArtifactTransportRejectsMediaAndEncodingBeforeBackend(t *testing.T) {
 }
 
 func TestArtifactTransportRejectsInvalidIdentifiersBeforeBackend(t *testing.T) {
-	for _, id := range []string{"", ".", "..", ".hidden", "-prefix", "_prefix", "a/b", "a\\b", "a b", "a?b", "a%b", "你好", strings.Repeat("a", 256)} {
+	for _, id := range []string{"", ".", "..", ".hidden", "-prefix", "_prefix", "a/b", "a\\b", "a b", "a?b", "a%b", "你好", strings.Repeat("a", 201)} {
 		for _, field := range []string{"site_id", "build_id"} {
 			for _, method := range []string{http.MethodGet, http.MethodPut} {
 				t.Run(method+"/"+field+"/"+id, func(t *testing.T) {

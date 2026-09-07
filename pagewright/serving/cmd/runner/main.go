@@ -24,6 +24,10 @@ func main() {
 		os.Exit(1)
 	}
 	cfg := config.LoadConfig()
+	if err := cfg.ValidatePaths(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	fmt.Printf("PageWright Serving Service starting on port %d\n", cfg.Port)
 	fmt.Printf("WWW Root: %s\n", cfg.WWWRoot)

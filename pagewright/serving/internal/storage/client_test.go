@@ -90,7 +90,7 @@ func TestFetchFailurePreservesDestination(t *testing.T) {
 func TestFetchInvalidIdentifiersNeverRequests(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Error("invalid identifier sent over HTTP") }))
 	defer server.Close()
-	for _, id := range []string{"", ".", "..", "../x", "a/b", "a?b", "a#b", "%2f", "é", "_x", "-x", strings.Repeat("a", 256)} {
+	for _, id := range []string{"", ".", "..", "../x", "a/b", "a?b", "a#b", "%2f", "é", "_x", "-x", strings.Repeat("a", 201)} {
 		for _, ids := range [][2]string{{id, "v1"}, {"site", id}} {
 			if err := NewClient(server.URL).FetchArtifact(ids[0], ids[1], filepath.Join(t.TempDir(), "artifact")); err == nil {
 				t.Errorf("accepted %q", id)

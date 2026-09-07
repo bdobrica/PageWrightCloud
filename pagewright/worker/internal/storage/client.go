@@ -63,11 +63,11 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 func (c *Client) artifactURL(siteID, versionID string) (string, error) {
 	if !artifactID.MatchString(siteID) || !artifactID.MatchString(versionID) {
-		return "", fmt.Errorf("site_id and version_id must be 1-255 ASCII identifier characters, starting with a letter or digit")
+		return "", fmt.Errorf("site_id and version_id must be 1-200 ASCII identifier characters, starting with a letter or digit")
 	}
 	return fmt.Sprintf("%s/sites/%s/artifacts/%s", c.baseURL, siteID, versionID), nil
 }

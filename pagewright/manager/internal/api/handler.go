@@ -59,6 +59,11 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate path identities before reservation or worker launch.
+	if !pathID.MatchString(req.SiteID) || !pathID.MatchString(req.SourceVersion) || (req.TargetVersion != "" && !pathID.MatchString(req.TargetVersion)) {
+		writeError(w, 400, "invalid_request", "invalid site or version identity")
+		return
+	}
 	// Validate required fields
 	if blank(req.SiteID) || blank(req.OwnerID) || blank(req.Prompt) || blank(req.SourceVersion) || (req.TargetVersion != "" && blank(req.TargetVersion)) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "site_id, owner_id, prompt and source_version must be nonblank; target_version must be nonblank when supplied")

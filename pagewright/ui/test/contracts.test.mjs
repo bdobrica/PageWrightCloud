@@ -11,6 +11,10 @@ test('MVP creation uses the server namespace and fails closed for invalid resume
   assert.throws(()=>parseSiteDomain(value));
  }
  assert.equal(platformLabel('one.example.test','example.test'),'one');
+ for (const label of ['admin','auth','assets','cdn','mail','status','support','ns1','ns2','xn--example']) {
+  assert.equal(platformLabel(`${label}.pagewright.io`,'pagewright.io'),null);
+ }
+ assert.equal(platformLabel('demo.pagewright.io','pagewright.io'),'demo');
  for (const fqdn of ['example.test','one.other.test','one.example.test.evil','nested.one.example.test','preview.example.test','app.example.test','api.example.test','www.example.test','-one.example.test','one-.example.test']) {
   assert.equal(platformLabel(fqdn,'example.test'),null);
  }

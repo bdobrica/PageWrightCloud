@@ -11,13 +11,14 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
 )
 
-var metadataID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+var metadataID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 func (n *NFSBackend) metadataPath(site, version, name string) (string, error) {
 	if !metadataID.MatchString(site) || !metadataID.MatchString(version) {
 		return "", fmt.Errorf("invalid metadata identity")
 	}
-	return filepath.Join(n.basePath, "sites", site, "metadata", version, name), nil
+	path := filepath.Join(n.basePath, "sites", site, "metadata", version, name)
+	return path, contained(n.basePath, path)
 }
 
 func (n *NFSBackend) StorePrivateLog(site, version string, data []byte) error {
@@ -41,6 +42,9 @@ func (n *NFSBackend) prerequisites(site, version string) error {
 		filepath.Join(n.basePath, "sites", site, "artifacts", version+".tar.gz"),
 		filepath.Join(n.basePath, "sites", site, "metadata", version, "execution.json"),
 	} {
+		if err := contained(n.basePath, path); err != nil {
+			return err
+		}
 		info, err := os.Stat(path)
 		if os.IsNotExist(err) {
 			return storage.ErrIncomplete

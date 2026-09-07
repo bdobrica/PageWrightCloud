@@ -41,7 +41,7 @@ func (m *Manager) GetArtifactPath(fqdn, version string) string {
 func (m *Manager) DeployArtifact(fqdn, version, archivePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !safeIdentifier(fqdn) || !safeIdentifier(version) {
+	if !safeIdentifier(fqdn) || !safeIdentifier(version) || len(version) > 200 {
 		return fmt.Errorf("invalid site or version")
 	}
 	if err := m.checkSitePath(fqdn); err != nil {
@@ -122,7 +122,7 @@ func safeIdentifier(value string) bool {
 func (m *Manager) ActivateVersion(fqdn, version string, isPreview bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !safeIdentifier(fqdn) || !safeIdentifier(version) {
+	if !safeIdentifier(fqdn) || !safeIdentifier(version) || len(version) > 200 {
 		return fmt.Errorf("invalid site or version")
 	}
 	if err := m.checkSitePath(fqdn); err != nil {

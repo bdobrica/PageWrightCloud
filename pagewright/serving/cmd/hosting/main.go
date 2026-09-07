@@ -16,6 +16,9 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
+	if err := cfg.ValidatePaths(); err != nil {
+		log.Fatal(err)
+	}
 	writer, err := nginx.AcquireWriter(cfg.NginxSitesEnabled)
 	if err != nil {
 		log.Fatal(err)

@@ -54,7 +54,7 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 func (h *Handler) StoreArtifact(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

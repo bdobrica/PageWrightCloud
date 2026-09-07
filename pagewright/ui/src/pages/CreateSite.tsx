@@ -67,7 +67,7 @@ export const CreateSite: React.FC = () => {
               disabled={isLoading || !domain || !!resumeFqdn} placeholder="mysite" />
             <span>{domain ? '.' + domain : ''}</span>
           </div>
-          <p>Use letters, numbers and internal hyphens. Names app, api, www and preview are reserved.</p>
+          <p>Use letters, numbers and internal hyphens. Platform and infrastructure names (such as app, api, www, preview and admin) are reserved; internationalized names are not supported.</p>
           <label htmlFor="template">Template</label>
           <select id="template" disabled><option value="starter">Starter</option></select>
           <button type="submit" className="pure-button pure-button-primary" disabled={isLoading || !valid}>

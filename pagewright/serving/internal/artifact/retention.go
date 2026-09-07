@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/types"
 )
 
 const retentionGrace = time.Minute
@@ -37,6 +39,9 @@ func realDirectory(path string) error {
 // The configured root is trusted; descendants may not redirect writes/deletion
 // through symlinks. The single-writer contract excludes external path mutation.
 func (m *Manager) checkSitePath(fqdn string) error {
+	if !types.ValidHost(fqdn) {
+		return fmt.Errorf("invalid site hostname")
+	}
 	root, err := filepath.Abs(m.wwwRoot)
 	if err != nil {
 		return err
@@ -66,6 +71,10 @@ func (m *Manager) checkSitePath(fqdn string) error {
 	}
 	return nil
 }
+
+// CheckSitePath also protects receipt reads/writes before deployment starts.
+// The hosting volume has one trusted writer; concurrent external mutation is unsupported.
+func (m *Manager) CheckSitePath(fqdn string) error { return m.checkSitePath(fqdn) }
 func activeVersion(path string) (string, error) {
 	info, err := os.Lstat(path)
 	if os.IsNotExist(err) {

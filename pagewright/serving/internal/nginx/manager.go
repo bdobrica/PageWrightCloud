@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/types"
 )
 
 type Manager struct {
@@ -33,6 +35,9 @@ func NewManager(sitesEnabledDir, reloadCommand, maintenancePagePath string) *Man
 func (m *Manager) CreateSiteConfig(fqdn string, sitePath string, aliases []string, enabled bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := m.validatePaths(); err != nil {
+		return err
+	}
 	if err := validateSite(fqdn, sitePath, aliases); err != nil {
 		return err
 	}
@@ -47,6 +52,9 @@ func (m *Manager) CreateSiteConfig(fqdn string, sitePath string, aliases []strin
 func (m *Manager) EnsureSiteConfig(fqdn, sitePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := m.validatePaths(); err != nil {
+		return err
+	}
 	if err := validateSite(fqdn, sitePath, nil); err != nil {
 		return err
 	}
@@ -89,7 +97,7 @@ func (m *Manager) EnsureSiteConfig(fqdn, sitePath string) error {
 func (m *Manager) RemoveSiteConfig(fqdn string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if !configName.MatchString(fqdn) {
+	if !types.ValidHost(fqdn) {
 		return fmt.Errorf("invalid config name")
 	}
 	return m.change(fqdn, nil, true)
@@ -104,10 +112,22 @@ func (m *Manager) UpdateAliases(fqdn string, sitePath string, aliases []string, 
 func (m *Manager) SetMaintenanceMode(enabled bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := m.validatePaths(); err != nil {
+		return err
+	}
 	if err := m.change("000-maintenance", []byte(m.generateMaintenanceConfig()), !enabled); err != nil {
 		return err
 	}
 	m.maintenanceEnabled = enabled
+	return nil
+}
+
+func (m *Manager) validatePaths() error {
+	for _, path := range []string{m.sitesEnabledDir, m.maintenancePagePath} {
+		if !safePath.MatchString(path) || filepath.Clean(path) != path || path == "/" {
+			return fmt.Errorf("invalid nginx configured path")
+		}
+	}
 	return nil
 }
 

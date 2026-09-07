@@ -30,7 +30,7 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$`)
+var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 // FetchArtifact downloads an artifact to the specified destination
 func (c *Client) FetchArtifact(siteID, versionID, destPath string) error {

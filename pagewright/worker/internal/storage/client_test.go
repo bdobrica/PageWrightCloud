@@ -118,7 +118,7 @@ func TestArtifactIdentifiersRejectBeforeHTTP(t *testing.T) {
 		t.Error("invalid identifier reached HTTP")
 		return nil, fmt.Errorf("unexpected HTTP")
 	})
-	for _, id := range []string{"", ".", "..", "../site", "/site", "site/part", `site\part`, "site?x", "site#x", "site%2Fpart", "site space", "é", "-prefix", strings.Repeat("a", 256)} {
+	for _, id := range []string{"", ".", "..", "../site", "/site", "site/part", `site\part`, "site?x", "site#x", "site%2Fpart", "site space", "é", "-prefix", strings.Repeat("a", 201)} {
 		for _, pair := range [][2]string{{id, "version"}, {"site", id}} {
 			if err := client.UploadArtifact(pair[0], pair[1], "missing.tar.gz"); err == nil {
 				t.Errorf("upload accepted %q", pair)
@@ -128,7 +128,7 @@ func TestArtifactIdentifiersRejectBeforeHTTP(t *testing.T) {
 			}
 		}
 	}
-	for _, id := range []string{"a", "A0._-", strings.Repeat("a", 255)} {
+	for _, id := range []string{"a", "A0._-", strings.Repeat("a", 200)} {
 		if _, err := client.artifactURL(id, id); err != nil {
 			t.Errorf("valid ID rejected %q: %v", id, err)
 		}

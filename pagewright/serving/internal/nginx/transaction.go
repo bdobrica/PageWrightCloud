@@ -15,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/types"
 )
 
 const journalName = ".pagewright-transaction"
@@ -42,11 +44,11 @@ func AcquireWriter(dir string) (*os.File, error) {
 }
 
 func validateSite(name, path string, aliases []string) error {
-	if !configName.MatchString(name) || len(name) > 245 || strings.HasPrefix(strings.ToLower(name), "preview.") || !strings.Contains(name, ".") || !safePath.MatchString(path) || len(aliases) > 100 {
+	if !types.ValidHost(name) || !safePath.MatchString(path) || filepath.Clean(path) != path || path == "/" || len(aliases) > 100 {
 		return fmt.Errorf("invalid nginx site parameters")
 	}
 	for _, alias := range aliases {
-		if !configName.MatchString(alias) || strings.HasPrefix(strings.ToLower(alias), "preview.") {
+		if !types.ValidHost(alias) {
 			return fmt.Errorf("invalid alias")
 		}
 	}

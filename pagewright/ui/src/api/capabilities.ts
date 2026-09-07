@@ -18,5 +18,6 @@ export function platformLabel(fqdn: string, domain: string): string | null {
   if (!fqdn.endsWith(suffix)) return null;
   const label = fqdn.slice(0, -suffix.length);
   return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)
-    && !['preview', 'www', 'api', 'app'].includes(label) ? label : null;
+    && !label.startsWith('xn--')
+    && !['preview', 'www', 'api', 'app', 'admin', 'auth', 'assets', 'cdn', 'mail', 'status', 'support', 'ns1', 'ns2'].includes(label) ? label : null;
 }
