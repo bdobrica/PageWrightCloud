@@ -30,7 +30,7 @@ There is useful implementation across all services, but the application is still
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains M4.8; M4.2 (`544901a`) removes routine reset-token logging. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
-| Boundaries | M4.3 (`8bc3619`) removes root internal port publication, requires service/Redis credentials and scopes worker capabilities to one attempt. M4.4 (`da73a4d`) validates names/IDs and rejects traversal, nginx injection and existing symlink escapes before filesystem effects. Wildcard HTTP/socket origins remain. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership. Complete archive/compiler bounds, restrict origins, add TLS and finish remaining M4 gates before remote release. |
+| Boundaries | M4.3 (`8bc3619`) authenticates internal access and scopes worker capabilities. M4.4 (`da73a4d`) validates names/IDs and filesystem containment. M4.5 (`954ab9a`) bounds JSON, archives and compiler resources and verifies unsafe-input rejection. Wildcard HTTP/socket origins remain. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership and runtime quotas remain necessary. Restrict origins, add TLS and finish remaining M4 gates before remote release. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
 resource ceilings and integrated trusted-output validation. Instructions alone are
@@ -1367,6 +1367,54 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.5 completed (2026-09-07) in `954ab9a`.
+[Resource limits](docs/RESOURCE_LIMITS.md) records the fixed MVP budgets,
+publication behavior, verification and upgrade requirements. General JSON handlers
+now consume the entire bounded representation before strict decoding, rejecting
+unknown fields, additional values and oversized whitespace suffixes without trusting
+Content-Length. The general ceiling is 1 MiB; existing 4 KiB endpoint and 4 MiB
+private-metadata limits remain in force. Auth/build, manager callbacks and legacy
+serving/storage log requests use the bounded decoder.
+
+Storage applies the 64 MiB archive upload cap inside the handler, including bootstrap
+and direct-handler use, with 413 on overflow and no immutable publication. Gateway
+artifact streams and version-list responses are bounded; worker gzip packing stops
+when its compressed-output budget is exhausted. Worker/serving retain identical
+validated extraction policy: 256 MiB expansion including headers/padding/trailers,
+10,000 entries, 32 MiB individual files and 64 KiB archive metadata. Archive inputs
+must be regular files. Existing canonical-path, duplicate/conflict, link/type and
+hidden-payload rejection remains intact, including source-only bootstrap support.
+
+Compiler content/theme trees and final output have entry/total/per-file budgets.
+Site/theme JSON reads are limited to 64 KiB before allocation/parsing. Template,
+Markdown and component buffers, assembled pages and atomic output writes stop at
+32 MiB. Growing page output is checked during compilation and the final stage is
+validated before publication. Failed writes preserve prior destinations and discard
+temporary output. Asset copies remain bounded by validated source trees; temporary
+staging can exceed the final-output allowance. These budgets supplement existing
+worker memory/CPU/disk/process limits and timeouts rather than replacing them.
+
+Verification passed: six-module package baseline; six-module race/vet; full isolated
+race-enabled service integration; Compose/auth-copy/archive-policy consistency;
+fresh startup and abrupt restart/recreation smoke; and the full browser journey
+through build, refresh, preview, publish, failure and rollback, plus internal-access
+misuse probes and operator login. Browser evidence: `/tmp/pagewright-browser-sirbIv`.
+Focused final worker tests also pass for device rejection and compressed-output
+boundaries. Tests exercise malformed JSON/metadata, oversized complete bodies and
+suffixes, archive bombs/count limits, traversal, links/devices/FIFOs, compiler/asset
+escapes, sparse oversized trees and preservation/cleanup after failed writes.
+One pre-existing serving configuration skip remains; no acceptance rerun was needed
+for a functional failure in this milestone.
+
+Rebuild `pagewright-worker:m4.5`, update explicit image pins and upgrade services
+together. Review oversized legacy inputs; do not truncate or rename stored data.
+Private quiescent service-owned volumes, operator trust and sandbox isolation remain
+assumptions. HTML/JS are active generated content, not sanitized application code;
+origin isolation/security headers remain M4.6. No private .env reads/changes, paid
+calls, schema/data migrations, DNS changes, remote deployment or push occurred.
+Disposable stacks/data were removed; local evidence/build caches remain.
+Next: **M4.6**. Remaining M4 gates still block admitting remote testers.
 
 M4.4 completed (2026-09-07) in `da73a4d`.
 [Identifier security](docs/IDENTIFIER_SECURITY.md) records canonical naming,
