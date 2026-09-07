@@ -29,7 +29,7 @@ There is useful implementation across all services, but the application is still
 | Deployment consistency | M3.7 (`ec47934`) persists sequenced intent and reconciles exact serving receipts into one DB pointer transaction. M3.8 (`4466271`) replaces pointers atomically and protects active/receipt-pinned cache versions through retention and rollback. | Preserve sequence/receipt evidence and single-writer operation. Post-rename errors remain uncertain, not speculative rollbacks. Atomic pointer selection is not a multi-request browser snapshot; enrolled-site deletion remains guarded until a coordinated tombstone protocol exists. |
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
-| User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains a TODO and reset tokens are logged. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
+| User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains M4.8; M4.2 (`544901a`) removes routine reset-token logging. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
 | Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
@@ -1367,6 +1367,51 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.2 completed (2026-09-07) in `544901a`.
+[Configuration security](docs/CONFIGURATION_SECURITY.md) records required secrets,
+single-source PostgreSQL wiring, existing-volume rotation and log boundaries.
+Root and legacy gateway-only Compose reject missing database/JWT secrets. The
+gateway no longer supplies a fallback signing key and rejects invalid/missing
+critical settings before database access or migrations. Validation errors name
+keys/categories without reproducing private values. Required service URLs cannot
+contain user credentials; invalid port/lifetime strings cannot silently default.
+
+Root PostgreSQL and gateway receive one password with fixed bundled database/user
+identity. URL encoding occurs in Go, preserving reserved punctuation. Root Compose
+no longer honors a separate `PAGEWRIGHT_DATABASE_URL` override; intentional external
+database deployments require a reviewed topology override. Direct processes retain
+explicit PostgreSQL URL support with validated credentials and sslmode, without
+query-level connection/credential overrides. No live configuration was changed.
+
+Routine logs no longer reveal reset tokens/accounts, legacy worker prompts,
+Kubernetes-stub job environments or callback URLs. Gateway/operator connection and
+database errors and manager initialization/reconciliation withhold private raw
+diagnostics. Private manifests/execution logs remain diagnostic records and must
+not be published; this does not erase historic secret exposure or implement reset
+email delivery. The legacy Kubernetes implementation remains an unsupported stub.
+
+Verification passed: six-module package baseline; gateway/manager race and vet;
+full isolated race-enabled integration, including actual reset-token creation with
+log/response leak checks; entrypoint subprocess rejection before database I/O;
+read-only root/legacy Compose missing-secret and credential-wiring checks; URL
+punctuation/query-override tests; and startup/crash/recreation smoke using an actual
+punctuation-containing PostgreSQL password. The full real-service browser journey
+also passed: two sequential sandboxed source edits, preview/live independence,
+failed build, rollback, closed registration, operator provisioning/login and
+disabled-AI guidance. Final browser evidence: `/tmp/pagewright-browser-njSlhF`.
+One pre-existing serving configuration test remains skipped. The Compose test
+fixture was adjusted for configuration rendering's dollar escaping; actual URL
+punctuation is independently exercised against PostgreSQL in startup smoke.
+
+No private .env reads, paid provider calls, schema changes, existing-volume edits,
+credential rotations, remote deployment or push occurred. Disposable containers,
+networks and volumes were removed; traces/build caches remain local. Before an
+existing deployment upgrades, back up and coordinate database-role password and
+JWT rotation: changing environment variables alone does not rotate an initialized
+PostgreSQL role, and a new JWT secret invalidates sessions. Do not delete volumes
+as a migration shortcut. Next: **M4.3**, internal exposure/authentication and scoped
+callbacks. Remaining M4 gates still prohibit a remote pilot release.
 
 M4.1 completed (2026-09-07) in `cbb5380`.
 [Pilot limits and provisioning](docs/PILOT_LIMITS.md) records configuration,
