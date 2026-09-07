@@ -30,7 +30,7 @@ There is useful implementation across all services, but the application is still
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains M4.8; M4.2 (`544901a`) removes routine reset-token logging. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
-| Boundaries | M4.3 (`8bc3619`) removes root internal port publication, requires service/Redis credentials and scopes worker capabilities to one attempt. FQDNs still reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | The control plane shares one credential and in-host HTTP; workers never receive that credential. Validate identifiers, restrict origins, add TLS and complete remaining M4 gates before remote release. |
+| Boundaries | M4.3 (`8bc3619`) removes root internal port publication, requires service/Redis credentials and scopes worker capabilities to one attempt. M4.4 (`da73a4d`) validates names/IDs and rejects traversal, nginx injection and existing symlink escapes before filesystem effects. Wildcard HTTP/socket origins remain. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership. Complete archive/compiler bounds, restrict origins, add TLS and finish remaining M4 gates before remote release. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
 resource ceilings and integrated trusted-output validation. Instructions alone are
@@ -1367,6 +1367,57 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.4 completed (2026-09-07) in `da73a4d`.
+[Identifier security](docs/IDENTIFIER_SECURITY.md) records canonical naming,
+reserved labels, bounded identities, filesystem assumptions and upgrade notes.
+The user confirms ownership of `pagewright.io`. The apex redirect and live DNS
+are unchanged; M4.9 will configure the chosen owned namespace and both live and
+preview routing/certificates. Local defaults remain unchanged, and neither domain
+ownership verification nor TLS/origin isolation is claimed by this milestone.
+
+Gateway creation retains lowercase/trim normalization and exactly one DNS label
+below the configured namespace. Infrastructure names and internationalized site
+labels are rejected, with matching UI checks. Serving/nginx independently require
+canonical lowercase DNS labels, a dotted hostname and room for the preview prefix;
+they reject malformed labels, directive injection and reserved nginx filenames.
+Syntactically valid legacy domains remain available to the authenticated control
+plane without automatic renaming or assuming ownership from a hostname alone.
+
+Opaque site/version IDs are limited to 200 ASCII characters, leaving room for
+artifact extensions and timestamped event filenames. Manager rejects invalid IDs
+before queue reservation; workers validate launch identities before work; transport
+clients, storage handlers/backend and serving operations enforce the bound.
+Versions remain case-sensitive, and `initial` retains its bootstrap semantics.
+Nginx-interpolated paths must be canonical safe absolute paths; hosting startup
+rejects invalid configuration before initializing files. Storage checks containment
+and existing symlinks before reads, mkdirs and immutable writes. Serving checks real
+ancestors before receipt access and rejects nonregular receipts. Legacy artifact
+downloads use unique temporary files instead of request-derived filenames.
+
+Verification passed: six-module package baseline; five-service race/vet;
+isolated race-enabled service integration; UI contracts, lint and production build;
+Compose configuration/auth-copy checks; fresh startup and abrupt restart/recreation
+smoke; and full browser build/refresh/preview/publish/failure/rollback, internal
+credential-misuse probes and operator login. Final browser evidence:
+`/tmp/pagewright-browser-pYE06Z`. New rejection tests prove no queue/dependency
+effects, outside-file modification or config/receipt creation for invalid input.
+One pre-existing serving configuration skip remains. Initial tests exposed the
+intentional new identifier boundary and a malformed-URL test fixture; both were
+updated. An initial integration slashless-redirect assertion returned 404; a full
+rerun passed without changing routing, so its transient cause remains unconfirmed.
+The first browser run completed deployment/rollback but raced independent history
+and version fetches in its final assertion. An explicit version-list wait fixed
+the harness, and the full rerun passed. Focused final serving/worker race tests pass.
+
+Upgrade services together, rebuild `pagewright-worker:m4.4`, update old explicit
+image pins and review any legacy IDs longer than 200 bytes. Do not rename identities
+or delete volumes as an upgrade shortcut. These checks assume private operator-owned
+volumes and no concurrent external mutation; they do not replace hostile-local-user
+race-proof filesystem APIs. Archive/type/size/compiler containment remains M4.5.
+No private .env reads/changes, paid calls, schema migration, domain routing changes,
+remote deployment or push occurred. Disposable stacks/data were removed; local
+traces/build caches remain. Next: **M4.5**. Remaining M4 gates still block testers.
 
 M4.3 completed (2026-09-07) in `8bc3619`.
 [Internal authentication](docs/INTERNAL_AUTH.md) records trust boundaries, worker
