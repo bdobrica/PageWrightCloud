@@ -30,7 +30,7 @@ There is useful implementation across all services, but the application is still
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains M4.8; M4.2 (`544901a`) removes routine reset-token logging. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
-| Boundaries | M4.3 (`8bc3619`) authenticates internal access and scopes worker capabilities. M4.4 (`da73a4d`) validates names/IDs and filesystem containment. M4.5 (`954ab9a`) bounds JSON, archives and compiler resources and verifies unsafe-input rejection. Wildcard HTTP/socket origins remain. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership and runtime quotas remain necessary. Restrict origins, add TLS and finish remaining M4 gates before remote release. |
+| Boundaries | M4.3 (`8bc3619`) authenticates internal access and scopes worker capabilities. M4.4 (`da73a4d`) validates names/IDs and filesystem containment. M4.5 (`954ab9a`) bounds JSON, archives and compiler resources. M4.6 (`82c293f`) enforces exact application origins and separate UI/generated-content security headers. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership and runtime quotas remain necessary. Origin checks are not identity and sibling-domain cookie risks remain. Finish cross-user acceptance, TLS and remaining M4 gates before remote release. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
 resource ceilings and integrated trusted-output validation. Instructions alone are
@@ -1367,6 +1367,56 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.6 completed (2026-09-07) in `82c293f`.
+[Origin security](docs/ORIGIN_SECURITY.md) records configuration, upgrade steps,
+header policies and remaining browser trust boundaries. Gateway validates
+`PAGEWRIGHT_APP_ORIGINS` before DB initialization: explicit HTTP(S) origins only,
+with generated/preview namespace overlap rejected except reserved infrastructure
+hosts. The outer policy covers the entire router, including errors and retired
+sockets, and rejects foreign, opaque, empty and duplicate origins before handler
+effects. Exact allowed origins receive non-credentialed CORS/preflight responses.
+No-Origin CLI requests retain normal authentication; Origin is not identity.
+WebSockets remain disabled (501 for allowed/no origin; 403 for denied origins).
+
+The UI build validates its API origin before generating nginx CSP directives.
+Self-only application scripts and exact API connections are separate from the
+generated-content edge's local/inline script policy and same-origin connections.
+Generated pages cannot embed frames, submit forms or fetch the application API
+under this policy. UI/edge headers include embedding denial, nosniff, no-referrer,
+opener isolation, origin-agent clustering and denied device permissions. The edge
+replaces upstream headers, including for old managed configs and errors; UI asset
+and health locations preserve headers despite nginx inheritance rules.
+
+Verification passed: package baseline, gateway race/vet (including final focused
+startup/middleware race tests), full isolated race-enabled integration, UI
+contracts/lint/production build, Compose/auth-copy checks, recovery smoke and full
+real-service browser acceptance. The browser verifies build/edit/refresh,
+preview/live independence, expected failed build and rollback, exact CORS and
+retired sockets, headers on assets/errors, allowed UI API access and an actual
+generated-page `connect-src` violation. Internal credential-misuse probes and
+operator-provisioned login/closed signup/disabled-AI checks also pass. One
+pre-existing serving configuration skip remains. Final browser evidence:
+`/tmp/pagewright-browser-LGiAG3`; final log:
+`/tmp/pagewright-m46-browser-final-acceptance.log`.
+
+Initial browser reruns hit Firefox lifecycle wait timeouts despite successful
+page/asset responses. Hosted checks now use response/DOM and explicit rendered
+readiness; independent phases use fresh browser processes. A new ambiguous heading
+selector was corrected to assert the expected journey heading. The final complete
+run passed with cached Playwright 1.58.2 and Firefox 146.0.1 (revision 1509), without
+weakening any security policy. The harness pins the API port across recreation and
+configures the exact disposable UI origin; provider spend was $0.
+
+Rebuild gateway/UI together and reload the hosting edge; retain the existing
+`m4.5` worker image. Audit legacy host/alias collisions before upgrading; there is
+no automatic data migration. Generated HTML/JS remain active untrusted content,
+and sibling origins can share a cookie site: parent-domain session cookies and
+document.domain relaxation remain unsupported. TLS/HSTS and production DNS are
+still M4.9 gates. No private .env reads/changes, paid calls, DNS/redirect changes,
+remote deployment or push occurred. Disposable stacks/data were removed; local
+evidence/build caches remain. Next: **M4.7**. Remaining M4 gates still block remote
+testers.
 
 M4.5 completed (2026-09-07) in `954ab9a`.
 [Resource limits](docs/RESOURCE_LIMITS.md) records the fixed MVP budgets,
