@@ -63,12 +63,21 @@ func CheckTree(root string) error {
 	if !info.IsDir() {
 		return fmt.Errorf("not a directory: %s", root)
 	}
+	var size int64
+	entries := 0
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() && !info.Mode().IsRegular() {
 			return fmt.Errorf("non-regular input: %s", path)
+		}
+		entries++
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		if entries > 10000 || size > 256<<20 || (!info.IsDir() && info.Size() > 32<<20) {
+			return fmt.Errorf("compiler tree exceeds size or entry limit")
 		}
 		return nil
 	})

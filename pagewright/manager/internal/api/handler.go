@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -277,16 +276,7 @@ func blank(value string) bool { return strings.TrimSpace(value) == "" }
 
 // decodeRequest rejects unknown fields and multiple JSON values.
 func decodeRequest(r *http.Request, target any) error {
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return fmt.Errorf("body must contain exactly one JSON object")
-	}
-	return nil
+	return boundedJSON(r, target)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

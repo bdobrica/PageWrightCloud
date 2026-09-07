@@ -32,7 +32,7 @@ invalid IDs. Manager rejects invalid identities before queue reservation; worker
 launch, storage API/backend and transport clients independently validate them.
 `initial` remains the reserved bootstrap target. Generated UUIDs are unaffected.
 Rebuild the worker with `docker compose build worker` and update old explicit image
-pins to `pagewright-worker:m4.4`; upgrade services together to align validation.
+pins to `pagewright-worker:m4.5`; upgrade services together to align validation.
 Previously accepted IDs longer than 200 bytes require operator review before an
 upgrade; do not silently rename existing artifacts or edit database identities.
 
@@ -53,7 +53,7 @@ These checks assume private operator-owned volumes with one supported writer and
 no concurrent external filesystem mutation. They are not a hostile-local-user
 race-proof filesystem API or protection against a Docker administrator. Do not
 mount generated-source workspaces over storage/hosting roots. Archive expansion,
-link/type/size limits and compiler containment remain M4.5 work; authentication
+link/type/size limits and compiler budgets are recorded in [resource limits](RESOURCE_LIMITS.md); authentication
 continues to be required as described in [internal authentication](INTERNAL_AUTH.md).
 
 ## Verification

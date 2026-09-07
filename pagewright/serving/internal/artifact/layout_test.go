@@ -77,6 +77,8 @@ func TestArchiveLayoutRejections(t *testing.T) {
 	cases["symlink"] = append(validEntries(), testEntry{name: "public/link", kind: tar.TypeSymlink})
 	cases["hardlink"] = append(validEntries(), testEntry{name: "public/link", kind: tar.TypeLink})
 	cases["fifo"] = append(validEntries(), testEntry{name: "public/pipe", kind: tar.TypeFifo})
+	cases["character-device"] = append(validEntries(), testEntry{name: "public/device", kind: tar.TypeChar})
+	cases["block-device"] = append(validEntries(), testEntry{name: "public/device", kind: tar.TypeBlock})
 	cases["duplicate"] = append(validEntries(), testEntry{name: "public/index.html", data: "overwrite"})
 	cases["parent-file"] = append(validEntries(), testEntry{name: "public/assets", data: "file"}, testEntry{name: "public/assets/a", data: "child"})
 	cases["child-first"] = append(validEntries(), testEntry{name: "public/assets/a", data: "child"}, testEntry{name: "public/assets", data: "file"})

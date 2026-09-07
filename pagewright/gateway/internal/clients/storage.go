@@ -114,7 +114,7 @@ func (c *StorageClient) OpenArtifact(siteID, versionID string) (io.ReadCloser, e
 		resp.Body.Close()
 		return nil, fmt.Errorf("invalid storage artifact media type or content encoding")
 	}
-	return resp.Body, nil
+	return http.MaxBytesReader(nil, resp.Body, 64<<20), nil
 }
 
 // ListVersions retrieves all versions for a site from storage service
@@ -138,7 +138,11 @@ func (c *StorageClient) ListVersions(siteID string) ([]StorageVersion, error) {
 		Versions []StorageVersion `json:"versions"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	data, err := io.ReadAll(http.MaxBytesReader(nil, resp.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("failed to decode versions response: %w", err)
 	}
 

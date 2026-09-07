@@ -1,7 +1,6 @@
 package theme
 
 import (
-	"bytes"
 	"fmt"
 	"html/template"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/config"
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 )
 
 // Theme represents a loaded theme with templates and tokens
@@ -111,7 +111,7 @@ func loadTemplates(themeDir string) (*template.Template, error) {
 
 // RenderPage renders a page using the theme templates
 func (t *Theme) RenderPage(ctx types.RenderContext) ([]byte, error) {
-	var buf bytes.Buffer
+	var buf util.OutputBuffer
 
 	// Execute the index.html template
 	if err := t.Templates.ExecuteTemplate(&buf, "index.html", ctx); err != nil {
@@ -165,7 +165,7 @@ func RenderTokenizedCSS(cssContent []byte, tokens map[string]interface{}) ([]byt
 		return nil, fmt.Errorf("failed to parse CSS template: %w", err)
 	}
 
-	var buf bytes.Buffer
+	var buf util.OutputBuffer
 	if err := tmpl.Execute(&buf, tokens); err != nil {
 		return nil, fmt.Errorf("failed to render CSS template: %w", err)
 	}

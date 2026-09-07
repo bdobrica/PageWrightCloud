@@ -59,7 +59,7 @@ func Load(themeDir, contentDir, outputDir, baseURL string) (*types.BuildConfig, 
 
 // loadSiteConfig reads and parses site.json
 func loadSiteConfig(path string) (*types.SiteConfig, error) {
-	data, err := os.ReadFile(path)
+	data, err := readMetadata(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("site.json not found at %s (required)", path)
@@ -89,7 +89,7 @@ func loadSiteConfig(path string) (*types.SiteConfig, error) {
 // LoadThemeConfig reads and parses tokens.json from the theme
 func LoadThemeConfig(themeDir string) (*types.ThemeConfig, error) {
 	tokensPath := filepath.Join(themeDir, "tokens.json")
-	data, err := os.ReadFile(tokensPath)
+	data, err := readMetadata(tokensPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, &types.CompileError{

@@ -72,9 +72,15 @@ func (h *Handler) StoreArtifact(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "artifact body must be raw application/gzip without content encoding", http.StatusUnsupportedMediaType)
 		return
 	}
-	// Store the gzip file bytes verbatim, not a multipart envelope. Archive
-	// structure/size/security validation is a separate acceptance gate.
+	// Bound all uploads, including bootstrap and direct handler use, before
+	// immutable publication. Structural validation occurs before extraction.
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<20)
 	if err := h.backend.StoreArtifact(siteID, buildID, r.Body); err != nil {
+		var oversized *http.MaxBytesError
+		if errors.As(err, &oversized) {
+			http.Error(w, "archive too large", 413)
+			return
+		}
 		if errors.Is(err, storage.ErrConflict) || errors.Is(err, storage.ErrFenced) {
 			http.Error(w, "immutable version conflict", http.StatusConflict)
 			return
@@ -139,7 +145,7 @@ func (h *Handler) WriteLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req LogRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := boundedJSON(r, &req); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}

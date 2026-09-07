@@ -15,6 +15,7 @@ import (
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/mdx"
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/theme"
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 )
 
 // Pipeline orchestrates the complete compilation process
@@ -64,6 +65,9 @@ func (p *Pipeline) Run() error {
 	p.config = &cfg
 	defer func() { p.config = original }()
 	if err := p.run(); err != nil {
+		return err
+	}
+	if err := util.CheckTree(stage); err != nil {
 		return err
 	}
 	if err := os.Chmod(stage, 0755); err != nil {
@@ -131,6 +135,9 @@ func (p *Pipeline) run() error {
 	for _, page := range p.pages {
 		if err := p.compilePage(page); err != nil {
 			return fmt.Errorf("failed to compile page %s: %w", page.SourceMD, err)
+		}
+		if err := util.CheckTree(p.config.OutputDir); err != nil {
+			return err
 		}
 	}
 
@@ -246,6 +253,9 @@ func (p *Pipeline) renderNodes(nodes []types.MDXNode, page *types.Page) (templat
 					Message: fmt.Sprintf("failed to render markdown: %v", err),
 				}
 			}
+			if len(html) > (32<<20)-len(result) {
+				return "", fmt.Errorf("rendered page too large")
+			}
 			result = append(result, []byte(html)...)
 
 		case types.ComponentNode:
@@ -257,6 +267,9 @@ func (p *Pipeline) renderNodes(nodes []types.MDXNode, page *types.Page) (templat
 					return "", compErr
 				}
 				return "", err
+			}
+			if len(html) > (32<<20)-len(result) {
+				return "", fmt.Errorf("rendered page too large")
 			}
 			result = append(result, []byte(html)...)
 		}

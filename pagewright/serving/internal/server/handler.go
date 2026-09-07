@@ -88,7 +88,7 @@ func (h *Handler) DeployArtifact(w http.ResponseWriter, r *http.Request) {
 	fqdn := vars["fqdn"]
 
 	var req types.DeployRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := boundedJSON(r, &req); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -141,7 +141,7 @@ func (h *Handler) ActivatePublic(w http.ResponseWriter, r *http.Request) {
 	fqdn := vars["fqdn"]
 
 	var req types.ActivateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := boundedJSON(r, &req); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -179,7 +179,7 @@ func (h *Handler) ActivatePreview(w http.ResponseWriter, r *http.Request) {
 	fqdn := vars["fqdn"]
 
 	var req types.ActivateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := boundedJSON(r, &req); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -210,7 +210,7 @@ func (h *Handler) ManageAliases(w http.ResponseWriter, r *http.Request) {
 	fqdn := vars["fqdn"]
 
 	var req types.AliasRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := boundedJSON(r, &req); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
 		return
 	}

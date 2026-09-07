@@ -1,11 +1,11 @@
 package markdown
 
 import (
-	"bytes"
 	"html/template"
 	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -39,7 +39,7 @@ func Render(source []byte) (template.HTML, error) {
 
 // RenderWithIDs shares heading IDs across Markdown chunks separated by components.
 func RenderWithIDs(source []byte, ids parser.IDs) (template.HTML, error) {
-	var buf bytes.Buffer
+	var buf util.OutputBuffer
 	if err := md.Convert(source, &buf, parser.WithContext(parser.NewContext(parser.WithIDs(ids)))); err != nil {
 		return "", err
 	}

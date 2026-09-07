@@ -70,6 +70,13 @@ func allowedPath(name string) bool {
 // caller-owned stage; publicOnly discards source rather than putting it on www.
 func readArchive(archive, stage string, publicOnly bool) (LayoutManifest, error) {
 	var manifest LayoutManifest
+	input, err := os.Lstat(archive)
+	if err != nil {
+		return manifest, err
+	}
+	if !input.Mode().IsRegular() {
+		return manifest, fmt.Errorf("archive must be a regular file")
+	}
 	f, err := os.Open(archive)
 	if err != nil {
 		return manifest, err

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bdobrica/PageWrightCloud/compiler/internal/types"
+	"github.com/bdobrica/PageWrightCloud/compiler/internal/util"
 )
 
 // Registry manages MDX component templates
@@ -88,7 +89,7 @@ func (r *Registry) Render(componentName string, props map[string]interface{}, li
 		}
 	}
 
-	var buf bytes.Buffer
+	var buf util.OutputBuffer
 	if err := tmpl.Execute(&buf, props); err != nil {
 		return "", &types.CompileError{
 			Line:    line,

@@ -71,7 +71,7 @@ func packToWriter(srcDir string, out io.Writer) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	gzw := gzip.NewWriter(out)
+	gzw := gzip.NewWriter(&archiveWriter{writer: out, remaining: maxArchiveBytes})
 	defer gzw.Close()
 	tw := tar.NewWriter(gzw)
 	defer tw.Close()

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"mime"
 	"net/http"
 	"strings"
@@ -100,14 +99,8 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req types.BuildRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
+	if err := boundedJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if err := decoder.Decode(new(interface{})); err != io.EOF {
-		respondError(w, http.StatusBadRequest, "expected one JSON request")
 		return
 	}
 

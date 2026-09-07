@@ -94,8 +94,10 @@ func writeAtomic(path string, reader io.Reader) error {
 	}
 	defer os.Remove(f.Name())
 	defer f.Close()
-	if _, err := io.Copy(f, reader); err != nil {
+	if n, err := io.Copy(f, io.LimitReader(reader, (32<<20)+1)); err != nil {
 		return err
+	} else if n > 32<<20 {
+		return fmt.Errorf("compiler output file too large")
 	}
 	if err := f.Chmod(0644); err != nil {
 		return err
