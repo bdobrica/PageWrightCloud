@@ -30,7 +30,7 @@ There is useful implementation across all services, but the application is still
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains M4.8; M4.2 (`544901a`) removes routine reset-token logging. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
-| Boundaries | Internal write APIs have no authentication and their ports are published. FQDNs reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | Enforce service authorization, validate identifiers, restrict exposure, and isolate worker credentials and generated content. |
+| Boundaries | M4.3 (`8bc3619`) removes root internal port publication, requires service/Redis credentials and scopes worker capabilities to one attempt. FQDNs still reach filesystem/nginx paths without adequate validation. Wildcard HTTP/socket origins remain. | The control plane shares one credential and in-host HTTP; workers never receive that credential. Validate identifiers, restrict origins, add TLS and complete remaining M4 gates before remote release. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
 resource ceilings and integrated trusted-output validation. Instructions alone are
@@ -1367,6 +1367,53 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.3 completed (2026-09-07) in `8bc3619`.
+[Internal authentication](docs/INTERNAL_AUTH.md) records trust boundaries, worker
+capabilities, required configuration, coordinated rotation and upgrade steps.
+Supported root Compose now publishes only gateway, UI and hosting nginx. Database,
+Redis, manager, storage, serving API, themes and optional worker ports are private;
+the disposable smoke overlay uses random loopback-only mappings. Redis requires a
+separate password without changing its AOF durability or resetting queue data.
+
+Gateway, manager, storage and serving validate an explicit service credential at
+startup. Production internal handlers authenticate reads and writes except exact
+GET health checks. Internal clients pin credentials to their configured origin
+and retain redirect refusal. These four services form one trusted control plane:
+this is not per-service authorization or mTLS. Identical dependency-free auth
+implementations/tests are checked for drift in package and integration workflows.
+
+Each Docker worker receives a signed 17-minute capability binding job, site, source,
+target, lock and fence. It permits only its source archive read, target artifact
+writes and own-job callback/readback; it cannot bootstrap sites, enumerate versions,
+read private metadata, invoke serving or authorize write commits. Verified identity
+must match callback bodies and artifact attempt headers, and existing authoritative
+fencing/terminal checks remain. Stale attempts cannot read replacement lock details.
+Source reads may remain available until expiry; writes remain fenced. Worker status
+binds container loopback. Workers never receive the master or Redis password;
+sandbox isolation, resource limits and unprivileged operation remain unchanged.
+The separate budget-limited provider credential remains shared, not job-scoped.
+
+Verification passed: six-module package baseline; gateway/manager/storage/serving/
+worker race and vet; full isolated race-enabled service integration; negative
+configuration and auth-copy checks; authenticated startup/crash/recreation smoke;
+and the full real-service browser journey including operator login. Direct probes
+using actual disposable worker capabilities reject anonymous internal APIs/Redis,
+cross-job/cross-version misuse, tampering, bootstrap writes and worker control-plane
+operations, while permitting own-job/source reads. Browser evidence:
+`/tmp/pagewright-browser-7MIiaX`. One pre-existing serving configuration skip remains.
+An old integration callback fixture was updated to authenticate; the rerun passed.
+An earlier smoke run overlapped new required Redis configuration, failed and was
+explicitly cleaned up; the final complete smoke passed. Final storage tests also
+verify that a signed capability cannot substitute job, lock or fence headers.
+
+Disposable stacks/data were removed. No paid calls, private .env reads, schema
+changes, live credential rotations, remote deployment or push occurred. Existing
+deployments must configure distinct service/Redis secrets, rebuild the `m4.3` worker
+image and replace old explicit image pins; drain workers for coordinated master
+rotation and preserve volumes. In-host HTTP and Docker-administrator trust remain
+explicit boundaries. Next: **M4.4**, identifier validation and path containment.
+Remaining M4 gates still prohibit admitting remote testers.
 
 M4.2 completed (2026-09-07) in `544901a`.
 [Configuration security](docs/CONFIGURATION_SECURITY.md) records required secrets,
