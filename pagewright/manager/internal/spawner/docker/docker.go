@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/types"
 	"github.com/google/uuid"
@@ -103,6 +104,10 @@ func (d *DockerSpawner) Spawn(ctx context.Context, job *types.Job, managerURL st
 	}
 	if d.cfg.LLMModel != "" {
 		body["Env"] = append(body["Env"].([]string), "PAGEWRIGHT_LLM_MODEL="+d.cfg.LLMModel)
+	}
+	if key := serviceauth.Key(); key != "" {
+		token := serviceauth.Sign(key, serviceauth.Scope{Job: job.JobID, Site: job.SiteID, Source: job.SourceVersion, Target: job.TargetVersion, Lock: job.LockToken, Fence: job.FencingToken, Expires: time.Now().Add(17 * time.Minute).Unix()})
+		body["Env"] = append(body["Env"].([]string), "PAGEWRIGHT_WORKER_TOKEN="+token)
 	}
 	data, _ := json.Marshal(body)
 	status, response, err := d.call(ctx, "POST", "/containers/create?name="+url.QueryEscape(name), data)

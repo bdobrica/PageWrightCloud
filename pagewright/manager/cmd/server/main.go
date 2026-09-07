@@ -18,12 +18,17 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
 	queueRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue/redis"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/reconciler"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner/docker"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner/kubernetes"
 )
 
 func main() {
+	if err := serviceauth.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	cfg := config.LoadConfig()
 	if cfg.LockTTL < time.Second || cfg.LockRenewInterval <= 0 || cfg.LockRenewInterval > cfg.LockTTL/3 || cfg.WorkerTimeout < cfg.LockTTL {
 		log.Fatal("Require lock TTL >= 1s, renewal interval <= TTL/3, and worker timeout >= TTL")
@@ -89,7 +94,7 @@ func main() {
 
 	// Create API handler
 	handler := api.NewHandler(queueBackend, lockMgr)
-	router := handler.SetupRoutes()
+	router := serviceauth.Wrap("manager", handler.SetupRoutes())
 	dispatchQueue := queueBackend.(queue.DispatchBackend)
 	initialization, endInitialization := context.WithTimeout(context.Background(), 60*time.Second)
 	if _, testOnly := testSpawners[cfg.WorkerSpawner]; !testOnly {

@@ -23,7 +23,7 @@ func TestInvalidStartup(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := exec.Command(os.Args[0], "-test.run=^TestInvalidStartup$")
-			cmd.Env = append([]string{"PAGEWRIGHT_STARTUP_TEST=child"}, tc.env...)
+			cmd.Env = append([]string{"PAGEWRIGHT_STARTUP_TEST=child", "PAGEWRIGHT_SERVICE_TOKEN=startup-fixture-internal-service-token"}, tc.env...)
 			output, err := cmd.CombinedOutput()
 			if err == nil {
 				t.Fatal("invalid startup succeeded")

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
 	"github.com/gorilla/mux"
 )
@@ -52,6 +53,10 @@ func (h *Handler) fencedWrite(part string, next http.HandlerFunc) http.HandlerFu
 			http.Error(w, "matching worker attempt required", 409)
 			return
 		}
+		if job := r.Header.Get("X-Pagewright-Verified-Job"); job != "" && (commit.JobID != job || commit.LockToken != r.Header.Get("X-Pagewright-Verified-Lock") || fmt.Sprint(commit.FencingToken) != r.Header.Get("X-Pagewright-Verified-Fence")) {
+			http.Error(w, "worker attempt scope denied", 403)
+			return
+		}
 		commit.Part = part
 		copy := *h
 		copy.attempt = &commit
@@ -66,6 +71,9 @@ func (h *Handler) fencedWrite(part string, next http.HandlerFunc) http.HandlerFu
 				return err
 			}
 			req.Header.Set("Content-Type", "application/json")
+			if key := serviceauth.Key(); key != "" {
+				req.Header.Set("Authorization", "Bearer "+key)
+			}
 			client := &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 			response, err := client.Do(req)
 			if err != nil {

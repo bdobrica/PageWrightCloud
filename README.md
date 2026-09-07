@@ -7,6 +7,8 @@ not yet a remotely deployable pilot release.
 
 Startup requires explicit PostgreSQL and JWT secrets; see
 [configuration security and existing-volume rotation](docs/CONFIGURATION_SECURITY.md).
+Internal services also require separate service/Redis credentials and a rebuilt
+worker image; see [internal access and upgrade guidance](docs/INTERNAL_AUTH.md).
 
 An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
 

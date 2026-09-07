@@ -2,8 +2,8 @@
 
 The supported root Compose deployment now defaults to operator-provisioned
 accounts and **no paid AI calls**. Existing accounts and data remain intact.
-This does not make the stack safe for remote testers: M4.2–M4.14 remain release
-gates, particularly internal-service authentication, private ports, origins and TLS.
+This does not make the stack safe for remote testers: remaining M4 gates include
+identifier/archive hardening, origins, cross-user audits, password reset and TLS.
 
 ## Account provisioning
 
@@ -90,8 +90,9 @@ inside the unchanged worker sandbox. Requests are limited to 1 MiB, responses to
 4 MiB, and upstream calls to 120 seconds, with no automatic retries or redirects.
 Successful verified terminal responses release concurrency, but never money.
 Uncertain or failed provider outcomes retain an active reservation for operator
-review. Database failures fail closed. Shared internal credentials are not yet
-job-scoped; M4.3 still owns scoped service authorization.
+review. Database failures fail closed. The provider-proxy credential remains a
+shared, budget-limited credential, separate from M4.3's signed job-scoped callback/
+artifact credentials and trusted control-plane service key; see [internal access](INTERNAL_AUTH.md).
 
 OpenAI Docs informed this policy (reviewed 2026-09-07). At the reviewed
 [standard pricing](https://developers.openai.com/api/docs/pricing), Luna's maximum

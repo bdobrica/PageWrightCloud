@@ -14,10 +14,15 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/config"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/nginx"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/server"
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/storage"
 )
 
 func main() {
+	if err := serviceauth.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	cfg := config.LoadConfig()
 
 	fmt.Printf("PageWright Serving Service starting on port %d\n", cfg.Port)
@@ -38,7 +43,7 @@ func main() {
 
 	// Setup HTTP server
 	handler := server.NewHandler(artifactMgr, nginxMgr, storageCli)
-	router := handler.SetupRoutes()
+	router := serviceauth.Wrap("serving", handler.SetupRoutes())
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	fmt.Printf("Server listening on %s\n", addr)

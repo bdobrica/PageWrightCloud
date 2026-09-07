@@ -17,6 +17,7 @@ services:
     security_opt: [no-new-privileges:true]
     volumes:
       - ./scripts/browser-provider.mjs:/fixture/browser-provider.mjs:ro
+      - ./scripts/internal-access.mjs:/fixture/internal-access.mjs:ro
     networks: [pagewright]
     healthcheck:
       test: [CMD, node, -e, "fetch('http://localhost:8090/health').then(r=>process.exit(r.ok?0:1))"]

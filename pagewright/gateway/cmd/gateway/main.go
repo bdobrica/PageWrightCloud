@@ -17,11 +17,16 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/handlers"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/pilot"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
 
 func main() {
+	if err := serviceauth.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	// Load configuration
 	cfg := config.LoadConfig()
 	if err := cfg.Validate(); err != nil {

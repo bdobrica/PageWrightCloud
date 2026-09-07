@@ -16,6 +16,8 @@ const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, DOCKER_CONFIG: process.env.DOCKER_CONFIG,
   COMPOSE_PROJECT_NAME: project,
   PAGEWRIGHT_POSTGRES_PASSWORD: 'browser-only-database-password',
+  PAGEWRIGHT_SERVICE_TOKEN: 'browser-internal-service-token-not-production',
+  PAGEWRIGHT_REDIS_PASSWORD: 'browser-private-redis-password',
   PAGEWRIGHT_SIGNUP_MODE: 'development', PAGEWRIGHT_PROVIDER_TOKEN: 'browser-acceptance-private-proxy-token', PAGEWRIGHT_AI_ALLOWANCE_CENTS: '3000',
   PAGEWRIGHT_SITE_DOMAIN: 'example.localhost', PAGEWRIGHT_HOSTING_SCHEME: 'http',
   PAGEWRIGHT_LLM_KEY: 'browser-acceptance-dummy-key', PAGEWRIGHT_LLM_URL: 'http://fixture:8090/v1',
@@ -57,6 +59,10 @@ try {
   browser = await firefox.launch({ executablePath: resolve(executablePath), headless: true,
     firefoxUserPrefs: { 'browser.cache.disk.enable': false, 'browser.cache.memory.enable': false } });
   await runJourney(browser, `http://localhost:${port('ui', 80)}`, evidence);
+  const scopedWorkers = docker(['ps', '-aq', '--filter', 'label=io.pagewright.role=worker', '--filter', `label=io.pagewright.network=${project}_pagewright`], true).split(/\s+/).filter(Boolean);
+  const tokens = scopedWorkers.map(id => JSON.parse(docker(['inspect', '--format', '{{json .Config.Env}}', id], true)).find(value => value.startsWith('PAGEWRIGHT_WORKER_TOKEN='))?.slice('PAGEWRIGHT_WORKER_TOKEN='.length));
+  if (tokens.some(token => !token)) throw Error('Worker did not receive a scoped credential');
+  console.log(docker([...composeArgs, 'exec', '-T', 'fixture', 'node', '/fixture/internal-access.mjs'], true, true, JSON.stringify({ tokens })));
   env.PAGEWRIGHT_GATEWAY_PORT = `127.0.0.1:${port('gateway', 8085)}`;
   env.PAGEWRIGHT_SIGNUP_MODE = 'closed';
   env.PAGEWRIGHT_AI_ALLOWANCE_CENTS = '0';

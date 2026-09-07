@@ -49,7 +49,7 @@ func (s *Server) SetupRoutes() *mux.Router {
 
 func (s *Server) Start() error {
 	router := s.SetupRoutes()
-	addr := fmt.Sprintf(":%d", s.port)
+	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
 	fmt.Printf("Worker HTTP server starting on %s\n", addr)
 	return http.ListenAndServe(addr, router)
 }

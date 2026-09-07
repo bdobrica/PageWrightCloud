@@ -164,7 +164,7 @@ func TestGatewayManagerJobContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err = server.Client().Post(managerURL+"/jobs/"+job.JobID+"/result", "application/json", bytes.NewReader(body))
+	resp, err = http.Post(managerURL+"/jobs/"+job.JobID+"/result", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

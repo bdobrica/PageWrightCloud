@@ -12,11 +12,16 @@ import (
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/api"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/config"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage/nfs"
 )
 
 func main() {
+	if err := serviceauth.Validate(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	cfg := config.LoadConfig()
 
 	// Initialize storage backend
@@ -42,7 +47,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	router := handler.SetupRoutes()
+	router := serviceauth.Wrap("storage", handler.SetupRoutes())
 	cleanupContext, stopCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() { defer close(cleanupDone); backend.(*nfs.NFSBackend).MaintainStaging(cleanupContext) }()

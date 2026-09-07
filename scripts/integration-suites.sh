@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 cmp /workspace/pagewright/worker/internal/artifact/layout.go /workspace/pagewright/serving/internal/artifact/layout.go
+for service in manager storage serving; do
+    cmp /workspace/pagewright/gateway/internal/serviceauth/auth.go "/workspace/pagewright/$service/internal/serviceauth/auth.go"
+    cmp /workspace/pagewright/gateway/internal/serviceauth/auth_test.go "/workspace/pagewright/$service/internal/serviceauth/auth_test.go"
+done
 artifact_tmp=$(mktemp -d /tmp/pagewright-transport.XXXXXX)
 trap 'rm -rf -- "$artifact_tmp"' EXIT
 trap 'exit 130' INT

@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/serviceauth"
 )
 
 type Client struct {
@@ -21,6 +23,7 @@ func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
+			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key()},
 			Timeout:       5 * time.Minute,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},

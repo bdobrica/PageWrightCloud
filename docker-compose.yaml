@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: pagewright
       POSTGRES_USER: pagewright
       POSTGRES_PASSWORD: ${PAGEWRIGHT_POSTGRES_PASSWORD:?Set PAGEWRIGHT_POSTGRES_PASSWORD}
-    ports:
-      - "${PAGEWRIGHT_POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -20,11 +18,11 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: [redis-server, --appendonly, 'yes', --appendfsync, always, --no-appendfsync-on-rewrite, 'no', --aof-load-truncated, 'no', --maxmemory-policy, noeviction, --save, '']
+    environment:
+      REDISCLI_AUTH: ${PAGEWRIGHT_REDIS_PASSWORD:?Set PAGEWRIGHT_REDIS_PASSWORD}
+    command: [sh, -c, 'exec redis-server --appendonly yes --appendfsync always --no-appendfsync-on-rewrite no --aof-load-truncated no --maxmemory-policy noeviction --save "" --requirepass "$$REDISCLI_AUTH"']
     volumes:
       - redis_data:/data
-    ports:
-      - "${PAGEWRIGHT_REDIS_PORT:-6379}:6379"
     networks:
       - pagewright
     healthcheck:
@@ -42,6 +40,7 @@ services:
       - "${PAGEWRIGHT_GATEWAY_PORT:-8085}:8085"
     environment:
       - PAGEWRIGHT_GATEWAY_PORT=8085
+      - PAGEWRIGHT_SERVICE_TOKEN=${PAGEWRIGHT_SERVICE_TOKEN:?Set PAGEWRIGHT_SERVICE_TOKEN}
       - PAGEWRIGHT_DATABASE_HOST=postgres:5432
       - PAGEWRIGHT_DATABASE_NAME=pagewright
       - PAGEWRIGHT_DATABASE_USER=pagewright
@@ -91,18 +90,17 @@ services:
     build:
       context: ./pagewright/manager
       dockerfile: Dockerfile
-    ports:
-      - "${PAGEWRIGHT_MANAGER_PORT:-8081}:8081"
     environment:
       - PAGEWRIGHT_PORT=8081
+      - PAGEWRIGHT_SERVICE_TOKEN=${PAGEWRIGHT_SERVICE_TOKEN:?Set PAGEWRIGHT_SERVICE_TOKEN}
       - PAGEWRIGHT_QUEUE_BACKEND=${PAGEWRIGHT_QUEUE_BACKEND:-redis}
       - PAGEWRIGHT_WORKER_SPAWNER=${PAGEWRIGHT_WORKER_SPAWNER:-docker}
       - PAGEWRIGHT_REDIS_ADDR=${PAGEWRIGHT_REDIS_ADDR:-redis:6379}
-      - PAGEWRIGHT_REDIS_PASSWORD=${PAGEWRIGHT_REDIS_PASSWORD:-}
+      - PAGEWRIGHT_REDIS_PASSWORD=${PAGEWRIGHT_REDIS_PASSWORD:?Set PAGEWRIGHT_REDIS_PASSWORD}
       - PAGEWRIGHT_REDIS_DB=${PAGEWRIGHT_REDIS_DB:-0}
       - PAGEWRIGHT_LOCK_TTL=${PAGEWRIGHT_LOCK_TTL:-5m}
       - PAGEWRIGHT_LOCK_RENEW_INTERVAL=${PAGEWRIGHT_LOCK_RENEW_INTERVAL:-1m}
-      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.12}
+      - PAGEWRIGHT_WORKER_IMAGE=${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m4.3}
       - PAGEWRIGHT_WORKER_APPARMOR_PROFILE=${PAGEWRIGHT_WORKER_APPARMOR_PROFILE:-}
       - PAGEWRIGHT_WORKER_NETWORK=${COMPOSE_PROJECT_NAME:-pagewrightcloud}_pagewright
       - PAGEWRIGHT_WORKER_WORK_DIR=/work
@@ -134,10 +132,9 @@ services:
     build:
       context: ./pagewright/storage
       dockerfile: Dockerfile
-    ports:
-      - "${PAGEWRIGHT_STORAGE_PORT:-8080}:8080"
     environment:
       - PAGEWRIGHT_PORT=8080
+      - PAGEWRIGHT_SERVICE_TOKEN=${PAGEWRIGHT_SERVICE_TOKEN:?Set PAGEWRIGHT_SERVICE_TOKEN}
       - PAGEWRIGHT_STORAGE_BACKEND=${PAGEWRIGHT_STORAGE_BACKEND:-nfs}
       - PAGEWRIGHT_NFS_BASE_PATH=/nfs
       - PAGEWRIGHT_MANAGER_URL=http://manager:8081
@@ -158,10 +155,9 @@ services:
     build:
       context: ./pagewright/serving
       dockerfile: Dockerfile
-    ports:
-      - "${PAGEWRIGHT_SERVING_PORT:-8083}:8083"
     environment:
       - PAGEWRIGHT_SERVING_PORT=8083
+      - PAGEWRIGHT_SERVICE_TOKEN=${PAGEWRIGHT_SERVICE_TOKEN:?Set PAGEWRIGHT_SERVICE_TOKEN}
       - PAGEWRIGHT_WWW_ROOT=${PAGEWRIGHT_WWW_ROOT:-/var/www}
       - PAGEWRIGHT_NGINX_SITES_ENABLED=${PAGEWRIGHT_NGINX_SITES_ENABLED:-/etc/nginx/sites-enabled}
       - PAGEWRIGHT_NGINX_RELOAD_COMMAND=${PAGEWRIGHT_NGINX_RELOAD_COMMAND:-nginx -s reload}
@@ -189,8 +185,6 @@ services:
     build:
       context: ./pagewright/themes
       dockerfile: Dockerfile
-    ports:
-      - "${PAGEWRIGHT_THEMES_PORT:-8086}:80"
     networks:
       - pagewright
     restart: unless-stopped
@@ -244,7 +238,7 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "2"}
-    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m2.12}
+    image: ${PAGEWRIGHT_WORKER_IMAGE:-pagewright-worker:m4.3}
     user: "1000:1000"
     cap_drop: [ALL]
     security_opt:
@@ -258,8 +252,6 @@ services:
       dockerfile: pagewright/worker/Dockerfile
     profiles:
       - worker
-    ports:
-      - "${PAGEWRIGHT_WORKER_PORT:-8082}:8082"
     environment:
       - PAGEWRIGHT_WORKER_PORT=8082
       - PAGEWRIGHT_WORK_DIR=${PAGEWRIGHT_WORK_DIR:-/work}

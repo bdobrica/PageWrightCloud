@@ -115,7 +115,14 @@ func TestSpawnWireContract(t *testing.T) {
 			if got.JobID != job.JobID || got.Prompt != job.Prompt || got.OwnerID != job.OwnerID || got.FencingToken != 7 || got.LockToken != "lease" {
 				t.Errorf("lost job fields: %+v", got)
 			}
-			if len(env) != 7 || env["PAGEWRIGHT_LLM_KEY"] != "worker-only-secret" || env["PAGEWRIGHT_STORAGE_URL"] != "http://storage:8080" || env["PAGEWRIGHT_MANAGER_URL"] != "http://manager:8081" || env["PAGEWRIGHT_WORK_DIR"] != "/work" {
+			wantEnv := 7
+			if os.Getenv("PAGEWRIGHT_SERVICE_TOKEN") != "" {
+				wantEnv++
+			}
+			if env["PAGEWRIGHT_SERVICE_TOKEN"] != "" {
+				t.Error("master credential leaked to worker")
+			}
+			if len(env) != wantEnv || env["PAGEWRIGHT_LLM_KEY"] != "worker-only-secret" || env["PAGEWRIGHT_STORAGE_URL"] != "http://storage:8080" || env["PAGEWRIGHT_MANAGER_URL"] != "http://manager:8081" || env["PAGEWRIGHT_WORK_DIR"] != "/work" {
 				t.Error("wrong environment allowlist")
 			}
 			hc := body.HostConfig

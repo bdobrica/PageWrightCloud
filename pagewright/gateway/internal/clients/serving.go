@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
 )
 
 type ServingClient struct {
@@ -18,6 +20,7 @@ func NewServingClient(baseURL string) *ServingClient {
 	return &ServingClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
+			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key()},
 			Timeout:       30 * time.Second,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
 		},

@@ -144,6 +144,10 @@ func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {
 		writeLookupError(w, err)
 		return
 	}
+	if verified := r.Header.Get("X-Pagewright-Verified-Job"); verified != "" && (job.JobID != verified || job.LockToken != r.Header.Get("X-Pagewright-Verified-Lock") || fmt.Sprint(job.FencingToken) != r.Header.Get("X-Pagewright-Verified-Fence")) {
+		writeError(w, 403, "worker_scope_denied", "worker attempt scope denied")
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(job)
@@ -161,6 +165,10 @@ func (h *Handler) applyCallback(w http.ResponseWriter, r *http.Request, terminal
 	var update types.JobStatusUpdate
 	if err := decodeRequest(r, &update); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", fmt.Sprintf("Invalid request body: %v", err))
+		return
+	}
+	if job := r.Header.Get("X-Pagewright-Verified-Job"); job != "" && (update.JobID != job || update.LockToken != r.Header.Get("X-Pagewright-Verified-Lock") || fmt.Sprint(update.FencingToken) != r.Header.Get("X-Pagewright-Verified-Fence")) {
+		writeError(w, 403, "worker_scope_denied", "worker attempt scope denied")
 		return
 	}
 	if blank(update.JobID) || blank(update.SiteID) || blank(update.OwnerID) || blank(update.SourceVersion) || blank(update.TargetVersion) {

@@ -7,6 +7,7 @@ assert.ok(['fresh', 'restored'].includes(stage));
 async function request(base, path, options = {}, expected = 200) {
   const response = await fetch(base + path, {
     ...options,
+    headers: { ...options.headers, ...([storage, manager].includes(base) ? { Authorization: `Bearer ${process.env.PAGEWRIGHT_SERVICE_TOKEN}` } : {}) },
     signal: AbortSignal.timeout(15000),
   });
   assert.equal(response.status, expected, `${stage}: ${path} returned ${response.status}`);

@@ -5,9 +5,10 @@ smoke_project="pagewright-smoke-$(date +%s)-$$"
 unset COMPOSE_PROFILES
 # Ignore app .env and inherited endpoints/credentials; all state belongs to this run.
 export PAGEWRIGHT_POSTGRES_PASSWORD='smoke:@/?#%&=+database-password'
+export PAGEWRIGHT_SERVICE_TOKEN=smoke-internal-service-token-not-production
 export PAGEWRIGHT_STORAGE_URL=http://storage:8080 PAGEWRIGHT_MANAGER_URL=http://manager:8081
 export PAGEWRIGHT_SERVING_URL=http://serving:8083 PAGEWRIGHT_REDIS_ADDR=redis:6379
-export PAGEWRIGHT_REDIS_PASSWORD= PAGEWRIGHT_REDIS_DB=0 PAGEWRIGHT_STORAGE_BACKEND=nfs
+export PAGEWRIGHT_REDIS_PASSWORD=smoke-private-redis-password PAGEWRIGHT_REDIS_DB=0 PAGEWRIGHT_STORAGE_BACKEND=nfs
 export PAGEWRIGHT_QUEUE_BACKEND=redis PAGEWRIGHT_WORKER_SPAWNER=docker
 export PAGEWRIGHT_DISPATCH_CONCURRENCY=4 PAGEWRIGHT_DISPATCH_CLAIM_TTL=30s
 export PAGEWRIGHT_JWT_SECRET=isolated-smoke-test-secret-not-production PAGEWRIGHT_JWT_EXPIRATION=15m
@@ -27,7 +28,7 @@ export PAGEWRIGHT_POSTGRES_PORT=0 PAGEWRIGHT_REDIS_PORT=0 PAGEWRIGHT_GATEWAY_POR
 export PAGEWRIGHT_MANAGER_PORT=0 PAGEWRIGHT_STORAGE_PORT=0 PAGEWRIGHT_SERVING_PORT=0
 export PAGEWRIGHT_UI_PORT=0 PAGEWRIGHT_THEMES_PORT=0 PAGEWRIGHT_NGINX_PORT=0
 compose() {
-    docker compose --env-file /dev/null -p "$smoke_project" -f docker-compose.yaml "$@"
+    docker compose --env-file /dev/null -p "$smoke_project" -f docker-compose.yaml -f docker-compose.smoke.yaml "$@"
 }
 cleanup() {
     result=$?

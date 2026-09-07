@@ -17,8 +17,8 @@ errors, not parser errors containing private values. Explicit invalid port/lifet
 strings cannot silently fall back; JWT lifetime must be positive and at most 24h.
 AI stays disabled by default; enabling it still requires the separate provider
 credential and allowance described in [pilot limits](PILOT_LIMITS.md). Disabled
-OAuth does not require OAuth secrets. Redis authentication/private ports and
-scoped internal credentials remain M4.3, not an implied protection here.
+OAuth does not require OAuth secrets. M4.3 adds required service/Redis credentials,
+private ports and scoped worker access; see [internal authentication](INTERNAL_AUTH.md).
 
 ## One PostgreSQL credential source
 

@@ -47,6 +47,9 @@ func (c *Client) request(method, url string, body io.Reader) (*http.Request, err
 	if err == nil && method != http.MethodGet && c.attempt != "" {
 		req.Header.Set("X-Pagewright-Attempt", c.attempt)
 	}
+	if err == nil && os.Getenv("PAGEWRIGHT_WORKER_TOKEN") != "" {
+		req.Header.Set("Authorization", "Bearer "+os.Getenv("PAGEWRIGHT_WORKER_TOKEN"))
+	}
 	return req, err
 }
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -33,6 +34,9 @@ func deliverResult(ctx context.Context, managerURL string, result types.JobResul
 			return 0, nil, err
 		}
 		req.Header.Set("Content-Type", "application/json")
+		if token := os.Getenv("PAGEWRIGHT_WORKER_TOKEN"); token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			return 0, nil, err

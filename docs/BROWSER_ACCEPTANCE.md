@@ -66,6 +66,12 @@ separate, explicitly authorized M2.12 suite. This run costs $0 in provider credi
 
 ## Evidence and cleanup
 
+M4.3 additionally runs container-network rejection probes after the journey using
+the actual disposable workers' scoped credentials. No service/master token is
+given to the probe container. Anonymous internal APIs/Redis and cross-job/version
+writes must fail; own-job readback and source download must succeed. See
+[internal access](INTERNAL_AUTH.md) for scopes and remaining trust boundaries.
+
 The runner prints its unique project name and evidence directory under `/tmp`.
 Playwright traces and hosted-page/dashboard screenshots remain there for review;
 they contain synthetic account/session data and should not be publicly shared.

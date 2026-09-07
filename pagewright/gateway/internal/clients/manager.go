@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 )
 
@@ -22,7 +23,8 @@ func NewManagerClient(baseURL string) *ManagerClient {
 	return &ManagerClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Transport: serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key()},
+			Timeout:   30 * time.Second,
 			// A redirect could deliver POST before a later dial failure, making
 			// that error unsafe to classify as definitely not submitted.
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
