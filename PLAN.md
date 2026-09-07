@@ -1368,6 +1368,64 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.1 completed (2026-09-07) in `cbb5380`.
+[Pilot limits and provisioning](docs/PILOT_LIMITS.md) records configuration,
+conservative charging semantics, pricing sources, upgrade and fail-closed recovery.
+Operator provisioning is the selected access model: public signup defaults to
+403, the registration UI explains operator access, and the existing account CLI
+supports password stdin. Explicit development signup is only for disposable tests.
+
+Migration 011 adds PostgreSQL admission, rate-counter and provider-reservation
+tables. Admission precedes clarification/instruction calls and defaults to ten
+attempts per owner/day, five per site/day, one active build per owner and two
+globally. Failed/unclear attempts count. Exact retries reuse their attempt and
+committed submission recovery remains available without fresh quota or credit.
+Preparing and uncertain durable work continues occupying capacity after restart.
+Fixed-minute throttles cover global, peer-IP/auth and authenticated-owner traffic;
+forwarding headers cannot select a new peer bucket. Database failures fail closed.
+
+Both gateway LLM calls and the pinned worker CLI use an internal, unpublished
+gateway provider listener. Only the gateway receives the real key. Workers use a
+separate internal token with reviewed text models, bounded output/request/response
+sizes and no hosted tools or remote input/history. The pinned CLI's deferred
+`additional_tools` definitions are validated recursively as local tools. Every
+upstream attempt permanently reserves 100 cents before network I/O against the
+configured lifetime allowance, default zero. Increasing the total grants only the
+increment; failures/restarts never refund it. Verified terminal responses release
+concurrency; uncertain or failed outcomes require operator review. OpenAI Docs
+informed the conservative pricing envelope; this is not actual billed usage or a
+cap on unrelated key use. Review prices before enabling/replenishing allowance.
+
+Verification passed:
+
+- `make test-all`: all six Go modules; one pre-existing serving configuration skip.
+- Gateway `go test -race ./...` and `go vet ./...`, plus final focused HTTP retry/
+  allowance-error regressions. Admission rejection cannot reach provider/dispatch.
+- `make test-integration`: full isolated race-enabled service suites, including
+  concurrent quota/budget/rate admission, restart persistence and no-refund checks.
+- UI contracts, zero-warning lint and production build; ten offline provider tests;
+  existing rendered draft-expiry/re-authentication/publishing regression.
+- `make smoke-stack`: production startup, crash/recreation, durable history and
+  missing-evidence recovery. Updated its capabilities expectation for signup mode.
+- Full real-service browser journey through the new proxy: two actual sandboxed
+  source edits, independent preview/live targets, failed build and rollback.
+  Gateway restart into closed mode, operator CLI provisioning, real UI login and
+  disabled-AI 429 guidance also passed. Final evidence:
+  `/tmp/pagewright-browser-pLbBlZ` (cached Playwright 1.58.2 / Firefox revision 1509).
+
+During verification, corrected PostgreSQL UUID/text parameter typing, compatibility
+with the pinned CLI's local deferred definitions, and an ambiguous browser error
+selector. Temporary fixture diagnostics were removed before acceptance/commit.
+Disposable containers/networks/volumes were removed; test evidence/build caches
+remain local. No paid provider calls, private-key reads, remote-host changes or
+push occurred. Existing application volumes/accounts were not migrated by tests.
+
+M4.1 does not close the remote-pilot release gate. Shared internal credentials
+are not job-scoped, internal APIs still need authorization/private ports, and
+origins/TLS/reset-email/backups remain outstanding. Orphan preparing attempts and
+uncertain provider slots deliberately need operator recovery; all replicas must
+share the same policy. Next: **M4.2**. Do not expose this stack to remote testers yet.
+
 Carry boundary protections into M1/M2 as those interfaces are implemented; complete this gate before remote access. Add explicit origin policies, internal request authentication, per-job callback credentials, request/archive limits, path and hostname validation, worker isolation, per-user usage limits and secret validation. Disable open signup or require invitations. Deliver reset email without logging tokens; make tokens single-use and handle session expiry. Configure HTTPS for app and hosted sites, private infrastructure ports, persistent Redis state, backups, restore instructions and useful correlated error logs.
 
 **Exit:** two accounts cannot access each other's sites, jobs, artifacts or updates; unauthenticated callers cannot mutate internal services; invalid/oversized archives and paths fail safely; a backup restore and bounded AI failure test succeed. All MVP release checks below pass.
@@ -1378,7 +1436,7 @@ Dependency order: **M0 → M1 → M2 → M3 → M4**. Security work belongs alon
 
 Automate the deterministic scenarios against actual service interfaces and browser UI. Keep the real-provider smoke test separate, explicitly invoked and cost-bounded.
 
-1. From empty disposable volumes, start the stack and register/sign in. Create a unique platform subdomain with the starter theme; duplicate/invalid names return useful errors.
+1. From empty disposable volumes, start the stack, provision an account through the operator CLI and sign in. Verify public signup is closed (development signup is only an explicit fixture exception). Create a unique platform subdomain with the starter theme; duplicate/invalid names return useful errors.
 2. Submit an edit; observe a job ID, pending/running state and a completed version with a real manifest. Repeat with the real executor and confirm the requested content changed.
 3. Preview before any live publication. Check home, another page, CSS, JS and an asset. Publish the exact previewed version and verify the live URL over HTTP locally / HTTPS in the pilot.
 4. Make two unpublished edits; both survive in the newest draft. Publishing and previewing update only the intended DB pointer. Roll back to an earlier version and verify its actual HTML.

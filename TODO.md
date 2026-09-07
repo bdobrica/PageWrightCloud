@@ -1,6 +1,6 @@
 # TODO — working MVP
 
-Updated: 2026-09-06. Strategy, code evidence, scope and acceptance scenarios: [PLAN.md](PLAN.md).
+Updated: 2026-09-07. Strategy, code evidence, scope and acceptance scenarios: [PLAN.md](PLAN.md).
 
 This replaces the March security-first two-week schedule with a dependency-ordered MVP backlog. Existing components are acknowledged below; a checked component does not imply an integrated feature. All unfinished MVP work is unchecked. Longer-term ideas are retained in the deferred backlog.
 
@@ -87,7 +87,7 @@ Depends on M2. Exit: create → edit → refresh → preview → publish → edi
 
 Apply relevant protections while building M1/M2; all items below block admitting remote testers.
 
-- [ ] M4.1 Require invitations or operator provisioning; implement per-user/site build quotas, request throttling and bounded AI spending/concurrency.
+- [x] M4.1 Require invitations or operator provisioning; implement per-user/site build quotas, request throttling and bounded AI spending/concurrency. Implementation: `cbb5380`; [pilot policy, provisioning and recovery](docs/PILOT_LIMITS.md). Signup is closed by default; operator CLI accepts passwords through stdin and the UI shows access guidance. PostgreSQL admission enforces configurable owner/site daily attempts, one active build per owner and bounded global work before provider calls; exact committed retries bypass new admission. Durable fixed-minute request throttles ignore spoofed forwarding headers. An unpublished internal provider proxy holds the real key, restricts reviewed text models/local tools and permanently reserves 100 cents before each upstream attempt against a lifetime allowance (default zero). Money is never automatically refunded; uncertain provider outcomes retain concurrency for operator review. Root workers receive only the separate proxy credential; isolation remains unchanged. Six-module package baseline, gateway race/vet, full race-enabled isolated integration, UI contracts/zero-warning lint/build, offline provider tests, rendered draft regression, startup/crash/recreation smoke and full real-service browser journey through the proxy passed. Browser acceptance also restarts into closed mode, provisions an account and verifies login and disabled-AI 429 guidance. Fixed a PostgreSQL UUID/text comparison, pinned-CLI deferred local-tool validation and test expectations/selectors during verification. One pre-existing serving skip remains. Disposable stacks/data removed; traces retained locally. No paid calls, private-key reads, remote deployment or push. Budget pricing assumptions require operator review; shared credentials/internal API exposure, origins/TLS and remaining release gates are not solved by M4.1. Next: M4.2.
 - [ ] M4.2 Remove default production secrets and fail startup for missing critical configuration. Wire PostgreSQL credentials consistently; redact reset tokens, credentials and private prompts from routine logs.
 - [ ] M4.3 Restrict internal service/database/Redis ports; authenticate service writes and scoped worker callbacks. Test direct unauthenticated requests and cross-job credential misuse.
 - [ ] M4.4 Validate/normalize platform subdomains, reserved names, site/version identifiers and path containment before filesystem or nginx use. Reject configuration injection and traversal.
