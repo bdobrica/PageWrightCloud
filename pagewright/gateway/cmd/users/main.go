@@ -44,15 +44,15 @@ func run() int {
 
 	// Load configuration from environment
 	cfg := config.LoadConfig()
-	if cfg.DatabaseURL == "" {
-		log.Println("Error: PAGEWRIGHT_DATABASE_URL environment variable is required")
+	if err := config.ValidateDatabase(cfg.DatabaseURL); err != nil {
+		log.Print(err)
 		return exitError
 	}
 
 	// Connect to database
 	db, err := database.NewDB(cfg.DatabaseURL)
 	if err != nil {
-		log.Printf("Error: Failed to connect to database: %v\n", err)
+		log.Print("Error: Failed to connect to database; verify PostgreSQL configuration and readiness")
 		return exitError
 	}
 	defer db.Close()
@@ -113,9 +113,9 @@ func printUsage() {
 	fmt.Println("\n  delete      Delete a user")
 	fmt.Println("    -email string      User email to delete (required)")
 	fmt.Println("\nEnvironment Variables:")
-	fmt.Println("  PAGEWRIGHT_DATABASE_URL    Database connection string (required)")
+	fmt.Println("  PAGEWRIGHT_DATABASE_URL    Direct deployment URL, or Compose-supplied database fields")
 	fmt.Println("\nExamples:")
-	fmt.Println("  users create -email admin@example.com -password secretpass")
+	fmt.Println("  users create -email admin@example.com -password-stdin")
 	fmt.Println("  users list")
 	fmt.Println("  users delete -email admin@example.com")
 }
@@ -128,7 +128,7 @@ func createUser(db *database.DB, email, password string) int {
 	// Check if user already exists
 	existingUser, err := db.GetUserByEmail(email)
 	if err != nil {
-		log.Printf("Error: Failed to check if user exists: %v\n", err)
+		log.Print("Error: Failed to check account existence; database diagnostics withheld")
 		return exitError
 	}
 	if existingUser != nil {
@@ -139,14 +139,14 @@ func createUser(db *database.DB, email, password string) int {
 	// Hash the password
 	hashedPassword, err := auth.HashPassword(password)
 	if err != nil {
-		log.Printf("Error: Failed to hash password: %v\n", err)
+		log.Print("Error: Failed to hash password")
 		return exitError
 	}
 
 	// Create the user
 	user, err := db.CreateUser(email, hashedPassword, nil, nil)
 	if err != nil {
-		log.Printf("Error: Failed to create user: %v\n", err)
+		log.Print("Error: Failed to create user; database diagnostics withheld")
 		return exitError
 	}
 
@@ -161,7 +161,7 @@ func createUser(db *database.DB, email, password string) int {
 func listUsers(db *database.DB) int {
 	users, err := db.ListUsers()
 	if err != nil {
-		log.Printf("Error: Failed to list users: %v\n", err)
+		log.Print("Error: Failed to list users; database diagnostics withheld")
 		return exitError
 	}
 
@@ -196,7 +196,7 @@ func deleteUser(db *database.DB, email string) int {
 	// Check if user exists
 	user, err := db.GetUserByEmail(email)
 	if err != nil {
-		log.Printf("Error: Failed to check if user exists: %v\n", err)
+		log.Print("Error: Failed to check account existence; database diagnostics withheld")
 		return exitError
 	}
 	if user == nil {
@@ -207,7 +207,7 @@ func deleteUser(db *database.DB, email string) int {
 	// Delete the user
 	err = db.DeleteUser(user.ID)
 	if err != nil {
-		log.Printf("Error: Failed to delete user: %v\n", err)
+		log.Print("Error: Failed to delete user; database diagnostics withheld")
 		return exitError
 	}
 

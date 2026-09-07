@@ -7,6 +7,9 @@ gates, particularly internal-service authentication, private ports, origins and 
 
 ## Account provisioning
 
+First configure the [required PostgreSQL/JWT secrets](CONFIGURATION_SECURITY.md).
+Existing database volumes require coordinated password rotation, not deletion.
+
 Start the gateway so its migrations have completed. Create an account through
 the existing operator CLI; prefer stdin so the password is not in process
 arguments or shell history:

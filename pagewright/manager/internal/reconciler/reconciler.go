@@ -41,7 +41,7 @@ func (r *Reconciler) Run(ctx context.Context) {
 	defer ticker.Stop()
 	for {
 		if err := r.Once(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("Worker reconciliation pending: %v", err)
+			log.Print("Worker reconciliation pending; private dependency diagnostics withheld")
 		}
 		select {
 		case <-ctx.Done():

@@ -15,6 +15,7 @@ const evidence = mkdtempSync(`${tmpdir()}/pagewright-browser-`);
 const env = {
   PATH: process.env.PATH, HOME: process.env.HOME, DOCKER_CONFIG: process.env.DOCKER_CONFIG,
   COMPOSE_PROJECT_NAME: project,
+  PAGEWRIGHT_POSTGRES_PASSWORD: 'browser-only-database-password',
   PAGEWRIGHT_SIGNUP_MODE: 'development', PAGEWRIGHT_PROVIDER_TOKEN: 'browser-acceptance-private-proxy-token', PAGEWRIGHT_AI_ALLOWANCE_CENTS: '3000',
   PAGEWRIGHT_SITE_DOMAIN: 'example.localhost', PAGEWRIGHT_HOSTING_SCHEME: 'http',
   PAGEWRIGHT_LLM_KEY: 'browser-acceptance-dummy-key', PAGEWRIGHT_LLM_URL: 'http://fixture:8090/v1',

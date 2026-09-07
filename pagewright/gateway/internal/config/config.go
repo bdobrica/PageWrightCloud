@@ -41,14 +41,14 @@ type Config struct {
 func LoadConfig() *Config {
 	return &Config{
 		Port:               getEnvInt("PAGEWRIGHT_GATEWAY_PORT", 8085),
-		DatabaseURL:        getEnv("PAGEWRIGHT_DATABASE_URL", ""),
+		DatabaseURL:        databaseURL(),
 		StorageURL:         getEnv("PAGEWRIGHT_STORAGE_URL", ""),
 		ManagerURL:         getEnv("PAGEWRIGHT_MANAGER_URL", ""),
 		ServingURL:         getEnv("PAGEWRIGHT_SERVING_URL", ""),
 		HostingScheme:      getEnv("PAGEWRIGHT_HOSTING_SCHEME", "http"),
 		HostingPort:        getEnv("PAGEWRIGHT_HOSTING_PORT", "8084"),
 		SiteDomain:         getEnv("PAGEWRIGHT_SITE_DOMAIN", "pagewright.dev"),
-		JWTSecret:          getEnv("PAGEWRIGHT_JWT_SECRET", "change-me-in-production"),
+		JWTSecret:          getEnv("PAGEWRIGHT_JWT_SECRET", ""),
 		JWTExpiration:      getEnvDuration("PAGEWRIGHT_JWT_EXPIRATION", 15*time.Minute),
 		GoogleClientID:     getEnv("PAGEWRIGHT_GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("PAGEWRIGHT_GOOGLE_CLIENT_SECRET", ""),

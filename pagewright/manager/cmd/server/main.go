@@ -40,7 +40,7 @@ func main() {
 	case "redis":
 		queueBackend, err = queueRedis.NewRedisBackend(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 		if err != nil {
-			log.Fatalf("Failed to initialize Redis queue backend: %v", err)
+			log.Fatal("Failed to initialize Redis queue backend; verify configuration and readiness")
 		}
 	default:
 		log.Fatalf("Unsupported queue backend: %s", cfg.QueueBackend)
@@ -54,7 +54,7 @@ func main() {
 	case "redis":
 		lockMgr, err = lockRedis.NewRedisLockManager(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 		if err != nil {
-			log.Fatalf("Failed to initialize Redis lock manager: %v", err)
+			log.Fatal("Failed to initialize Redis lock manager; verify configuration and readiness")
 		}
 	default:
 		log.Fatalf("Unsupported lock backend: %s", cfg.QueueBackend)
@@ -68,7 +68,7 @@ func main() {
 	case "docker":
 		workerSpawner, err = docker.NewDockerSpawner(docker.Config{Image: cfg.WorkerImage, Network: cfg.WorkerNetwork, Socket: cfg.DockerSocket, WorkDir: cfg.WorkerWorkDir, StorageURL: cfg.WorkerStorageURL, LLMURL: cfg.WorkerLLMURL, LLMKey: cfg.WorkerLLMKey, LLMModel: cfg.WorkerLLMModel, AppArmorProfile: cfg.WorkerAppArmorProfile})
 		if err != nil {
-			log.Fatalf("Invalid Docker worker configuration: %v", err)
+			log.Fatal("Invalid Docker worker configuration; private values withheld")
 		}
 	case "kubernetes":
 		workerSpawner = kubernetes.NewKubernetesSpawner(cfg.WorkerImage, "default")
@@ -94,14 +94,14 @@ func main() {
 	initialization, endInitialization := context.WithTimeout(context.Background(), 60*time.Second)
 	if _, testOnly := testSpawners[cfg.WorkerSpawner]; !testOnly {
 		if err := queueBackend.(*queueRedis.RedisBackend).ValidateDurability(initialization); err != nil {
-			log.Fatalf("Unsafe Redis persistence: %v", err)
+			log.Fatal("Unsafe Redis persistence; verify the durability policy")
 		}
 	}
 	if err := queueBackend.(*queueRedis.RedisBackend).ProtectReservations(initialization); err != nil {
-		log.Fatalf("Reservation migration failed: %v", err)
+		log.Fatal("Reservation migration failed; private diagnostics withheld")
 	}
 	if err := dispatchQueue.InitializeDispatch(initialization, cfg.DispatchConcurrency); err != nil {
-		log.Fatalf("Queue initialization failed: %v", err)
+		log.Fatal("Queue initialization failed; private diagnostics withheld")
 	}
 	endInitialization()
 	dispatcherContext, stopDispatch := context.WithCancel(context.Background())
@@ -148,7 +148,7 @@ func main() {
 		log.Printf("Manager service starting on port %d", cfg.Port)
 		log.Printf("Queue backend: %s", cfg.QueueBackend)
 		log.Printf("Worker spawner: %s", cfg.WorkerSpawner)
-		log.Printf("Manager URL: %s", managerURL)
+		log.Print("Manager callback endpoint configured")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed: %v", err)
 		}

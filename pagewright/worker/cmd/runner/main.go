@@ -35,7 +35,7 @@ func main() {
 
 	var job types.Job
 	if err := json.Unmarshal([]byte(cfg.JobJSON), &job); err != nil {
-		fmt.Printf("ERROR: Failed to parse job JSON: %v\n", err)
+		fmt.Println("ERROR: Failed to parse job JSON; payload withheld")
 		os.Exit(1)
 	}
 	if err := job.ValidateLaunch(); err != nil {

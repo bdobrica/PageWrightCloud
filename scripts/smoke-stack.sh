@@ -4,13 +4,13 @@ cd "$(dirname "$0")/.."
 smoke_project="pagewright-smoke-$(date +%s)-$$"
 unset COMPOSE_PROFILES
 # Ignore app .env and inherited endpoints/credentials; all state belongs to this run.
-export PAGEWRIGHT_DATABASE_URL='postgres://pagewright:pagewright@postgres:5432/pagewright?sslmode=disable'
+export PAGEWRIGHT_POSTGRES_PASSWORD='smoke:@/?#%&=+database-password'
 export PAGEWRIGHT_STORAGE_URL=http://storage:8080 PAGEWRIGHT_MANAGER_URL=http://manager:8081
 export PAGEWRIGHT_SERVING_URL=http://serving:8083 PAGEWRIGHT_REDIS_ADDR=redis:6379
 export PAGEWRIGHT_REDIS_PASSWORD= PAGEWRIGHT_REDIS_DB=0 PAGEWRIGHT_STORAGE_BACKEND=nfs
 export PAGEWRIGHT_QUEUE_BACKEND=redis PAGEWRIGHT_WORKER_SPAWNER=docker
 export PAGEWRIGHT_DISPATCH_CONCURRENCY=4 PAGEWRIGHT_DISPATCH_CLAIM_TTL=30s
-export PAGEWRIGHT_JWT_SECRET=isolated-smoke-test-secret PAGEWRIGHT_JWT_EXPIRATION=15m
+export PAGEWRIGHT_JWT_SECRET=isolated-smoke-test-secret-not-production PAGEWRIGHT_JWT_EXPIRATION=15m
 export PAGEWRIGHT_DEFAULT_PAGE_SIZE=25
 export VITE_PAGEWRIGHT_API_URL=http://localhost:8085
 export PAGEWRIGHT_SITE_DOMAIN=example.test

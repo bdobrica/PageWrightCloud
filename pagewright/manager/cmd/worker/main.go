@@ -32,12 +32,11 @@ func main() {
 	// Parse job
 	var job types.Job
 	if err := json.Unmarshal([]byte(jobJSON), &job); err != nil {
-		log.Fatalf("Failed to parse job: %v", err)
+		log.Fatal("Failed to parse job; payload withheld")
 	}
 
 	log.Printf("Worker %s starting for job %s", workerID, job.JobID)
 	log.Printf("Site ID: %s", job.SiteID)
-	log.Printf("Prompt: %s", job.Prompt)
 	log.Printf("Source Version: %s", job.SourceVersion)
 	log.Printf("Target Version: %s", job.TargetVersion)
 	log.Printf("Fencing Token: %d", job.FencingToken)
@@ -64,7 +63,7 @@ func main() {
 	}
 
 	if err := sendCallback(managerURL, job.JobID, statusUpdate); err != nil {
-		log.Fatalf("Failed to send callback: %v", err)
+		log.Fatal("Failed to send callback; private response withheld")
 	}
 
 	log.Println("Callback sent successfully, worker exiting")

@@ -24,6 +24,9 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
+	if err := cfg.Validate(); err != nil {
+		log.Fatal(err)
+	}
 	limits, err := config.LoadPilot()
 	if err != nil {
 		log.Fatal(err)
@@ -32,7 +35,7 @@ func main() {
 	// Connect to database
 	db, err := database.NewDB(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatal("Failed to connect to database; verify PostgreSQL configuration and readiness")
 	}
 	defer db.Close()
 
@@ -41,7 +44,7 @@ func main() {
 	err = db.RunMigrations(migrationCtx)
 	cancelMigrations()
 	if err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		log.Fatal("Failed to run migrations; operator database inspection required")
 	}
 
 	// Initialize service clients

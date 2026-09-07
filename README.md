@@ -5,6 +5,9 @@ See [pilot limits and provisioning](docs/PILOT_LIMITS.md) before upgrading or
 enabling an allowance. Remaining M4 security/release gates still apply; this is
 not yet a remotely deployable pilot release.
 
+Startup requires explicit PostgreSQL and JWT secrets; see
+[configuration security and existing-volume rotation](docs/CONFIGURATION_SECURITY.md).
+
 An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
 
 ## Current status

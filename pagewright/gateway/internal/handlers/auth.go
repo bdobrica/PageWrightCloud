@@ -181,8 +181,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Send email with reset link
 	// In production: send email to user.Email with link: https://frontend.com/reset-password?token={token}
-	// For now, just return success (in dev, you can log the token)
-	log.Printf("Password reset token for %s: %s", user.Email, token)
+	// Never use routine logs as a delivery channel. Email delivery remains M4.8.
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -242,7 +241,7 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	// Mark token as used
 	if err := h.db.MarkPasswordResetTokenUsed(resetToken.ID); err != nil {
-		log.Printf("Warning: failed to mark token as used: %v", err)
+		log.Print("Warning: failed to mark reset token as used")
 	}
 
 	w.WriteHeader(http.StatusOK)
