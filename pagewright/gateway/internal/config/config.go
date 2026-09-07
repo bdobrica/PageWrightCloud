@@ -20,6 +20,7 @@ type Config struct {
 	HostingScheme string
 	HostingPort   string
 	SiteDomain    string
+	AppOrigins    string
 
 	// JWT
 	JWTSecret     string
@@ -48,6 +49,7 @@ func LoadConfig() *Config {
 		HostingScheme:      getEnv("PAGEWRIGHT_HOSTING_SCHEME", "http"),
 		HostingPort:        getEnv("PAGEWRIGHT_HOSTING_PORT", "8084"),
 		SiteDomain:         getEnv("PAGEWRIGHT_SITE_DOMAIN", "pagewright.dev"),
+		AppOrigins:         getEnv("PAGEWRIGHT_APP_ORIGINS", "http://localhost:3000"),
 		JWTSecret:          getEnv("PAGEWRIGHT_JWT_SECRET", ""),
 		JWTExpiration:      getEnvDuration("PAGEWRIGHT_JWT_EXPIRATION", 15*time.Minute),
 		GoogleClientID:     getEnv("PAGEWRIGHT_GOOGLE_CLIENT_ID", ""),

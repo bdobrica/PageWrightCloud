@@ -32,6 +32,10 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatal(err)
 	}
+	originPolicy, err := middleware.OriginPolicy(cfg.AppOrigins, cfg.SiteDomain)
+	if err != nil {
+		log.Fatal(err)
+	}
 	limits, err := config.LoadPilot()
 	if err != nil {
 		log.Fatal(err)
@@ -94,8 +98,7 @@ func main() {
 	// Setup router
 	r := mux.NewRouter()
 
-	// Apply CORS middleware
-	r.Use(middleware.CORS)
+	// The server's outer origin policy runs before router throttling and auth.
 	r.Use(middleware.PilotThrottle(db, false))
 
 	// Public routes
@@ -155,7 +158,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      r,
+		Handler:      originPolicy(r),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

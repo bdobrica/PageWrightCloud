@@ -18,6 +18,7 @@ func TestInvalidStartup(t *testing.T) {
 		want string
 	}{
 		{"missing", nil, "PAGEWRIGHT_JWT_SECRET"},
+		{"invalid origins", []string{"PAGEWRIGHT_JWT_SECRET=" + strings.Repeat("s", 32), "PAGEWRIGHT_DATABASE_URL=postgres://pilot:sentinel-private-password@127.0.0.1/db?sslmode=disable", "PAGEWRIGHT_STORAGE_URL=http://storage", "PAGEWRIGHT_MANAGER_URL=http://manager", "PAGEWRIGHT_SERVING_URL=http://serving", "PAGEWRIGHT_APP_ORIGINS=*"}, "PAGEWRIGHT_APP_ORIGINS"},
 		{"malformed database", []string{"PAGEWRIGHT_JWT_SECRET=" + strings.Repeat("s", 32), "PAGEWRIGHT_DATABASE_URL=postgres://sentinel-private%invalid@host/db"}, "PostgreSQL configuration"},
 		{"missing services", []string{"PAGEWRIGHT_JWT_SECRET=" + strings.Repeat("s", 32), "PAGEWRIGHT_DATABASE_URL=postgres://pilot:sentinel-private-password@127.0.0.1/db?sslmode=disable"}, "PAGEWRIGHT_"},
 	} {

@@ -12,6 +12,7 @@ worker image; see [internal access and upgrade guidance](docs/INTERNAL_AUTH.md).
 M4.4 validates identifiers and filesystem boundaries; see the
 [naming policy and pagewright.io deployment notes](docs/IDENTIFIER_SECURITY.md).
 M4.5 enforces [request, archive and compiler resource limits](docs/RESOURCE_LIMITS.md).
+M4.6 configures [application origins and browser security headers](docs/ORIGIN_SECURITY.md).
 
 An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
 

@@ -6,10 +6,13 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runJourney } from '../pagewright/ui/test/journeyBrowser.mjs';
 import { checkPilotAccess } from '../pagewright/ui/test/pilotBrowser.mjs';
+import { checkOriginBoundaries } from '../pagewright/ui/test/originBrowser.mjs';
 
 const [modulePath, executablePath] = process.argv.slice(2);
 if (!modulePath || !executablePath) throw Error('Usage: node scripts/browser-acceptance.mjs <playwright/index.mjs> <firefox executable>');
 const { firefox } = await import(pathToFileURL(resolve(modulePath)).href);
+const launchBrowser = () => firefox.launch({ executablePath: resolve(executablePath), headless: true,
+  firefoxUserPrefs: { 'browser.cache.disk.enable': false, 'browser.cache.memory.enable': false } });
 const project = `pagewright-browser-${Date.now()}-${process.pid}`;
 const evidence = mkdtempSync(`${tmpdir()}/pagewright-browser-`);
 const env = {
@@ -55,10 +58,19 @@ try {
   env.PAGEWRIGHT_HOSTING_PORT = port('nginx', 80);
   compose('up', '-d', '--build', '--no-deps', '--wait', '--wait-timeout', '180', 'gateway');
   env.VITE_PAGEWRIGHT_API_URL = `http://localhost:${port('gateway', 8085)}`;
+  env.PAGEWRIGHT_GATEWAY_PORT = `127.0.0.1:${port('gateway', 8085)}`;
   compose('up', '-d', '--build', '--no-deps', '--wait', '--wait-timeout', '180', 'ui');
-  browser = await firefox.launch({ executablePath: resolve(executablePath), headless: true,
-    firefoxUserPrefs: { 'browser.cache.disk.enable': false, 'browser.cache.memory.enable': false } });
+  env.PAGEWRIGHT_APP_ORIGINS = `http://localhost:${port('ui', 80)}`;
+  compose('up', '-d', '--no-deps', '--wait', '--wait-timeout', '180', 'gateway');
+  browser = await launchBrowser();
   await runJourney(browser, `http://localhost:${port('ui', 80)}`, evidence);
+  // Keep independent acceptance phases isolated in fresh Firefox processes,
+  // including after the journey has opened opener-isolated generated pages.
+  await browser.close();
+  browser = await launchBrowser();
+  await checkOriginBoundaries(browser, env.PAGEWRIGHT_APP_ORIGINS, env.VITE_PAGEWRIGHT_API_URL, `http://journey.example.localhost:${env.PAGEWRIGHT_HOSTING_PORT}`);
+  await browser.close();
+  browser = undefined;
   const scopedWorkers = docker(['ps', '-aq', '--filter', 'label=io.pagewright.role=worker', '--filter', `label=io.pagewright.network=${project}_pagewright`], true).split(/\s+/).filter(Boolean);
   const tokens = scopedWorkers.map(id => JSON.parse(docker(['inspect', '--format', '{{json .Config.Env}}', id], true)).find(value => value.startsWith('PAGEWRIGHT_WORKER_TOKEN='))?.slice('PAGEWRIGHT_WORKER_TOKEN='.length));
   if (tokens.some(token => !token)) throw Error('Worker did not receive a scoped credential');
@@ -69,6 +81,7 @@ try {
   env.PAGEWRIGHT_LLM_URL = 'https://api.openai.com/v1';
   compose('up', '-d', '--no-deps', '--wait', '--wait-timeout', '180', 'gateway');
   docker([...composeArgs, 'exec', '-T', 'gateway', './users', 'create', '-email', 'operator-provisioned@example.test', '-password-stdin'], true, true, 'Acceptance-only-password-123!\n');
+  browser = await launchBrowser();
   await checkPilotAccess(browser, `http://localhost:${port('ui', 80)}`, env.VITE_PAGEWRIGHT_API_URL, evidence);
   console.log('PASS: real-service browser journey, sequential source edits, refresh, preview/live independence, failed build and rollback');
 } catch (error) {

@@ -72,6 +72,16 @@ given to the probe container. Anonymous internal APIs/Redis and cross-job/versio
 writes must fail; own-job readback and source download must succeed. See
 [internal access](INTERNAL_AUTH.md) for scopes and remaining trust boundaries.
 
+M4.6 configures the gateway with the exact disposable UI origin and pins the
+gateway port across recreation so the compiled UI API URL remains valid. Additional
+probes assert rejected generated/foreign/opaque origins, exact allowed preflights,
+retired sockets, security headers on HTML/assets/errors, allowed UI API access and
+an actual `connect-src` CSP violation for generated-page API access. Independent
+phases use fresh Firefox processes; hosted navigation checks response/DOM readiness
+and explicit rendered content instead of relying only on Firefox's load event
+across opener-isolation transitions. No security headers are disabled for testing.
+See [origin security](ORIGIN_SECURITY.md) for configuration and remaining limits.
+
 The runner prints its unique project name and evidence directory under `/tmp`.
 Playwright traces and hosted-page/dashboard screenshots remain there for review;
 they contain synthetic account/session data and should not be publicly shared.

@@ -79,11 +79,11 @@ for (const fqdn of ['arbitrary.test', 'example.test', 'nested.site.example.test'
  await request(gateway, '/sites', json({fqdn,template_id:'starter'},auth.token), 400);
 }
 for (const headers of [{}, { Authorization: `Bearer ${auth.token}`, Origin: 'https://foreign.example' }]) {
-  const retired = await request(gateway, '/ws?token=retired-query-token', {headers}, 501);
+  const retired = await request(gateway, '/ws?token=retired-query-token', {headers}, headers.Origin ? 403 : 501);
   assert.equal(retired.headers.get('cache-control'), 'no-store');
   assert.equal(retired.headers.get('upgrade'), null);
   const body = await retired.text();
-  assert.match(body, /polling/);
+  assert.match(body, headers.Origin ? /origin denied/ : /polling/);
   assert.ok(!body.includes(auth.token) && !body.includes('retired-query-token'));
 }
 if (stage === 'fresh') {

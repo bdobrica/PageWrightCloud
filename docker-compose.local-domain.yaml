@@ -2,6 +2,7 @@ services:
   gateway:
     environment:
       PAGEWRIGHT_SITE_DOMAIN: pagewright.io
+      PAGEWRIGHT_APP_ORIGINS: http://pagewright.io:3000,http://localhost:3000
   ui:
     build:
       args:

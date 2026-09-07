@@ -20,12 +20,14 @@ ENV VITE_PAGEWRIGHT_API_URL=$VITE_PAGEWRIGHT_API_URL
 
 # Build the application
 RUN npm run build
+RUN node scripts/security-config.mjs > /tmp/pagewright-security.conf
 
 # Production stage
 FROM nginx:alpine
 
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /tmp/pagewright-security.conf /etc/nginx/pagewright-security.conf
 
 # Copy built files from build stage
 COPY --from=build /app/dist /usr/share/nginx/html

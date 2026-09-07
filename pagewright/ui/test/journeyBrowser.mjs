@@ -50,7 +50,9 @@ export async function runJourney(browser, baseURL, evidence) {
   async function hosted(url, second, status = 200) {
     const tab = await context.newPage();
     try {
-      const response = await tab.goto(url);
+      // Firefox's load waiter can miss a lifecycle event after COOP popup
+      // isolation. DOM readiness plus explicit content/asset checks is stable.
+      const response = await tab.goto(url, { waitUntil: 'domcontentloaded' });
       assert.equal(response.status(), status, url);
       if (status !== 200) return;
       await tab.getByRole('heading', { name: 'Journey first heading', exact: true }).waitFor();
