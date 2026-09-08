@@ -30,7 +30,7 @@ There is useful implementation across all services, but the application is still
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains M4.8; M4.2 (`544901a`) removes routine reset-token logging. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
-| Boundaries | M4.3 (`8bc3619`) authenticates internal access and scopes worker capabilities. M4.4 (`da73a4d`) validates names/IDs and filesystem containment. M4.5 (`954ab9a`) bounds JSON, archives and compiler resources. M4.6 (`82c293f`) enforces exact application origins and separate UI/generated-content security headers. M4.7 (`9f3a6e0`) verifies cross-user management, polling and artifact isolation. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership and runtime quotas remain necessary. Origin checks are not identity and sibling-domain cookie risks remain. Generated preview HTML is public. Finish auth recovery, TLS and remaining M4 gates before remote release. |
+| Boundaries | M4.3 (`8bc3619`) authenticates internal access and scopes worker capabilities. M4.4 (`da73a4d`) validates names/IDs and filesystem containment. M4.5 (`954ab9a`) bounds JSON, archives and compiler resources. M4.6 (`82c293f`) enforces exact origins/security headers. M4.7 (`9f3a6e0`) verifies cross-user isolation. M4.8 (`55a6074`) adds TLS reset email, atomic hashed-token consumption and recovery acceptance. | The control plane shares one credential and in-host HTTP; trusted volumes and runtime quotas remain necessary. Generated preview HTML is public. Reset does not immediately revoke issued JWTs. Configure/verify production SMTP, finish TLS and remaining M4 gates before remote release. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
 resource ceilings and integrated trusted-output validation. Instructions alone are
@@ -1367,6 +1367,62 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.8 completed locally (2026-09-08) in `55a6074`.
+[Password reset](docs/PASSWORD_RESET.md) records SMTP setup, upgrade requirements,
+reset semantics, session recovery and remaining operator acceptance. SMTP supports
+mandatory STARTTLS and implicit TLS, certificate/name verification, optional paired
+credentials, an eight-second deadline and cancellation; it never falls back to
+plaintext. The reset URL is a fixed application-allowlisted `/reset-password` URL,
+HTTPS except explicit loopback development. New links use fragments and the UI
+scrubs the current history entry after capturing the token in memory. Request Host
+and forwarding headers never select the destination. Empty SMTP settings explicitly
+disable reset with 503; partial/malformed settings stop startup before DB work.
+
+The gateway generates 256-bit random reset secrets and stores only SHA-256 digests.
+An account row lock serializes consumers; token use, password update and sibling
+invalidation commit together. Expiry uses database wall-clock time at consumption,
+and periodic cleanup removes expired rows. Ordinary password changes invalidate
+pending reset links too. SMTP failure invalidates its token and emits only a fixed
+operational message. Configured forgot-password responses do not distinguish
+eligible/missing/passwordless accounts or delivery failure. Per-account database
+minute-bucket throttling supplements existing auth/IP/global limits. JSON/no-store
+responses and generic used/expired/invalid errors replace inconsistent responses.
+
+Registration, operator CLI, reset and password change consistently require at least
+eight Unicode characters and at most 72 UTF-8 bytes; UI validation matches. Existing
+passwords remain usable for login. This preserves the MVP minimum, not a claim of
+a stronger password standard. Reset does not immediately revoke existing JWTs;
+their configured lifetime (default 15 minutes) still applies. Actual expired JWTs
+are rejected before handlers. Rendered recovery verifies same-owner draft/retry/
+clarification preservation after expiry and login, without automatic resubmission;
+server-side builds remain independent of the browser session.
+
+Verification passed: six-module package baseline; gateway race/vet and final focused
+SMTP/startup/session tests; full isolated race-enabled integration including final
+forced-update rollback; UI contracts/lint/build; configuration/whitespace checks;
+startup/recovery smoke; rendered reset and draft-recovery regression; and the full
+production browser journey plus ownership/origin/internal-access/operator-login
+probes. SMTP wire tests use actual local verified TLS/STARTTLS dialogues and reject
+untrusted certificates/plaintext. Handler integration separately captures sender
+calls and proves hashed storage, throttling, exactly one winner among eight
+concurrent reset requests, expiry/replay, sibling invalidation, delivery failure,
+old-password rejection and new-password login. A forced DB failure proves password
+and token rollback together. One pre-existing serving configuration skip remains.
+Final evidence: `/tmp/pagewright-browser-MT19Yq`,
+`/tmp/pagewright-m48-recovery-browser.log`,
+`/tmp/pagewright-m48-integration-final.log`, `/tmp/pagewright-m48-smoke.log`.
+
+Rebuild gateway/UI; worker image and schema remain unchanged. Previously issued
+plaintext UUID links are intentionally unusable after upgrade; request a new link.
+SMTP is synchronous, without a durable retry/outbox; DATA acknowledgement is relay
+acceptance, not proof of inbox delivery. Timing is not constant across account
+existence. Production SMTP service/credentials, verified sender and real inbox
+acceptance are still operator setup before remote testers; the service/sender choice
+was requested, not assumed. No real recipient or provider was contacted. No paid
+calls, private .env reads/changes, DNS changes, remote deployment or push occurred.
+Disposable stacks/data were removed; local evidence/build caches remain. Next:
+**M4.9**. Remaining M4 gates still block admitting remote testers.
 
 M4.7 completed (2026-09-08) in `9f3a6e0`.
 [Ownership security](docs/OWNERSHIP_SECURITY.md) records the endpoint matrix,
