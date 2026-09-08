@@ -111,10 +111,10 @@ await request(gateway, '/sites/smoke.example.test/build', json({message:'edit',f
 // A disabled site's 503 differs from the unknown-host 404 fallback.
 await request(gateway, '/sites/smoke.example.test/disable', json({},auth.token));
 await hostingStatus(503);
-await hostingStatus(503, 'preview.smoke.example.test');
+await hostingStatus(503, 'smoke.preview.example.test');
 await request(gateway, '/sites/smoke.example.test/enable', json({},auth.token));
 await hostingStatus(404);
-await hostingStatus(404, 'preview.smoke.example.test');
+await hostingStatus(404, 'smoke.preview.example.test');
 const initialPath = `/sites/${sites.data[0].id}/artifacts/initial`;
 const initial = gunzipSync(Buffer.from(await (await request(storage, initialPath)).arrayBuffer())).toString();
 assert.ok(initial.includes('content/site.json') && initial.includes('content/home/index.md'));

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 export async function checkOriginBoundaries(browser, appURL, apiURL, siteURL) {
   const context = await browser.newContext();
   try {
-    for (const origin of [siteURL, siteURL.replace('://journey.', '://preview.journey.'), 'null', 'https://foreign.example', `${appURL}.evil.test`]) {
+    for (const origin of [siteURL, siteURL.replace('://journey.', '://journey.preview.'), 'null', 'https://foreign.example', `${appURL}.evil.test`]) {
       const response = await context.request.get(`${apiURL}/capabilities`, { headers: { Origin: origin, Authorization: 'Bearer rejected-before-auth' } });
       assert.equal(response.status(), 403);
       assert.equal(response.headers()['access-control-allow-origin'], undefined);

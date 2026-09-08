@@ -85,7 +85,7 @@ func TestPreviewDeploymentOrderFailureAndOwnership(t *testing.T) {
 			}
 			if tc.status == 200 {
 				var result map[string]string
-				if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || result["url"] != "https://preview."+site.FQDN+"/" || result["version_id"] != "draft" {
+				if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || result["url"] != "https://"+strings.Replace(site.FQDN, ".", ".preview.", 1)+"/" || result["version_id"] != "draft" {
 					t.Fatalf("invalid response %v %v", result, err)
 				}
 			} else if strings.Contains(w.Body.String(), `"url"`) {

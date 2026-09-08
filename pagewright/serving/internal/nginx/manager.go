@@ -67,7 +67,7 @@ func (m *Manager) EnsureSiteConfig(fqdn, sitePath string) error {
 		return err
 	}
 	if exists {
-		if !strings.HasPrefix(string(before), "# pagewright hosting v2\n") {
+		if !strings.HasPrefix(string(before), "# pagewright hosting v3\n") {
 			// Only migrate byte-exact generated legacy configs; never guess at
 			// custom nginx policy. Preserve aliases and disabled state.
 			names := regexp.MustCompile(`server_name ([^;]+);`).FindSubmatch(before)
@@ -83,7 +83,8 @@ func (m *Manager) EnsureSiteConfig(fqdn, sitePath string) error {
 			if err := validateSite(fqdn, sitePath, aliases); err != nil {
 				return err
 			}
-			if string(before) != m.generateLegacySiteConfig(fqdn, sitePath, aliases, enabled) {
+			if string(before) != m.generateLegacySiteConfig(fqdn, sitePath, aliases, enabled) &&
+				string(before) != m.generateV2SiteConfig(fqdn, sitePath, aliases, enabled) {
 				return fmt.Errorf("custom legacy hosting config requires operator migration")
 			}
 			before = []byte(m.generateSiteConfig(fqdn, sitePath, aliases, enabled))
@@ -165,7 +166,7 @@ func (m *Manager) previewHostAvailable(fqdn string) error {
 		}
 		for _, match := range regexp.MustCompile(`server_name\s+([^;]+);`).FindAllSubmatch(data, -1) {
 			for _, name := range strings.Fields(string(match[1])) {
-				if strings.EqualFold(name, "preview."+fqdn) {
+				if strings.EqualFold(name, strings.Replace(fqdn, ".", ".preview.", 1)) {
 					return fmt.Errorf("preview hostname conflicts with existing config")
 				}
 			}
@@ -183,14 +184,23 @@ const legacyPreviewLocation = `    # Preview site
 `
 
 func (m *Manager) generateSiteConfig(fqdn, sitePath string, aliases []string, enabled bool) string {
+	return m.generateHostingConfig(fqdn, strings.Replace(fqdn, ".", ".preview.", 1), sitePath, aliases, enabled, "v3")
+}
+
+// Retain the exact old renderer solely for conservative migration checks.
+func (m *Manager) generateV2SiteConfig(fqdn, sitePath string, aliases []string, enabled bool) string {
+	return m.generateHostingConfig(fqdn, "preview."+fqdn, sitePath, aliases, enabled, "v2")
+}
+
+func (m *Manager) generateHostingConfig(fqdn, previewHost, sitePath string, aliases []string, enabled bool, revision string) string {
 	live := m.generateLegacySiteConfig(fqdn, sitePath, aliases, enabled)
 	block := strings.ReplaceAll(legacyPreviewLocation, "{{.SitePath}}", sitePath)
 	live = strings.Replace(live, block, "", 1)
-	preview := m.generateLegacySiteConfig("preview."+fqdn, sitePath, nil, enabled)
+	preview := m.generateLegacySiteConfig(previewHost, sitePath, nil, enabled)
 	preview = strings.Replace(preview, block, "", 1)
 	preview = strings.Replace(preview, "root "+sitePath+"/public;", "root "+sitePath+"/preview;", 1)
 	// Relative redirects retain the external scheme/port behind the public edge.
-	return "# pagewright hosting v2\n" + strings.ReplaceAll(live+preview, "    listen 80;", "    listen 80;\n    absolute_redirect off;")
+	return "# pagewright hosting " + revision + "\n" + strings.ReplaceAll(live+preview, "    listen 80;", "    listen 80;\n    absolute_redirect off;")
 }
 
 // Keep the legacy rendering stable: migration compares its complete bytes before

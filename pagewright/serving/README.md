@@ -76,7 +76,7 @@ Updates nginx `server_name` directive and reloads nginx.
 
 - Path: `/var/www/example.com/blog.example.com/`
 - Public URL: `http://blog.example.com:8084/`
-- Preview URL: `http://preview.blog.example.com:8084/`
+- Preview URL: `http://blog.preview.example.com:8084/`
 
 See [hosting URL configuration, DNS/TLS and migration](../../docs/PREVIEW_ACTIVATION.md).
 
@@ -109,7 +109,7 @@ server {
 server {
     listen 80;
     absolute_redirect off;
-    server_name preview.blog.example.com;
+    server_name blog.preview.example.com;
     root /var/www/example.com/blog.example.com/preview;
     index index.html;
     location / { try_files $uri $uri/ =404; }

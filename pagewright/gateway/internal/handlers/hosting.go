@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 // Shared by site listings/details and deployment responses. Configure once at
@@ -26,7 +27,7 @@ func (h *hostingAddress) deploymentURL(fqdn, target string) (string, error) {
 	}
 	host := fqdn
 	if target == "preview" {
-		host = "preview." + fqdn
+		host = strings.Replace(fqdn, ".", ".preview.", 1)
 	} else if target != "live" {
 		return "", fmt.Errorf("invalid hosting target")
 	}

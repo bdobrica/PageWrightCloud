@@ -7,7 +7,7 @@ import (
 )
 
 func TestOriginConfiguration(t *testing.T) {
-	for _, raw := range []string{"", "*", "null", "https://*.pagewright.io", "https://app.pagewright.io/", "https://user:pass@app.pagewright.io", "https://app.pagewright.io?x", "https://app.pagewright.io?", "https://app.pagewright.io#x", "https://demo.pagewright.io", "https://preview.demo.pagewright.io", "http://localhost:99999", "http://localhost:0", "http://localhost:03000", "http://bad..test"} {
+	for _, raw := range []string{"", "*", "null", "https://*.pagewright.io", "https://app.pagewright.io/", "https://user:pass@app.pagewright.io", "https://app.pagewright.io?x", "https://app.pagewright.io?", "https://app.pagewright.io#x", "https://demo.pagewright.io", "https://demo.preview.pagewright.io", "http://localhost:99999", "http://localhost:0", "http://localhost:03000", "http://bad..test"} {
 		if _, err := OriginPolicy(raw, "pagewright.io"); err == nil {
 			t.Errorf("accepted %q", raw)
 		}
@@ -24,7 +24,7 @@ func TestOriginDenialBeforeSideEffects(t *testing.T) {
 	}
 	calls := 0
 	h := policy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; w.WriteHeader(204) }))
-	for _, origin := range []string{"https://evil.test", "null", "", "https://app.pagewright.io.evil.test", "https://demo.pagewright.io", "https://preview.demo.pagewright.io", "http://app.pagewright.io", "https://app.pagewright.io:444"} {
+	for _, origin := range []string{"https://evil.test", "null", "", "https://app.pagewright.io.evil.test", "https://demo.pagewright.io", "https://demo.preview.pagewright.io", "http://app.pagewright.io", "https://app.pagewright.io:444"} {
 		for _, method := range []string{"POST", "GET", "OPTIONS"} {
 			r := httptest.NewRequest(method, "http://api.pagewright.io/ws", nil)
 			r.Header.Set("Origin", origin)

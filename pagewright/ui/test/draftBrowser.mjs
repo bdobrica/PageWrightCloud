@@ -32,13 +32,13 @@ try {
  const user={id:'owner-a',email:'a@example.test',created_at:'2026-09-06T12:00:00Z'};
  const site={id:'site-a',fqdn:'one.example.test',user_id:user.id,enabled:true,
   initialization_status:'ready',template_id:'starter',created_at:user.created_at,updated_at:user.created_at,
-  live_url:'http://one.example.test:8084/',preview_url:'http://preview.one.example.test:8084/'};
+  live_url:'http://one.example.test:8084/',preview_url:'http://one.preview.example.test:8084/'};
  const version={id:'v1',site_id:site.id,build_id:'v1',status:'completed',created_at:user.created_at};
  const accessibility = process.argv.includes('--accessibility');
  if (accessibility) {
   site.fqdn='a'.repeat(55)+'.example.test';
   site.live_url='http://'+site.fqdn+':8084/';
-  site.preview_url='http://preview.'+site.fqdn+':8084/';
+  site.preview_url='http://'+site.fqdn.replace('.', '.preview.')+':8084/';
   version.build_id='v1-'+'b'.repeat(80);
   version.id=version.build_id;
   site.live_version_id=version.build_id;

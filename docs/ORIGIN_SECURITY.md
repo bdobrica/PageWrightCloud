@@ -14,7 +14,7 @@ Gateway refuses origins in the generated namespace, except the reserved `app`,
 `api`, `www` labels or namespace apex, which users cannot claim through MVP creation.
 With `PAGEWRIGHT_SITE_DOMAIN=pagewright.io`, use `https://app.pagewright.io` for the
 UI, `https://api.pagewright.io` for the gateway, and `<site>.pagewright.io` /
-`preview.<site>.pagewright.io` for generated content. A dedicated
+`<site>.preview.pagewright.io` for generated content. A dedicated
 `sites.pagewright.io` namespace is also possible. Audit legacy deployments and aliases
 for collisions with application hosts before upgrading; valid legacy records are
 not automatically renamed. All application origins must be operator-controlled.

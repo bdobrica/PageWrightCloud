@@ -1,4 +1,4 @@
-# Preview activation and hosting URLs (M3.4–M3.6)
+# Preview activation and hosting URLs (M3.4–M3.6, M4.9)
 
 Selecting **Preview in New Tab** calls the owner-checked gateway deployment API
 with `{ "target": "preview" }` for the selected immutable build. Gateway downloads
@@ -8,7 +8,7 @@ nginx host routing exists, and saves the preview selection before returning
 Failures do not return a success URL. An activation/database/reload error can mean
 partial activation; the UI says to retry the same version, not that nothing changed.
 
-The browser validates target, version and URL (HTTP/S, `preview.<site-fqdn>` hostname,
+The browser validates target, version and URL (HTTP/S, `<label>.preview.<namespace>` hostname,
 root `/` path, no credentials/query/fragment). Only then does it attempt
 to open the tab with `noopener,noreferrer`. Async popups may be blocked; a normal
 **Open preview** link remains available. The button is guarded while pending;
@@ -22,12 +22,14 @@ port. Standard ports are omitted. Site create/list/detail responses expose
 Dashboard and Chat validate and use these URLs; undeployed, disabled or unavailable
 destinations are disabled buttons. Chat refreshes its links after successful deployment.
 
-Both `<site-fqdn>` and `preview.<site-fqdn>` must resolve to the hosting endpoint.
+Both `<site-fqdn>` and `<label>.preview.<namespace>` must resolve to the hosting endpoint.
 For local development, map e.g. `demo.pagewright.io` and
-`preview.demo.pagewright.io` to the Docker host. With default settings the URLs are
-`http://demo.pagewright.io:8084/` and `http://preview.demo.pagewright.io:8084/`.
+`demo.preview.pagewright.io` to the Docker host. With default settings the URLs are
+`http://demo.pagewright.io:8084/` and `http://demo.preview.pagewright.io:8084/`.
 For HTTPS, provide certificates covering **both** names; a `*.pagewright.io`
-certificate does not cover `preview.demo.pagewright.io`. No DNS or TLS provisioning
+certificate does not cover `demo.preview.pagewright.io`; use an additional
+`*.preview.pagewright.io` certificate name. See [pilot DNS/TLS setup](PILOT_HTTPS.md).
+No DNS or TLS provisioning
 is performed automatically. Hosting scheme/port settings advertise an existing
 endpoint; they do not configure TLS or change the Docker port mapping.
 
@@ -39,7 +41,7 @@ external scheme/port. `/preview/{build_id}` is not a version-viewing endpoint.
 Promotion selects the same immutable artifact for live; it does not rebuild it.
 
 First preview creates missing site routing even when no live symlink exists.
-Existing v2 config is retained byte-for-byte, including aliases and disabled-site
+Existing v3 config is retained byte-for-byte, including aliases and disabled-site
 policy, and reloaded. Preview does not create a live symlink. Nil arguments to
 `UpdateSiteVersions` now mean “leave that pointer unchanged,” so preview cannot
 clear live and publishing cannot clear preview. Gateway checks database write
@@ -50,11 +52,20 @@ by the [M3.7 durable deployment protocol](DEPLOYMENT_RECOVERY.md).
 ## Existing-installation upgrade
 
 Rebuild/recreate gateway, serving and UI together. Re-activate Preview for each
-site to transactionally migrate the old generated path-based nginx config; this
+site to transactionally migrate the old generated path-based or v2 nginx config; this
 preserves aliases and disabled status. Existing files are **not** rewritten at
 startup. An unrecognized/custom legacy config fails migration and requires operator
 review; no guessed configuration replaces it. Reload failure rolls back migration
 under the M3.5 journal/recovery protocol.
+
+M4.9 changes `preview.<label>.<namespace>` to `<label>.preview.<namespace>`.
+Byte-exact v2 configurations migrate to v3 on Preview activation, preserving the
+live hostname, paths, aliases and enabled/disabled policy. Old preview bookmarks
+are not redirected or retained as aliases: their certificate problem would remain.
+Update bookmarks from the API/UI after migration. Existing deployment receipts
+and artifact pointers use site identity and target, not the public preview URL;
+they are not renamed. Re-activate each site's preview before admitting users to
+the upgraded UI, even if a saved preview pointer already exists.
 
 The first DNS label `preview` is reserved for hosting previews, for both site names
 and aliases; site names are limited to 245 characters so the derived name fits DNS.

@@ -43,8 +43,8 @@ func TestVersionNormalization(t *testing.T) {
 func TestConfiguredDeploymentURL(t *testing.T) {
 	h := NewVersionsHandler(nil, nil, nil, 25)
 	for _, tc := range []struct{ scheme, port, host, target, want string }{
-		{"http", "8084", "site.example.test", "preview", "http://preview.site.example.test:8084/"},
-		{"https", "443", "site.example.test", "preview", "https://preview.site.example.test/"},
+		{"http", "8084", "site.example.test", "preview", "http://site.preview.example.test:8084/"},
+		{"https", "443", "site.example.test", "preview", "https://site.preview.example.test/"},
 		{"https", "8443", "site.example.test", "live", "https://site.example.test:8443/"},
 		{"http", "80", "preview.site.example.test", "live", ""},
 		{"http", "80", "site..test", "live", ""},

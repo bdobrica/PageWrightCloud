@@ -6,7 +6,7 @@ The operator owns `pagewright.io`. This milestone does not verify or change DNS,
 the apex redirect, certificates, hosting configuration or private `.env` values.
 Local defaults remain unchanged. At M4.9 configure `PAGEWRIGHT_SITE_DOMAIN` to the
 chosen owned namespace (`pagewright.io` or a dedicated `sites.pagewright.io`) and
-route live `<label>.<namespace>` and preview `preview.<label>.<namespace>` hosts.
+route live `<label>.<namespace>` and preview `<label>.preview.<namespace>` hosts.
 An apex redirect can remain independent of those subdomains. TLS, origin and
 generated-content isolation still require their own release gates.
 

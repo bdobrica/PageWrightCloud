@@ -25,7 +25,7 @@ The gateway owns the creation namespace:
   Labels are 1–63 lowercase ASCII letters/digits with internal hyphens.
   `app`, `api`, `www` and `preview` are reserved.
 - Configure DNS/hosts and, for the pilot, TLS separately for both the site and
-  `preview.<site>`. This setting does not provision DNS, verify ownership of
+  `<label>.preview.<namespace>`. This setting does not provision DNS, verify ownership of
   arbitrary domains or issue certificates.
 
 ## Disabled paths

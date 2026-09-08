@@ -115,6 +115,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	decode(request("POST", gateway.URL+"/auth/register", `{"email":"`+uuid.NewString()+`@roundtrip.test","password":"integration-only-password"}`, 200), &registered)
 	token = registered.Token
 	fqdn := "compiled-" + uuid.NewString() + ".example.test"
+	previewFQDN := strings.Replace(fqdn, ".", ".preview.", 1)
 	var site types.Site
 	decode(request("POST", gateway.URL+"/sites", `{"fqdn":"`+fqdn+`","template_id":"starter"}`, 201), &site)
 	if site.ID == "" || site.UserID != registered.User.ID {
@@ -123,7 +124,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 	base := gateway.URL + "/sites/" + fqdn
 	var siteWire map[string]any
 	decode(request("GET", base, "", 200), &siteWire)
-	if siteWire["live_url"] != "http://"+fqdn+":8084/" || siteWire["preview_url"] != "http://preview."+fqdn+":8084/" {
+	if siteWire["live_url"] != "http://"+fqdn+":8084/" || siteWire["preview_url"] != "http://"+previewFQDN+":8084/" {
 		t.Fatalf("wrong site hosting URLs: %+v", siteWire)
 	}
 	var page struct {
@@ -290,7 +291,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		}
 		req.Host = fqdn + ":8084"
 		if len(previewHost) > 0 && previewHost[0] {
-			req.Host = "preview." + fqdn + ":8084"
+			req.Host = previewFQDN + ":8084"
 		}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -325,7 +326,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 			}
 			origin, _ := url.Parse("http://" + fqdn + ":8084" + path)
 			if previewHost {
-				origin.Host = "preview." + fqdn + ":8084"
+				origin.Host = previewFQDN + ":8084"
 			}
 			for _, match := range regexp.MustCompile(`(?:href|src)="([^"]+)"`).FindAllSubmatch(data, -1) {
 				ref, err := url.Parse(string(match[1]))
@@ -354,7 +355,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		req, _ := http.NewRequest("GET", os.Getenv("TEST_HOSTING_URL")+"/guide/nested", nil)
 		req.Host = fqdn + ":8084"
 		if previewHost {
-			req.Host = "preview." + req.Host
+			req.Host = previewFQDN + ":8084"
 		}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -375,7 +376,7 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		Version string `json:"version_id"`
 	}
 	decode(request("POST", base+"/versions/"+job.TargetVersion+"/deploy", `{"target":"preview"}`, 200), &preview)
-	if preview.URL != "http://preview."+fqdn+":8084/" || preview.Version != job.TargetVersion {
+	if preview.URL != "http://"+previewFQDN+":8084/" || preview.Version != job.TargetVersion {
 		t.Fatalf("preview response %+v", preview)
 	}
 	previewDeadline := time.Now().Add(5 * time.Second)

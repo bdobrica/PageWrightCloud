@@ -2,7 +2,7 @@ import type { Site, AcceptedBuildResponse, BuildResponse, BuildHistoryItem, JobS
 
 function hostingURL(input: string, fqdn: string, target: 'live' | 'preview'): string {
   const address = new URL(input);
-  const host = target === 'preview' ? `preview.${fqdn.toLowerCase()}` : fqdn.toLowerCase();
+  const host = target === 'preview' ? fqdn.toLowerCase().replace('.', '.preview.') : fqdn.toLowerCase();
   if (!['http:', 'https:'].includes(address.protocol) || address.hostname !== host || address.username || address.password || address.search || address.hash || address.pathname !== '/') throw new Error('Invalid hosting URL');
   return address.href;
 }

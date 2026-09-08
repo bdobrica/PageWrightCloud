@@ -113,7 +113,7 @@ deployment records and cannot yet be deleted through the UI/API.
 
 `make smoke-stack` verifies startup, UI assets, auth, initial-site source, immutable storage and persistence across recreation. It does **not** exercise AI editing, compilation through the worker, preview or publishing.
 
-The optional [local-domain overlay](docker-compose.local-domain.yaml) uses `pagewright.io` as the app hostname. Map `pagewright.io`, a test hostname such as `demo.pagewright.io`, and `preview.demo.pagewright.io` to your Docker host in local DNS or your hosts file, then:
+The optional [local-domain overlay](docker-compose.local-domain.yaml) uses `pagewright.io` as the app hostname. Map `pagewright.io`, a test hostname such as `demo.pagewright.io`, and `demo.preview.pagewright.io` to your Docker host in local DNS or your hosts file, then:
 
 ```bash
 make docker-up-local-domain

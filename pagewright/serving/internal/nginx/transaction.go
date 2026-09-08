@@ -48,7 +48,7 @@ func validateSite(name, path string, aliases []string) error {
 		return fmt.Errorf("invalid nginx site parameters")
 	}
 	for _, alias := range aliases {
-		if !types.ValidHost(alias) {
+		if !types.ValidHost(alias) || alias == strings.Replace(name, ".", ".preview.", 1) {
 			return fmt.Errorf("invalid alias")
 		}
 	}
