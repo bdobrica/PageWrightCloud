@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { runJourney } from '../pagewright/ui/test/journeyBrowser.mjs';
 import { checkPilotAccess } from '../pagewright/ui/test/pilotBrowser.mjs';
 import { checkOriginBoundaries } from '../pagewright/ui/test/originBrowser.mjs';
+import { checkOwnership } from '../pagewright/ui/test/ownershipBrowser.mjs';
 
 const [modulePath, executablePath] = process.argv.slice(2);
 if (!modulePath || !executablePath) throw Error('Usage: node scripts/browser-acceptance.mjs <playwright/index.mjs> <firefox executable>');
@@ -64,6 +65,7 @@ try {
   compose('up', '-d', '--no-deps', '--wait', '--wait-timeout', '180', 'gateway');
   browser = await launchBrowser();
   await runJourney(browser, `http://localhost:${port('ui', 80)}`, evidence);
+  await checkOwnership(browser, env.VITE_PAGEWRIGHT_API_URL, env.PAGEWRIGHT_APP_ORIGINS);
   // Keep independent acceptance phases isolated in fresh Firefox processes,
   // including after the journey has opened opener-isolated generated pages.
   await browser.close();

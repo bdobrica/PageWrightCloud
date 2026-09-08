@@ -82,6 +82,15 @@ and explicit rendered content instead of relying only on Firefox's load event
 across opener-isolation transitions. No security headers are disabled for testing.
 See [origin security](ORIGIN_SECURITY.md) for configuration and remaining limits.
 
+M4.7 adds real two-account management-access probes after the journey. Through
+public APIs it logs in as the journey owner, registers a second synthetic account
+and creates its starter site. It checks foreign site/job/version/download and
+live/preview activation rejection, disabled deletion/aliases, wrong-site ID
+substitution, successful owner download and unchanged owner state. These extra
+test-account/site writes remain confined to the disposable stack; they do not call
+the provider. See [ownership security](OWNERSHIP_SECURITY.md), including the explicit
+distinction between private management APIs and public generated preview HTML.
+
 The runner prints its unique project name and evidence directory under `/tmp`.
 Playwright traces and hosted-page/dashboard screenshots remain there for review;
 they contain synthetic account/session data and should not be publicly shared.
