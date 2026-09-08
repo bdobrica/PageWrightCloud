@@ -1368,6 +1368,47 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.9 partial progress (2026-09-09) in `8745082`; **not complete**.
+The operator approved moving previews from `preview.<site>.pagewright.io` to
+`<site>.preview.pagewright.io`. Gateway deployment/site responses, UI destination
+validation, generated nginx hosts, collision checks and browser/integration
+fixtures now share this layout. Live URLs and artifact/deployment identities are
+unchanged. Exact generated legacy/v2 nginx files migrate to v3 transactionally on
+Preview activation, preserving paths, live aliases and enabled/disabled state.
+Custom old configurations are rejected without replacement; reload failure uses
+the existing rollback/recovery protocol. Old preview bookmarks are not redirected.
+Rebuild gateway/serving/UI together and reactivate previews before admitting users;
+startup does not automatically rewrite saved configs. Worker isolation is unchanged.
+
+[Pilot DNS/TLS runbook](docs/PILOT_HTTPS.md) records local equivalents, host coexistence,
+the operator-owned apex/www Certbot lineage and remaining production gates. The
+operator updated DNS; both authoritative servers resolve app/api and arbitrary live
+names to `135.181.209.167`, and the approved new preview layout was also verified.
+Keep an explicit `*.preview` record so ACME validation nodes do not break inherited
+wildcard resolution. Proposed dedicated pilot certificate names are
+`*.pagewright.io` and `*.preview.pagewright.io`; the existing apex/www certificate
+does not cover them. DNS provider/API capability, automated DNS-01 issuance and
+renewal, separate Nginx integration compatible with Server-Tools, loopback-only
+pilot upstreams, proxy/throttling review and public HTTPS acceptance remain open.
+Do not regenerate shared Server-Tools sites or alter the blog/apex redirect.
+Custom domain creation and alias mutation remain disabled.
+
+Verification passed: six-module Go package baseline; gateway/serving race/vet;
+final full isolated race-enabled integration including compiler/storage/actual
+nginx roundtrip, migration and reload recovery; UI contracts/lint/build; JS syntax
+and whitespace checks; startup/recovery smoke; and full production browser journey
+with sequential edits, preview/live independence, failed build, rollback,
+ownership/origin/internal-access/operator-login probes. One pre-existing
+`TestLoadConfigDefaults` skip remains. The first package/integration runs exposed
+a new test retrying after both forward and rollback reload failures without
+supervisor recovery; corrected the test, retained the safeguard, and reran
+successfully. Browser evidence: `/tmp/pagewright-browser-krNEws`; logs:
+`/tmp/pagewright-m49-packages.log`, `/tmp/pagewright-m49-integration-final.log`,
+`/tmp/pagewright-m49-browser.log`, `/tmp/pagewright-m49-smoke.log`.
+Disposable stacks/data were removed. No paid calls, private .env reads/changes,
+agent DNS mutations, certificate issuance, remote deployment or push occurred.
+Next: finish M4.9 operator/TLS gates; remaining M4 gates still block remote testers.
+
 M4.8 completed locally (2026-09-08) in `55a6074`.
 [Password reset](docs/PASSWORD_RESET.md) records SMTP setup, upgrade requirements,
 reset semantics, session recovery and remaining operator acceptance. SMTP supports
