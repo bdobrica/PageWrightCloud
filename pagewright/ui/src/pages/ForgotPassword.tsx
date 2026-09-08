@@ -35,8 +35,8 @@ export const ForgotPassword: React.FC = () => {
         </p>
 
         <form onSubmit={handleSubmit} className="pure-form pure-form-stacked">
-          {error && <div className="error-message">{error}</div>}
-          {message && <div className="success-message">{message}</div>}
+          {error && <div className="error-message" role="alert">{error}</div>}
+          {message && <div className="success-message" role="status">{message}</div>}
 
           <label htmlFor="email">Email</label>
           <input

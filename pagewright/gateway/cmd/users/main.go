@@ -121,8 +121,8 @@ func printUsage() {
 }
 
 func createUser(db *database.DB, email, password string) int {
-	if len(password) < 8 || len(password) > 72 {
-		log.Println("Password must contain 8 to 72 bytes")
+	if err := auth.ValidatePassword(password); err != nil {
+		log.Print(err)
 		return exitError
 	}
 	// Check if user already exists

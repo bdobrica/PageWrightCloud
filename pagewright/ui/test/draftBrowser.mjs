@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve, extname } from 'node:path';
 import { auditAccessibility } from './accessibilityBrowser.mjs';
+import { auditReset } from './resetBrowser.mjs';
 
 const [modulePath, executablePath] = process.argv.slice(2);
 if (!modulePath || !executablePath) throw Error('Pass Playwright module and Firefox executable paths');
@@ -197,6 +198,7 @@ try {
  assert.equal(await page.evaluate(()=>localStorage.getItem('token')),null);
  assert.deepEqual(errors,[]);
  console.log('Rendered draft expiry/re-auth/retry, owner isolation, clarification, publishing, dashboard refresh, version retry and storage-failure checks passed.');
+ await auditReset(browser, origin);
  }
 } finally {
  if(browser) await browser.close();

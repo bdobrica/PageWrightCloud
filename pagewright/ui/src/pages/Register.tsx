@@ -1,4 +1,5 @@
 import { getErrorMessage } from '../utils/errors';
+import { validPassword, passwordPolicyMessage } from '../utils/password';
 import React, { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { Link, useNavigate } from 'react-router-dom';
@@ -34,8 +35,8 @@ export const Register: React.FC = () => {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (!validPassword(password)) {
+      setError(passwordPolicyMessage);
       return;
     }
 

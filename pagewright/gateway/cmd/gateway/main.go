@@ -15,6 +15,7 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/config"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/handlers"
+	resetmail "github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/mail"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/pilot"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
@@ -37,6 +38,10 @@ func main() {
 		log.Fatal(err)
 	}
 	limits, err := config.LoadPilot()
+	if err != nil {
+		log.Fatal(err)
+	}
+	resetSender, err := resetmail.FromEnv(cfg.AppOrigins)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -76,6 +81,9 @@ func main() {
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(db, jwtManager, oauthManager)
+	if resetSender != nil {
+		authHandler.SetResetSender(resetSender)
+	}
 	sitesHandler := handlers.NewSitesHandler(db, servingClient, storageClient, cfg.DefaultPageSize)
 	sitesHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
 	sitesHandler.RegistrationOpen = limits.DevelopmentSignup
@@ -179,6 +187,7 @@ func main() {
 			case <-ticker.C:
 				ctx, cancel := context.WithTimeout(recoveryContext, 5*time.Second)
 				_ = db.PrunePilotRates(ctx)
+				_ = db.PrunePasswordResetTokens(ctx)
 				cancel()
 			}
 		}

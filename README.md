@@ -14,6 +14,7 @@ M4.4 validates identifiers and filesystem boundaries; see the
 M4.5 enforces [request, archive and compiler resource limits](docs/RESOURCE_LIMITS.md).
 M4.6 configures [application origins and browser security headers](docs/ORIGIN_SECURITY.md).
 M4.7 verifies [cross-user ownership boundaries](docs/OWNERSHIP_SECURITY.md).
+M4.8 implements [password-reset delivery and session recovery](docs/PASSWORD_RESET.md).
 
 An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
 

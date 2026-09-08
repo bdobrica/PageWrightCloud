@@ -1,7 +1,12 @@
 package handlers
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -10,14 +15,20 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/database"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
-	"github.com/google/uuid"
 )
+
+type ResetSender interface {
+	SendReset(context.Context, string, string) error
+}
 
 type AuthHandler struct {
 	db           *database.DB
 	jwtManager   *auth.JWTManager
 	oauthManager *auth.OAuthManager
+	resetSender  ResetSender
 }
+
+func (h *AuthHandler) SetResetSender(sender ResetSender) { h.resetSender = sender }
 
 func NewAuthHandler(db *database.DB, jwtManager *auth.JWTManager, oauthManager *auth.OAuthManager) *AuthHandler {
 	return &AuthHandler{
@@ -29,6 +40,7 @@ func NewAuthHandler(db *database.DB, jwtManager *auth.JWTManager, oauthManager *
 
 // Register handles user registration with email/password
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	var req types.RegisterRequest
 	if err := boundedJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -38,6 +50,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	// Validate input
 	if req.Email == "" || req.Password == "" {
 		respondError(w, http.StatusBadRequest, "email and password are required")
+		return
+	}
+	if err := auth.ValidatePassword(req.Password); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -82,6 +98,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 // Login handles user login with email/password
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	var req types.LoginRequest
 	if err := boundedJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -137,6 +154,7 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 // ForgotPassword initiates password reset flow
 func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	var req types.ForgotPasswordRequest
 	if err := boundedJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -148,49 +166,51 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user by email
+	if h.resetSender == nil {
+		respondError(w, http.StatusServiceUnavailable, "password reset email is not configured; contact the operator")
+		return
+	}
+	// Account-keyed throttling applies even to nonexistent accounts, across gateway
+	// instances. The public router additionally limits auth requests by source IP.
+	key := sha256.Sum256([]byte(req.Email))
+	if err := h.db.TakePilotRate(r.Context(), "password-reset:"+hex.EncodeToString(key[:]), 1); err != nil {
+		if errors.Is(err, database.ErrPilotLimit) {
+			w.Header().Set("Retry-After", "60")
+			respondError(w, 429, "wait a minute before requesting another reset")
+		} else {
+			respondError(w, 503, "password reset temporarily unavailable")
+		}
+		return
+	}
+	const message = "If the email exists, a password reset link will be sent"
+	// Keep existing/nonexistent/ineligible accounts and delivery failures identical.
 	user, err := h.db.GetUserByEmail(req.Email)
-	if err != nil || user == nil {
-		// Don't reveal if user exists - always return success
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "If the email exists, a password reset link will be sent",
-		})
-		return
-	}
-
-	// Only allow password reset for non-OAuth users
-	if user.PasswordHash == "" {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "If the email exists, a password reset link will be sent",
-		})
-		return
-	}
-
-	// Generate reset token (UUID)
-	token := uuid.New().String()
-
-	// Create reset token in database (expires in 1 hour)
-	expiresAt := time.Now().Add(1 * time.Hour)
-	_, err = h.db.CreatePasswordResetToken(user.ID, token, expiresAt)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to create reset token")
-		return
+		log.Print("Password reset account lookup failed")
 	}
-
-	// TODO: Send email with reset link
-	// In production: send email to user.Email with link: https://frontend.com/reset-password?token={token}
-	// Never use routine logs as a delivery channel. Email delivery remains M4.8.
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "If the email exists, a password reset link will be sent",
-	})
+	if err == nil && user != nil && user.PasswordHash != "" {
+		var bytes [32]byte
+		if _, err := rand.Read(bytes[:]); err != nil {
+			respondError(w, 503, "password reset temporarily unavailable")
+			return
+		}
+		token := hex.EncodeToString(bytes[:])
+		record, err := h.db.CreatePasswordResetToken(user.ID, token, time.Now().Add(time.Hour))
+		if err != nil {
+			log.Print("Password reset token persistence failed")
+		} else if err := h.resetSender.SendReset(r.Context(), user.Email, token); err != nil {
+			log.Print("Password reset delivery failed; verify SMTP configuration")
+			if err := h.db.MarkPasswordResetTokenUsed(record.ID); err != nil {
+				log.Print("Password reset delivery-failure invalidation failed")
+			}
+		}
+	}
+	respondJSON(w, map[string]string{"message": message})
 }
 
 // ResetPassword completes the password reset flow
 func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	var req types.ResetPasswordRequest
 	if err := boundedJSON(r, &req); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid request body")
@@ -202,27 +222,13 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.Password) < 8 {
-		respondError(w, http.StatusBadRequest, "password must be at least 8 characters")
+	if err := auth.ValidatePassword(req.Password); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Get reset token
-	resetToken, err := h.db.GetPasswordResetToken(req.Token)
-	if err != nil || resetToken == nil {
+	if raw, err := hex.DecodeString(req.Token); err != nil || len(raw) != 32 {
 		respondError(w, http.StatusBadRequest, "invalid or expired token")
-		return
-	}
-
-	// Check if token is expired
-	if time.Now().After(resetToken.ExpiresAt) {
-		respondError(w, http.StatusBadRequest, "token has expired")
-		return
-	}
-
-	// Check if token was already used
-	if resetToken.Used {
-		respondError(w, http.StatusBadRequest, "token has already been used")
 		return
 	}
 
@@ -233,25 +239,22 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update user password
-	if err := h.db.UpdateUserPassword(resetToken.UserID, passwordHash); err != nil {
-		respondError(w, http.StatusInternalServerError, "failed to update password")
+	if err := h.db.ConsumePasswordReset(r.Context(), req.Token, passwordHash); err != nil {
+		if errors.Is(err, database.ErrResetToken) {
+			respondError(w, 400, "invalid or expired token")
+		} else {
+			respondError(w, 503, "password reset temporarily unavailable")
+		}
 		return
 	}
-
-	// Mark token as used
-	if err := h.db.MarkPasswordResetTokenUsed(resetToken.ID); err != nil {
-		log.Print("Warning: failed to mark reset token as used")
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	respondJSON(w, map[string]string{
 		"message": "Password successfully reset",
 	})
 }
 
 // UpdatePassword handles password change for authenticated users
 func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	user, _ := middleware.GetUserFromContext(r)
 
 	var req types.UpdatePasswordRequest
@@ -265,8 +268,8 @@ func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.NewPassword) < 8 {
-		respondError(w, http.StatusBadRequest, "new password must be at least 8 characters")
+	if err := auth.ValidatePassword(req.NewPassword); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -302,8 +305,7 @@ func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	respondJSON(w, map[string]string{
 		"message": "Password successfully updated",
 	})
 }
