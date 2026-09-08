@@ -30,7 +30,7 @@ There is useful implementation across all services, but the application is still
 | Hosting | M3.5 (`2e1eea2`) supervises API/hosting nginx behind a fixed public proxy with recoverable config changes. M3.6 adds separate preview hosts; M3.7/M3.8 provide receipt recovery, atomic selection and active-aware cache retention. Production and integration share this topology. | Upgrade coordinated services without deleting volumes. Old nginx workers can briefly drain after new-generation readiness. Review the soft cache budget/grace policy before enabling cleanup on existing installations; evicted rollback needs canonical storage. Pilot security remains M4. |
 | Job reliability | Durable dispatch, fencing and result recovery are complemented by M2.9's [Redis durability gate, gateway recovery, TTL protection, audit and retention policy](docs/JOB_DURABILITY.md). Abrupt Redis/gateway/manager restart and replacement-manager reconnect are tested. | Intent is never replayed. Missing/legacy evidence and storage outages retain uncertainty/capacity. Existing data needs verified backup/restore before replacement; arbitrary disk loss, rollback and multi-host HA are not solved. |
 | User-facing gaps | M3.9 gates unsupported capabilities; M3.10 preserves tab drafts and retry identities. M3.11 (`375def7`) adds native modal focus, keyboard navigation and responsive-layout fixes verified in a five-viewport Firefox audit. Reset email remains M4.8; M4.2 (`544901a`) removes routine reset-token logging. | Upgrade UI/gateway together and configure the platform namespace. Drafts are local, not server backups. Real-service browser acceptance remains M3.12 and reset-email/pilot security M4. Focused Firefox acceptance is not WCAG certification or screen-reader/cross-browser coverage. |
-| Boundaries | M4.3 (`8bc3619`) authenticates internal access and scopes worker capabilities. M4.4 (`da73a4d`) validates names/IDs and filesystem containment. M4.5 (`954ab9a`) bounds JSON, archives and compiler resources. M4.6 (`82c293f`) enforces exact application origins and separate UI/generated-content security headers. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership and runtime quotas remain necessary. Origin checks are not identity and sibling-domain cookie risks remain. Finish cross-user acceptance, TLS and remaining M4 gates before remote release. |
+| Boundaries | M4.3 (`8bc3619`) authenticates internal access and scopes worker capabilities. M4.4 (`da73a4d`) validates names/IDs and filesystem containment. M4.5 (`954ab9a`) bounds JSON, archives and compiler resources. M4.6 (`82c293f`) enforces exact application origins and separate UI/generated-content security headers. M4.7 (`9f3a6e0`) verifies cross-user management, polling and artifact isolation. | The control plane shares one credential and in-host HTTP; volumes require trusted exclusive ownership and runtime quotas remain necessary. Origin checks are not identity and sibling-domain cookie risks remain. Generated preview HTML is public. Finish auth recovery, TLS and remaining M4 gates before remote release. |
 
 The worker now has tested namespace/sandbox boundaries, an environment allowlist,
 resource ceilings and integrated trusted-output validation. Instructions alone are
@@ -1367,6 +1367,53 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.7 completed (2026-09-08) in `9f3a6e0`.
+[Ownership security](docs/OWNERSHIP_SECURITY.md) records the endpoint matrix,
+regression coverage and public-preview distinction. The audit found existing
+owner checks before active site operations and database filtering by both current
+site owner and submission owner before public job polling responses. There is no
+browser event broadcaster to retrofit: `/ws` remains retired and never upgrades.
+Future event delivery must retain owner/site filtering before sending data.
+No runtime authorization defect or production behavior change was required.
+
+The new PostgreSQL integration matrix uses two real accounts and JWT middleware
+to check anonymous/foreign access to site detail, enable/disable, builds, job
+history/detail, versions, downloads, deployment status and live/preview activation.
+Both directions are covered; disabled deletion/aliases return 501 for authenticated
+accounts and 401 anonymously. Upstream traps assert zero storage/serving/manager
+calls after denial. Complete site/job rows remain unchanged and no foreign
+deployment intent is persisted. Site-list totals/rows and job IDs are owner/site
+scoped; legitimate owner polling still works without private prompt disclosure.
+
+Real-stack browser acceptance logs in as the journey owner, registers a second
+synthetic account and creates its starter site through public APIs. It verifies
+foreign rejection, empty/owned-only lists, cross-site job/version substitution,
+successful owner artifact download and unchanged owner site/history/version/
+deployment snapshots. Missing versions under the caller's own site return the
+existing 500 response and may leave a failed own-site deployment intent; they cannot
+read foreign artifacts or move live/preview pointers. Deletion stays disabled,
+not enabled merely to test it. Generated live and preview HTML are public; private
+management endpoints do not provide confidential previews.
+
+Verification passed: six-module package baseline, full isolated race-enabled
+integration (including a final rerun with complete job-row equality), gateway vet,
+JavaScript syntax/whitespace checks and the complete browser build/edit/refresh/
+preview/publish/failure/rollback journey with ownership, origin/CSP, internal-access
+and closed-signup/operator-login/disabled-AI probes. One pre-existing serving
+configuration skip remains for M4.12. The first browser run stopped on a new test
+expecting null instead of omitted empty pointer fields; the corrected assertion and
+full rerun passed without application changes. Final browser evidence:
+`/tmp/pagewright-browser-pk9mXB`; logs:
+`/tmp/pagewright-m47-browser-final.log` and
+`/tmp/pagewright-m47-integration-final.log`.
+
+No service/worker rebuild, schema migration, paid provider call, private .env or DNS
+change, remote deployment or push occurred. Disposable stacks/data were removed;
+local evidence/build caches remain. This is regression acceptance of supported
+routes, not a general penetration test or a proof against stolen credentials,
+operator compromise or future ownership-transfer races. Next: **M4.8**. Remaining
+M4 gates still block admitting remote testers.
 
 M4.6 completed (2026-09-07) in `82c293f`.
 [Origin security](docs/ORIGIN_SECURITY.md) records configuration, upgrade steps,
