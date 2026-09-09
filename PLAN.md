@@ -1401,9 +1401,20 @@ both hosts before activation. Bundle evidence is retained privately on the host
 at `/home/codex/pagewright-offline-AQiCFD2p/work/bundle-fixed`. This is an operator
 import, not a second end-to-end AI/manager build. Production service images,
 container isolation, secrets, signup, DNS, TLS configuration and live content
-were not changed by this tool run. Pending: UI version-2 preview/asset isolation,
-publish/rollback, remaining public security/failure-recovery and full-browser
-acceptance. M4.9 remains unchecked; no push.
+were not changed by this tool run.
+
+Subsequent operator browser acceptance passed: version 2 preview and its asset,
+live remaining on version 1, version 2 promotion to live, then version 1 rollback
+while preview retains version 2. Independent read-only HTTPS checks confirmed
+the final distinct headings, the version-2 asset returning 404 on live and its
+expected content on preview. PostgreSQL confirms live
+`669e8078-3483-44d6-a2f9-084f349c52c9` and preview `operator-m49-v2-aqicfd2p`.
+Reservations remain 900 cents with zero active provider slots. Intermediate
+version-2 live rendering was confirmed by the operator, not independently
+observed by the agent. These manual browser checks do not claim a successful
+rerun of the previously failing full automated browser suite. Remaining:
+public security/failure-recovery and full-browser acceptance gaps. M4.9 remains
+unchecked; no push.
 
 M4.9 remote progress and Certbot compatibility fix (2026-09-09), `e62f568`:
 the operator installed the reviewed pilot, prepared root-only application secrets
