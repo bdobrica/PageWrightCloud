@@ -85,6 +85,16 @@ try {
   localStorage.setItem('user',JSON.stringify(user));localStorage.setItem('token','old-token');
  },user);
  await page.goto(origin+'/chat/'+site.fqdn);
+ if (!accessibility) {
+  const urls = {live_url:site.live_url, preview_url:site.preview_url};
+  site.hosting_status='provisioning';site.live_url='';site.preview_url='';
+  await page.reload();
+  await page.getByText('HTTPS provisioning — refresh shortly.',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'View Live',exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'View Preview',exact:true}).isDisabled(),true);
+  delete site.hosting_status;Object.assign(site,urls);
+  await page.reload();
+ }
  // The recovery test is desktop; the accessibility branch exercises collapsed mobile versions.
  if (!accessibility && !await page.locator('.sidebar details').evaluate(node=>node.open)) {
   await page.getByText('Browse versions',{exact:true}).click();

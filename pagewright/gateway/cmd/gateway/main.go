@@ -86,6 +86,7 @@ func main() {
 	}
 	sitesHandler := handlers.NewSitesHandler(db, servingClient, storageClient, cfg.DefaultPageSize)
 	sitesHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
+	sitesHandler.SetTLSStatePath(cfg.TLSStatePath)
 	sitesHandler.RegistrationOpen = limits.DevelopmentSignup
 	if err := sitesHandler.SetSiteDomain(cfg.SiteDomain); err != nil {
 		log.Fatal(err)
@@ -93,6 +94,7 @@ func main() {
 	aliasesHandler := handlers.NewAliasesHandler(db, servingClient)
 	versionsHandler := handlers.NewVersionsHandler(db, storageClient, servingClient, cfg.DefaultPageSize)
 	versionsHandler.SetHostingAddress(cfg.HostingScheme, cfg.HostingPort)
+	versionsHandler.SetTLSStatePath(cfg.TLSStatePath)
 	buildHandler := handlers.NewBuildHandler(db, llmClient, managerClient, storageClient)
 	buildHandler.SetPilotLimits(db, database.PilotLimits{UserDaily: limits.UserDaily, SiteDaily: limits.SiteDaily, Active: limits.Active})
 	buildHandler.SetPilotAIAllowance(limits.BudgetCents)

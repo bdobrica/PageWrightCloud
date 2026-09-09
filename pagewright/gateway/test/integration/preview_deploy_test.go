@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -44,6 +45,7 @@ func TestPreviewDeploymentOrderFailureAndOwnership(t *testing.T) {
 		calls                                  int
 	}{
 		{"anonymous", 200, 200, 401, "", 0}, {"foreign", 200, 200, 403, foreign, 0},
+		{"tls-provisioning", 200, 200, 503, token, 0},
 		{"artifact-failure", 500, 200, 500, token, 1}, {"activation-failure", 200, 500, 500, token, 1},
 		{"success", 200, 200, 200, token, 1},
 	} {
@@ -68,6 +70,9 @@ func TestPreviewDeploymentOrderFailureAndOwnership(t *testing.T) {
 			defer upstream.Close()
 			h := handlers.NewVersionsHandler(testDB, nil, clients.NewServingClient(upstream.URL), 25)
 			h.SetHostingAddress("https", "443")
+			if tc.name == "tls-provisioning" {
+				h.SetTLSStatePath(filepath.Join(t.TempDir(), "missing.json"))
+			}
 			router := mux.NewRouter()
 			router.Handle("/sites/{fqdn}/versions/{version_id}/deploy", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(h.DeployVersion)))
 			router.Handle("/sites/{fqdn}/deployment", middleware.AuthMiddleware(testJWTManager)(http.HandlerFunc(h.DeploymentStatus)))
@@ -77,6 +82,9 @@ func TestPreviewDeploymentOrderFailureAndOwnership(t *testing.T) {
 			}
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, r)
+			if tc.name == "tls-provisioning" && w.Header().Get("Retry-After") != "60" {
+				t.Fatal("missing provisioning retry guidance")
+			}
 			if w.Code != tc.status || len(paths) != tc.calls {
 				t.Fatalf("response %d %s paths %v", w.Code, w.Body.String(), paths)
 			}

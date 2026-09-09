@@ -1,0 +1,28 @@
+# Requires Docker Compose 2.24.4+ for !override. Fixed pilot identity and ports
+# match the root-owned host TLS controller. Never publish control-plane ports.
+name: pagewright-pilot
+services:
+  gateway:
+    ports: !override
+      - "127.0.0.1:8085:8085"
+    environment:
+      PAGEWRIGHT_SITE_DOMAIN: pagewright.io
+      PAGEWRIGHT_HOSTING_SCHEME: https
+      PAGEWRIGHT_HOSTING_PORT: "443"
+      PAGEWRIGHT_APP_ORIGINS: https://app.pagewright.io
+      PAGEWRIGHT_SIGNUP_MODE: closed
+      PAGEWRIGHT_TLS_STATE_PATH: /run/pagewright-tls/ready.json
+    volumes:
+      - /var/lib/pagewright-tls/public:/run/pagewright-tls:ro
+  nginx:
+    ports: !override
+      - "127.0.0.1:8084:80"
+  manager:
+    environment:
+      PAGEWRIGHT_WORKER_NETWORK: pagewright-pilot_pagewright
+  ui:
+    ports: !override
+      - "127.0.0.1:3000:80"
+    build:
+      args:
+        VITE_PAGEWRIGHT_API_URL: https://api.pagewright.io

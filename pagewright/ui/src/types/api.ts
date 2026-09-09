@@ -13,6 +13,7 @@ export interface AuthResponse {
 }
 
 export interface Site {
+	hosting_status?: 'provisioning' | 'ready';
 	live_url: string;
 	preview_url: string;
 	initialization_status: 'legacy' | 'pending' | 'ready';

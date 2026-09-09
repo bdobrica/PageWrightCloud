@@ -1,0 +1,10 @@
+[Unit]
+Description=Reconcile PageWright certificates and HTTPS readiness
+
+[Timer]
+OnBootSec=60s
+OnUnitInactiveSec=60s
+Unit=pagewright-tls.service
+
+[Install]
+WantedBy=timers.target

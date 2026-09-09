@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -54,6 +55,9 @@ func ValidateDatabase(raw string) error {
 }
 
 func (c *Config) Validate() error {
+	if c.TLSStatePath != "" && (!filepath.IsAbs(c.TLSStatePath) || filepath.Clean(c.TLSStatePath) != c.TLSStatePath || c.HostingScheme != "https" || c.HostingPort != "443") {
+		return fmt.Errorf("TLS readiness requires an absolute clean path and HTTPS port 443")
+	}
 	if len(c.JWTSecret) < 32 || strings.TrimSpace(c.JWTSecret) != c.JWTSecret || strings.Contains(strings.ToLower(c.JWTSecret), "change-me") || strings.Contains(strings.ToLower(c.JWTSecret), "change-in-production") {
 		return fmt.Errorf("PAGEWRIGHT_JWT_SECRET must be an explicit non-placeholder secret of at least 32 bytes")
 	}

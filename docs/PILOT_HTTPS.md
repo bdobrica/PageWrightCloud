@@ -1,5 +1,10 @@
 # Pilot DNS and HTTPS — M4.9 in progress
 
+**Superseded design note:** the operator selected individual Let's Encrypt
+certificates with HTTP-01, not wildcard/DNS-01 certificates. Use the current
+[HTTP-01 installation and acceptance runbook](PILOT_HTTP01.md). The material below
+records the earlier wildcard proposal only; do not follow its DNS/API setup steps.
+
 The physical server at `135.181.209.167` can host the closed pilot alongside the
 personal blog. PageWright uses only pagewright.io names. Do not change ublo.ro
 routing, the apex/www redirect, or the existing apex certificate.

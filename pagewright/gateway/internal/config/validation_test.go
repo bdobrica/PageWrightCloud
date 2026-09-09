@@ -49,6 +49,25 @@ func TestCriticalConfiguration(t *testing.T) {
 		})
 	}
 }
+func TestTLSReadinessConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		path, scheme, port string
+		valid              bool
+	}{
+		{"/run/pagewright-tls/ready.json", "https", "443", true},
+		{"ready.json", "https", "443", false},
+		{"/run/../ready.json", "https", "443", false},
+		{"/run/ready.json", "http", "443", false},
+		{"/run/ready.json", "https", "8443", false},
+	} {
+		c := validConfig()
+		c.TLSStatePath, c.HostingScheme, c.HostingPort = tc.path, tc.scheme, tc.port
+		if (c.Validate() == nil) != tc.valid {
+			t.Fatalf("unexpected validation for %+v", tc)
+		}
+	}
+}
+
 func TestDatabaseEncodingAndOverrideRejection(t *testing.T) {
 	t.Setenv("PAGEWRIGHT_DATABASE_URL", "")
 	t.Setenv("PAGEWRIGHT_DATABASE_HOST", "postgres:5432")

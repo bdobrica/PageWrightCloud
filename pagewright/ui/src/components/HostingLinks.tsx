@@ -2,6 +2,7 @@ import type { Site } from '../types/api';
 
 export function HostingLinks({ site }: { site: Site | null }) {
   return <>
+    {site?.hosting_status === 'provisioning' && <span role="status">HTTPS provisioning — refresh shortly.</span>}
     {(['live', 'preview'] as const).map(target => {
       const label = target === 'live' ? 'View Live' : 'View Preview';
       const url = site?.[`${target}_url`];

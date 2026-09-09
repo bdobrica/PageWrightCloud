@@ -19,6 +19,7 @@ type Config struct {
 	ServingURL    string
 	HostingScheme string
 	HostingPort   string
+	TLSStatePath  string
 	SiteDomain    string
 	AppOrigins    string
 
@@ -48,6 +49,7 @@ func LoadConfig() *Config {
 		ServingURL:         getEnv("PAGEWRIGHT_SERVING_URL", ""),
 		HostingScheme:      getEnv("PAGEWRIGHT_HOSTING_SCHEME", "http"),
 		HostingPort:        getEnv("PAGEWRIGHT_HOSTING_PORT", "8084"),
+		TLSStatePath:       getEnv("PAGEWRIGHT_TLS_STATE_PATH", ""),
 		SiteDomain:         getEnv("PAGEWRIGHT_SITE_DOMAIN", "pagewright.dev"),
 		AppOrigins:         getEnv("PAGEWRIGHT_APP_ORIGINS", "http://localhost:3000"),
 		JWTSecret:          getEnv("PAGEWRIGHT_JWT_SECRET", ""),

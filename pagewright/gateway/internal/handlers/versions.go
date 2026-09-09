@@ -35,7 +35,7 @@ func NewVersionsHandler(db *database.DB, storageClient *clients.StorageClient, s
 		storageClient:   storageClient,
 		servingClient:   servingClient,
 		defaultPageSize: defaultPageSize,
-		hostingAddress:  hostingAddress{"http", "8084"},
+		hostingAddress:  hostingAddress{scheme: "http", port: "8084"},
 	}
 }
 
@@ -178,6 +178,11 @@ func (h *VersionsHandler) DeployVersion(w http.ResponseWriter, r *http.Request) 
 
 	// Deploy artifact to serving infrastructure
 	publicURL, err := h.deploymentURL(fqdn, req.Target)
+	if errors.Is(err, ErrTLSProvisioning) {
+		w.Header().Set("Retry-After", "60")
+		respondError(w, http.StatusServiceUnavailable, ErrTLSProvisioning.Error())
+		return
+	}
 	if err != nil {
 		respondError(w, 500, "invalid public hosting configuration")
 		return

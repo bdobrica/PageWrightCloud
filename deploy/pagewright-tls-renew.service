@@ -1,0 +1,13 @@
+[Unit]
+Description=Renew only dedicated PageWright certificates
+After=nginx.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock -w 300 /var/lib/pagewright-tls/controller.lock /usr/bin/certbot renew --non-interactive --config-dir /var/lib/pagewright-tls/production/config --work-dir /var/lib/pagewright-tls/production/work --logs-dir /var/lib/pagewright-tls/production/logs --deploy-hook "/usr/sbin/nginx -t && /usr/bin/systemctl reload nginx"
+TimeoutStartSec=600
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/pagewright-tls /var/log/nginx /run

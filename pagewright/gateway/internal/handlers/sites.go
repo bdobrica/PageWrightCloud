@@ -33,21 +33,31 @@ func NewSitesHandler(db *database.DB, servingClient *clients.ServingClient, stor
 		storageClient:   storageClient,
 		defaultPageSize: defaultPageSize,
 		siteDomain:      "pagewright.dev",
-		hostingAddress:  hostingAddress{"http", "8084"},
+		hostingAddress:  hostingAddress{scheme: "http", port: "8084"},
 	}
 }
 
 type hostedSite struct {
 	*types.Site
-	LiveURL    string `json:"live_url"`
-	PreviewURL string `json:"preview_url"`
+	LiveURL       string `json:"live_url"`
+	PreviewURL    string `json:"preview_url"`
+	HostingStatus string `json:"hosting_status,omitempty"`
 }
 
 func (h *SitesHandler) publicSite(site *types.Site) hostedSite {
 	// Invalid configuration/legacy domains expose no clickable destination.
 	live, _ := h.deploymentURL(site.FQDN, "live")
 	preview, _ := h.deploymentURL(site.FQDN, "preview")
-	return hostedSite{site, live, preview}
+	status := ""
+	if h.tlsStatePath != "" {
+		status = "provisioning"
+		if live != "" && preview != "" {
+			status = "ready"
+		} else {
+			live, preview = "", ""
+		}
+	}
+	return hostedSite{site, live, preview, status}
 }
 
 // CreateSite creates a new site
