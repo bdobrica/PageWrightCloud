@@ -1368,7 +1368,70 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
-M4.9 partial progress (2026-09-09) in `8745082`; **not complete**.
+M4.9 HTTP-01 implementation (2026-09-09) in `6892ced`; **not complete**.
+The operator explicitly selected individual Let's Encrypt certificates with HTTP
+validation, without Namecheap API access or DNS delegation. This supersedes the
+earlier wildcard certificate proposal below. The current
+[HTTP-01 runbook](docs/PILOT_HTTP01.md) provides reviewed installation, staging,
+production issuance, renewal, acceptance and narrowly scoped rollback steps.
+
+The host-root controller reads initialized FQDNs from the fixed local pilot
+PostgreSQL container, accepts only canonical platform site names, and never issues
+from arbitrary incoming Host headers or aliases. One certificate covers app/api;
+one per site covers its live and preview names. Host-owned challenge files and
+dedicated staging/production Certbot directories stay outside application containers
+and the existing apex/blog lineage. Persistent attempt limits and mutual exclusion
+bound retries. Atomic Nginx replacement, validation/reload, rollback journals and
+real trusted HTTPS/vhost probes gate a ten-minute readiness lease. Failed recovery
+blocks writes; expiry/missing state withholds links and returns 503/Retry-After
+before fresh deployment mutations. UI renders HTTPS provisioning guidance.
+
+The pilot overlay uses exact HTTPS app/API/hosting addresses, closed signup and
+loopback-only published ports; only the non-secret readiness directory is mounted
+read-only into gateway. No worker sandbox relaxation, certificate keys, host Nginx
+control or new Docker socket access is given to application containers. Existing
+gateway source-IP throttling remains conservative behind the proxy (shared
+unauthenticated bucket); broader proxy trust was not silently enabled. The dedicated
+renewal timer uses the controller lock and validates Nginx before reload; it does
+not modify the existing Certbot cron. Installation/state paths are outside
+Server-Tools site discovery, and shared-vhost conflict review remains mandatory.
+
+Verification passed: ten controller tests (including real OpenSSL name checks,
+persisted backoff, rollback/recovery, read-only default and both-host probe gating);
+real-nginx TLS with local test certificates (routing, challenge isolation, headers,
+pending/unknown handshake rejection, separate apex/blog fixture preservation);
+dummy-only Compose port/mount/configuration checks; systemd verification with
+installation permissions; six-module package baseline; final gateway race/vet;
+full isolated race-enabled integration including pending TLS denial before upstream
+effects; UI contracts/lint/build and rendered provisioning/session/reset recovery.
+One pre-existing serving `TestLoadConfigDefaults` skip remains.
+
+Full-browser acceptance remains unresolved. Repeated pinned Firefox 146.0.1 runs
+timed out at different hosted-page navigations. A separate tiny local HTML server
+reproduced receipt of `200 text/html` followed by an unchanged `about:blank` tab,
+without PageWright services. Fresh contexts/processes and a response/DOM helper
+did not resolve the suite. All ineffective harness changes were removed; no
+security headers or baseline assertions were weakened. Do not report the full
+browser journey as passed for this implementation. Evidence includes
+`/tmp/pagewright-m49-http-browser.log`, `-browser-final.log`, `-browser-isolated.log`,
+`-browser-verified.log`, `-browser-processes.log` (same prefix), and
+`/tmp/pagewright-browser-JsViiA`. Passing logs include
+`/tmp/pagewright-m49-http-packages.log`,
+`/tmp/pagewright-m49-http-integration-final.log` and
+`/tmp/pagewright-m49-http-draft.log`.
+
+Read-only server preflight found Python 3.13.5, OpenSSL 3.5.5, Certbot 5.8.0,
+Nginx 1.26.3 and Compose 5.1.3, the expected conf.d include, free loopback upstream
+ports, and absent pilot checkout/state/config targets. No remote files/services
+were changed. Pending operator gates: reviewed file transfer/installation, private
+pilot environment and ACME email, staging issuance, explicitly approved production
+issuance/deployment, renewal dry-run/hook checks, shared-host coexistence and public
+HTTPS/full-browser acceptance. No CA requests, paid calls, private .env reads/edits
+or push occurred; disposable test stacks/data were removed. M4.9 remains open and
+remaining M4 gates still block admitting remote testers.
+
+Earlier M4.9 namespace progress (2026-09-09) in `8745082`; **not complete**.
+The wildcard certificate proposal in this historical entry is superseded above.
 The operator approved moving previews from `preview.<site>.pagewright.io` to
 `<site>.preview.pagewright.io`. Gateway deployment/site responses, UI destination
 validation, generated nginx hosts, collision checks and browser/integration
