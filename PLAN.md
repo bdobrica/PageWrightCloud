@@ -1368,6 +1368,23 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.9 remote progress and Certbot compatibility fix (2026-09-09), `e62f568`:
+the operator installed the reviewed pilot, prepared root-only application secrets
+with AI allowance zero, and started the loopback-only stack successfully. The
+operator confirmed the worker AppArmor profile in enforce mode, Nginx validation,
+and no conflicting app/API host declarations. Let's Encrypt staging issued the
+app/API certificate. Production issuance failed before Certbot logging; a
+version-only probe under identical service restrictions reproduced Snap's
+inability to create `/root/snap/certbot/5893`. Public HTTPS is still pending.
+The fix selects `/opt/pagewright-certbot/bin/certbot` explicitly for both issuance
+and renewal, without altering service restrictions or the host's Snap/cron.
+Twelve local controller tests and whitespace checks passed. Dedicated Certbot
+installation, restricted on-host execution, production issuance, renewal and
+public/full-browser acceptance remain unverified. No further ACME attempts or
+service activation were performed by the compatibility change. M4.9 stays open.
+The historical no-remote-write/no-CA statements below describe the original
+implementation session, not the subsequent operator deployment.
+
 M4.9 HTTP-01 implementation (2026-09-09) in `6892ced`; **not complete**.
 The operator explicitly selected individual Let's Encrypt certificates with HTTP
 validation, without Namecheap API access or DNS delegation. This supersedes the
