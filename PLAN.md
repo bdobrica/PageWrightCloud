@@ -1368,6 +1368,43 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.9 subsequent public acceptance and offline artifact tool (2026-09-10),
+implementation `2e7201d`; **still not complete**. Dedicated Certbot passed
+restricted startup, production app/API issuance, restricted reconciliation,
+staging renewal simulation and explicit Nginx validation/reload. Both pilot
+timers are enabled/scheduled. The operator created `m49-check.pagewright.io`;
+its live/preview certificate became ready. An authorized real AI build completed,
+was previewed and published. Public HTML/CSS/JS over trusted HTTPS passed;
+preview initially left live 404. The operator confirmed HTTP-to-HTTPS redirect,
+dashboard persistence and sign-out/sign-in recovery. Read-only checks confirmed
+the apex GitHub redirect and blog response at the known host IP (one local apex
+DNS lookup failed, so this does not claim that lookup passed).
+
+The approved $10 reservation cap has 900 cents reserved and zero active provider
+slots. Actual provider billing was not measured. No allowance increase, reset or
+additional provider request was made for the offline work. The new offline tools
+compile a fixed source edit using the existing trusted compiler/static checks,
+then explicitly import an operator artifact through immutable manifest-last
+storage routines. No AI job, callback, lease, fence, browser result or gateway
+build-history entry is fabricated; no new production endpoint or worker bypass
+was introduced. See [operator trust boundary](docs/OFFLINE_ACCEPTANCE.md).
+
+Worker/compiler/artifact and importer/storage race tests plus vet passed. A real
+network-disabled non-root compiler run first rejected an incorrect local asset
+reference; nothing was imported. The corrected run passed all four static gates.
+Import and identical re-import passed on a disposable copy of the committed base
+before importing only `operator-m49-v2-aqicfd2p` into test site
+`50dbf226-5975-4cde-b5e3-1a01d5bb7dd0`. Base version
+`669e8078-3483-44d6-a2f9-084f349c52c9` stayed byte-identical. Both deployment pointers
+and public headings still select version 1; the version-2 asset remains 404 on
+both hosts before activation. Bundle evidence is retained privately on the host
+at `/home/codex/pagewright-offline-AQiCFD2p/work/bundle-fixed`. This is an operator
+import, not a second end-to-end AI/manager build. Production service images,
+container isolation, secrets, signup, DNS, TLS configuration and live content
+were not changed by this tool run. Pending: UI version-2 preview/asset isolation,
+publish/rollback, remaining public security/failure-recovery and full-browser
+acceptance. M4.9 remains unchecked; no push.
+
 M4.9 remote progress and Certbot compatibility fix (2026-09-09), `e62f568`:
 the operator installed the reviewed pilot, prepared root-only application secrets
 with AI allowance zero, and started the loopback-only stack successfully. The
