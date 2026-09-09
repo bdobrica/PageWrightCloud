@@ -1,0 +1,17 @@
+# Offline operator utilities only; production service/worker images unchanged.
+FROM golang:1.24.10-alpine AS worker-tool
+WORKDIR /src
+COPY pagewright/worker/go.mod pagewright/worker/go.sum ./
+RUN go mod download
+COPY pagewright/worker/ ./
+RUN CGO_ENABLED=0 go build -o /acceptance-compile ./cmd/acceptance-compile
+FROM golang:1.24.10-alpine AS storage-tool
+WORKDIR /src
+COPY pagewright/storage/go.mod pagewright/storage/go.sum ./
+RUN go mod download
+COPY pagewright/storage/ ./
+RUN CGO_ENABLED=0 go build -o /acceptance-artifact ./cmd/acceptance-artifact
+FROM pagewright-worker:m4.5
+COPY --from=worker-tool /acceptance-compile /usr/local/bin/acceptance-compile
+COPY --from=storage-tool /acceptance-artifact /usr/local/bin/acceptance-artifact
+ENTRYPOINT ["/usr/local/bin/acceptance-compile"]
