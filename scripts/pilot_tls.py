@@ -17,6 +17,8 @@ import tempfile
 import time
 
 DOMAIN = "pagewright.io"
+# Dedicated root-owned non-Snap install; never fall back to the host Certbot.
+CERTBOT = "/opt/pagewright-certbot/bin/certbot"
 BASE = Path("/var/lib/pagewright-tls")
 CONF = Path("/etc/nginx/conf.d/pagewright-pilot.conf")
 MARKER = "# Managed by pagewright pilot_tls.py\n"
@@ -242,7 +244,7 @@ def reconcile(args):
             attempts.append({"name": name, "at": now})
             atomic(attempts_path, json.dumps(attempts), 0o600)  # persist before network work
             issued += 1
-            command = ["certbot", "certonly", "--non-interactive", "--agree-tos", "--email", args.email,
+            command = [CERTBOT, "certonly", "--non-interactive", "--agree-tos", "--email", args.email,
                        "--webroot", "-w", str(BASE / "webroot"), "--preferred-challenges", "http",
                        "--config-dir", str(acme / "config"), "--work-dir", str(acme / "work"),
                        "--logs-dir", str(acme / "logs"), "--cert-name", name]

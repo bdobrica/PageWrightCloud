@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/flock -w 300 /var/lib/pagewright-tls/controller.lock /usr/bin/certbot renew --non-interactive --config-dir /var/lib/pagewright-tls/production/config --work-dir /var/lib/pagewright-tls/production/work --logs-dir /var/lib/pagewright-tls/production/logs --deploy-hook "/usr/sbin/nginx -t && /usr/bin/systemctl reload nginx"
+ExecStart=/usr/bin/flock -w 300 /var/lib/pagewright-tls/controller.lock /opt/pagewright-certbot/bin/certbot renew --non-interactive --config-dir /var/lib/pagewright-tls/production/config --work-dir /var/lib/pagewright-tls/production/work --logs-dir /var/lib/pagewright-tls/production/logs --deploy-hook "/usr/sbin/nginx -t && /usr/bin/systemctl reload nginx"
 TimeoutStartSec=600
 PrivateTmp=true
 ProtectHome=true

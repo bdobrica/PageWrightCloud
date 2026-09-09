@@ -87,6 +87,65 @@ installation. No server files were changed by these checks.
 
 ## Installation sequence — operator-run after preflight review
 
+### Dedicated Certbot (also required for renewal)
+
+The pilot invokes `/opt/pagewright-certbot/bin/certbot` explicitly. Do not
+replace `/usr/bin/certbot`, remove the existing Snap installation, change its
+cron, or expose `/root/snap` to the pilot service. The host's Snap Certbot failed
+before logging under the service restrictions: it could not create
+`/root/snap/certbot/5893`. Direct-shell staging had succeeded, so it did not test
+the systemd execution environment. Keep all existing service restrictions.
+
+Use a root-owned dedicated Python virtual environment, based on
+[Certbot's pip installation method](https://certbot.eff.org/instructions?os=pip&ws=other),
+but without its global executable symlink or removal of other installations.
+Run once; if the target already exists, stop and inspect it rather than overwrite:
+
+```sh
+sudo bash <<'CERTBOT'
+set -euo pipefail
+umask 022
+test ! -e /opt/pagewright-certbot
+test ! -L /opt/pagewright-certbot
+python3 -m venv /opt/pagewright-certbot
+/opt/pagewright-certbot/bin/python -m pip install 'certbot==5.8.0'
+/opt/pagewright-certbot/bin/python -m pip check
+/opt/pagewright-certbot/bin/python -m pip freeze --all > /opt/pagewright-certbot/installed-packages.txt
+chmod -R go-w /opt/pagewright-certbot
+CERTBOT
+```
+
+If Python reports missing venv/ensurepip support, ask the operator to install the
+distribution's `python3-venv` package; do not modify system Python with pip. A
+partial installation needs inspection before retry. This separate installation
+does not receive Snap updates: the operator must review/test updates, retain a
+dependency inventory, and re-run restricted startup and renewal acceptance.
+
+Before any ACME attempt, test startup under the controller's restrictions. This
+only prints a version; it does not issue certificates or reload Nginx:
+
+```sh
+sudo systemd-run --wait --pipe --collect \
+  -p NoNewPrivileges=true -p PrivateTmp=true \
+  -p ProtectHome=true -p ProtectSystem=strict \
+  -p 'ReadWritePaths=/var/lib/pagewright-tls /etc/nginx/conf.d /var/log/nginx /run' \
+  /usr/bin/env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C \
+  /opt/pagewright-certbot/bin/certbot --version
+```
+
+The state directories below must exist before this probe. For an existing pilot,
+install the updated controller and renewal unit using the commands below, then
+validate units and reload systemd definitions. Leave timers stopped. Preserve
+all staging/production state, including `attempts.json`; startup failure does not
+justify clearing retry history. Verify staging execution under the same service
+restrictions before a production retry. Existing staging certificates are reused;
+reuse alone does not prove fresh issuance under those restrictions. A production
+attempt remains subject to the one-hour per-certificate backoff. Do not infer
+issuance success from systemd exit status; inspect the production certificate
+and verify trusted HTTPS as described below.
+
+### Controller and service files
+
 Run from `/opt/pagewright-pilot`. These commands install only dedicated files;
 first confirm targets do not contain existing operator files. Retain a private
 backup of host Nginx configuration before proceeding. No general sudo access is
@@ -148,7 +207,7 @@ or `/etc/letsencrypt` lineage). Run after the controller is idle; Certbot lockin
 and the shared host lock prevent overlap with the installed renewal unit:
 
 ```sh
-sudo flock -w 300 /var/lib/pagewright-tls/controller.lock certbot renew --dry-run --config-dir /var/lib/pagewright-tls/production/config --work-dir /var/lib/pagewright-tls/production/work --logs-dir /var/lib/pagewright-tls/production/logs
+sudo flock -w 300 /var/lib/pagewright-tls/controller.lock /opt/pagewright-certbot/bin/certbot renew --dry-run --config-dir /var/lib/pagewright-tls/production/config --work-dir /var/lib/pagewright-tls/production/work --logs-dir /var/lib/pagewright-tls/production/logs
 sudo nginx -t
 sudo systemctl reload nginx
 sudo systemctl enable --now pagewright-tls-renew.timer

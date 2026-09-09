@@ -9,6 +9,19 @@ import pilot_tls as tls
 
 
 class PilotTLSTests(unittest.TestCase):
+    def test_dedicated_certbot_and_service_restrictions(self):
+        self.assertEqual(tls.CERTBOT, '/opt/pagewright-certbot/bin/certbot')
+        root = Path(__file__).resolve().parent.parent
+        renewal = (root / 'deploy/pagewright-tls-renew.service').read_text()
+        self.assertIn(tls.CERTBOT + ' renew ', renewal)
+        self.assertNotIn('/usr/bin/certbot', renewal)
+        controller = (root / 'deploy/pagewright-tls.service').read_text()
+        for unit in (controller, renewal):
+            for setting in ('PrivateTmp=true', 'ProtectHome=true', 'ProtectSystem=strict'):
+                self.assertIn(setting, unit)
+            self.assertNotIn('/root/snap', unit)
+        self.assertIn('NoNewPrivileges=true', controller)
+
     def test_real_certificate_hostname_check(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
@@ -109,6 +122,7 @@ class PilotTLSTests(unittest.TestCase):
             tls.reconcile(args)
             self.assertEqual(run.call_count, 2)
             for call in run.call_args_list:
+                self.assertEqual(call.args[0][0], tls.CERTBOT)
                 self.assertIn('--staging', call.args[0])
                 self.assertIn('--webroot', call.args[0])
             run.reset_mock()
@@ -116,6 +130,17 @@ class PilotTLSTests(unittest.TestCase):
             run.assert_not_called()
             state = json.loads((Path(directory) / 'public/ready.json').read_text())
             self.assertEqual(state['hosts'], {})
+
+    def test_production_uses_dedicated_certbot_and_state(self):
+        import argparse
+        args = argparse.Namespace(apply=True, production=True, email='operator@example.test', postgres_container='pagewright-pilot-postgres-1')
+        with tempfile.TemporaryDirectory() as directory, patch.object(tls, 'BASE', Path(directory)), patch.object(tls.os, 'geteuid', return_value=0), patch.object(tls, 'inventory', return_value=[]), patch.object(tls, 'install_config'), patch.object(tls, 'certificate_ready', return_value=False), patch.object(tls, 'run') as run:
+            tls.reconcile(args)
+            command = run.call_args.args[0]
+            self.assertEqual(command[0], tls.CERTBOT)
+            self.assertNotIn('--staging', command)
+            self.assertEqual(command[command.index('--config-dir') + 1], str(Path(directory) / 'production/config'))
+            self.assertEqual(run.call_args.kwargs['timeout'], 180)
 
     def test_readiness_requires_both_https_probes(self):
         import argparse
