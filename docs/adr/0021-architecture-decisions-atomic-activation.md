@@ -1,5 +1,13 @@
 # Atomic activation and serving-cache retention (M3.8)
 
+ADR 0021 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 The selected live or preview symlink is replaced with a single same-filesystem
 rename. Serving never unlinks the active pointer first. Compiled public output is
 validated and extracted into a private staging directory, synced, then renamed to
@@ -15,7 +23,7 @@ are rejected before deployment, activation, retention or whole-site deletion.
 
 If preparing or renaming the pointer fails, the old output remains selected. An
 error **after** rename does not prove failure: complete new output may already be
-selected. The [M3.7 activating receipt](DEPLOYMENT_RECOVERY.md) retains uncertainty
+selected. The [M3.7 activating receipt](0020-architecture-decisions-deployment-recovery.md) retains uncertainty
 and recovery retries the same fenced operation. There is no speculative rollback.
 An explicit rollback is a new deployment of the desired older immutable artifact,
 using a newer sequence and the same atomic activation path; preview remains unchanged

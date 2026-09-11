@@ -1,5 +1,13 @@
 # Job wire contract — M1.1 / M1.2 / M2.7
 
+ADR 0001 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 This is the canonical contract for the selected gateway, manager, worker and UI.
 Go types remain local to their independently built service modules; real HTTP
 contract tests exercise their interoperability instead of introducing a shared
@@ -20,7 +28,7 @@ module/build dependency. UI parsers validate responses at runtime.
 The intended lifecycle is pending → running → completed or failed. M1.1 validates
 vocabulary, callback outcomes and identities; M1.2 adds durable pre-dispatch mapping
 and submission deduplication. M2.2 adds durable dispatch; M2.7 adds
-[lease renewal and fenced storage/result commits](FENCED_COMMITS.md).
+[lease renewal and fenced storage/result commits](0015-architecture-decisions-fenced-commits.md).
 Callback recovery remains M2.8/M2.9; terminal callback duplicates return 409.
 Manager marks a job running while recording irreversible dispatch intent;
 that status alone does not prove a worker ran.
@@ -30,7 +38,7 @@ that status alone does not prove a worker ran.
 `POST /sites/{fqdn}/build`, bearer-authenticated, accepts one JSON object:
 
 M1.2 also requires a nonzero UUID `Idempotency-Key` header. Retain it for retries;
-see [durable submissions](BUILD_SUBMISSIONS.md) for replay and uncertainty semantics.
+see [durable submissions](0002-architecture-decisions-build-submissions.md) for replay and uncertainty semantics.
 
 ```json
 {"message":"Change the homepage title","conversation_id":"optional-existing-conversation"}
@@ -205,10 +213,10 @@ Do not delete development data automatically or assume existing jobs were upgrad
   paths. These are not browser, socket authentication or publishing tests.
 
 Run `make test-all`, `make test-integration`, and UI contract tests/lint/build as
-described in [TESTING.md](TESTING.md). CI includes the new checks.
+described in [TESTING.md](../TESTING.md). CI includes the new checks.
 
 M1.2 persists the job-to-target-version mapping and version before dispatch;
-see [submission state/retry rules](BUILD_SUBMISSIONS.md). M1.6 replaces the current
+see [submission state/retry rules](0002-architecture-decisions-build-submissions.md). M1.6 replaces the current
 `initial` source placeholder with a real bootstrap artifact; M2.5 changes base
 selection beyond the current live version. M3 adds owner-checked retrieval,
 polling and browser recovery. This contract does not make the full pipeline work.

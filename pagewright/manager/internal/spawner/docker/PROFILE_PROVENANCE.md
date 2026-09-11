@@ -24,7 +24,7 @@ manager profile, host sysctl or host-wide LSM policies are modified.
 When updating, review upstream changes and the delta, regenerate the worker JSON,
 and run both daemon and installed-CLI negative acceptance tests. Never substitute
 `seccomp=unconfined`. See [Docker's seccomp model](https://docs.docker.com/engine/security/seccomp/)
-and [worker operations](../../../../../docs/WORKER_CLI.md).
+and [worker operations](../../../../../docs/adr/0012-architecture-decisions-worker-cli.md).
 
 M2.6 retains this container filter unchanged. The worker image additionally
 installs `cmd/sandbox-bwrap`, a PATH wrapper that stacks a tool-only classic BPF

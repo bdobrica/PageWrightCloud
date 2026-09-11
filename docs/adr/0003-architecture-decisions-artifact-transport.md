@@ -1,5 +1,13 @@
 # Artifact transport (M1.3)
 
+ADR 0003 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Worker, gateway and serving use the same storage representation:
 
 | Operation | Storage HTTP contract |
@@ -32,7 +40,7 @@ checksum failures, including errors after the tar end marker.
 ## Verification
 
 `make test-integration` runs worker first. It packs the shared
-[fixture](../tests/fixtures/artifact-transport.json), uploads to real storage,
+[fixture](../../tests/fixtures/artifact-transport.json), uploads to real storage,
 downloads and unpacks it, and saves the original compressed bytes in a temporary
 test-run directory. Gateway and serving then fetch that same stored object and
 compare exact bytes, not just equivalent decompressed content. Checks cover the
@@ -48,13 +56,13 @@ identifiers, redirects and interrupted transfers.
 Storage is deliberately an opaque byte store: `application/gzip` is a transport
 contract, not server-side archive validation. Existing malformed objects are not
 repaired. A successful upload does not imply a complete, publishable version.
-M1.4 adds [manifest/private-log persistence and commit visibility](VERSION_METADATA.md);
-M1.5 adds [immutable writes and disabled deletion](IMMUTABLE_VERSIONS.md).
+M1.4 adds [manifest/private-log persistence and commit visibility](0004-architecture-decisions-version-metadata.md);
+M1.5 adds [immutable writes and disabled deletion](0005-architecture-decisions-immutable-versions.md).
 The existing `/sites/{site_id}/logs` endpoint stores event records, not the
 worker's private per-version log payload. Gateway deletion is disabled (`501`);
 storage has no DELETE endpoint (`405`).
 
-M1.7 adds [archive layout validation](ARCHIVE_LAYOUT.md), extraction limits and
+M1.7 adds [archive layout validation](0007-architecture-decisions-archive-layout.md), extraction limits and
 isolated staging: rejected extraction does not leave partial destination files.
 Only public files enter the serving cache. This does not establish internal-service
 authorization, safe HTML generation, nginx activation or an end-to-end AI build.

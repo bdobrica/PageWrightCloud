@@ -182,10 +182,32 @@ These checks do not establish that the remote pilot runs this candidate revision
 ## Remaining gates
 
 The fresh paid gate passed, completing M4.13's local release-scenario acceptance.
-M4.14 operator-runbook/release-state work remains next; this is not public sign-off.
+M4.14's [operator runbooks](OPERATIONS.md) document the remaining rollout/recovery
+work; their publication is not public sign-off or evidence of a remote exercise.
 The Firefox runtime/harness limitation remains documented despite the independent
 Chromium pass. M4.9's remaining public
 failure-recovery and full-browser acceptance is not closed by local tests. Retained
 traces and fixture backups are local evidence and may contain synthetic credentials;
 do not publish them indiscriminately. Test cleanup removes generated resources only;
 image/browser caches and selected evidence remain available.
+
+## M4.14 documentation verification — 2026-09-11
+
+Published incident/disk-pressure/content and application rollback procedures,
+coordinated credential rotation, and an operational index linking the existing
+backup/restore and TLS guides. Rewrote the stale root README and corrected setup/
+security/testing status notes. Moved 27 design/contract documents and the plan's
+implementation principles into 28 numbered ADRs,
+preserving historical evidence, marking the wildcard proposal superseded and
+updating repository references. Operational configuration/safety limits remain
+with the runbooks; historical decision notes are not deployment instructions.
+
+Verification: documentation-checker tests 2/2; over 400 inline local file targets
+resolved; no references to the 27 removed paths remained;
+14 shell blocks parsed with `bash -n`; dummy-secret configuration acceptance and
+all 11 offline backup safety tests passed; `git diff --check` passed. The link
+checker excludes generated-site fixtures, external URLs, reference-style links and
+heading validation. Shell parsing does not execute operational commands. The
+full service/browser/paid suites were not rerun for documentation/comment-only
+changes; their M4.13 evidence above remains the runtime baseline. No application
+secrets were read, paid calls made, remote configuration changed, or data removed.

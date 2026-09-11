@@ -1,8 +1,16 @@
 # Compiler fixtures and boundaries (M1.8)
 
+ADR 0008 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Executable coverage lives in `pagewright/compiler/internal/compile/` and CLI
 process tests in `cmd/pagewrightc/`. The committed
-[starter fixture](../pagewright/compiler/internal/compile/testdata/site/content)
+[starter fixture](../../pagewright/compiler/internal/compile/testdata/site/content)
 uses the actual bundled theme, not a substitute renderer.
 
 ## Supported inputs and output
@@ -63,7 +71,7 @@ Checks assume local Linux filesystems and inputs that are not modified concurren
 They are not a sandbox against a process swapping links/files during compilation.
 Worker credential isolation, resource limits, trusted-theme ownership, HTML/origin
 policy, general secret detection and hosting activation remain M2–M4. These tests
-do not replace the separate [archive/public-output policy](ARCHIVE_LAYOUT.md).
+do not replace the separate [archive/public-output policy](0007-architecture-decisions-archive-layout.md).
 
 ## Verification
 
@@ -80,5 +88,5 @@ traversal, symlinks, existing-output preservation, late failure cleanup and CLI 
 codes. Root `make test-all` and existing CI run the suite. The smoke target also
 builds the original three-page fixture and gateway bootstrap through the CLI.
 No provider, Docker stack or browser is needed for these compiler suites.
-M2.4 adds [production worker integration and static output checks](WORKER_BUILD.md).
+M2.4 adds [production worker integration and static output checks](0013-architecture-decisions-worker-build.md).
 Browser validation and broader production hardening remain future work.

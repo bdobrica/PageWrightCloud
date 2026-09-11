@@ -1,5 +1,13 @@
 # Owner-scoped build history (M3.1)
 
+ADR 0017 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Authenticated gateway routes:
 
 - `GET /sites/{fqdn}/jobs?page=1&page_size=25`: newest-first durable submissions,

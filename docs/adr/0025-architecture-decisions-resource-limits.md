@@ -1,5 +1,13 @@
 # Request, archive and compiler limits (M4.5)
 
+ADR 0025 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Limits are fixed MVP policy, not knobs that disable validation. Rebuild services
 and the worker (`docker compose build worker`), and replace old worker image pins
 with `pagewright-worker:m4.5`. Existing data is neither rewritten nor deleted;
@@ -73,5 +81,5 @@ malformed manifests, traversal, links/devices/FIFOs, compiler/asset escape attem
 JSON suffix/size limits and unchanged destinations on failure. New compiler tree
 tests use sparse files rather than allocating hundreds of MiB of fixture contents.
 `make test-integration`, race/vet, startup/recovery smoke and the disposable
-[browser journey](BROWSER_ACCEPTANCE.md) check that accepted workloads still build,
+[browser journey](../BROWSER_ACCEPTANCE.md) check that accepted workloads still build,
 preview, publish and roll back through the authenticated stack with a fake provider.

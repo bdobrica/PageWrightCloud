@@ -1,5 +1,13 @@
 # Draft recovery and publication feedback (M3.10)
 
+ADR 0023 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 ## Draft lifecycle
 
 Chat saves text synchronously on each edit in browser session storage, under a

@@ -1,8 +1,16 @@
 # Pilot DNS and HTTPS — M4.9 in progress
 
+ADR 0027 · Status: superseded; use [HTTP-01 operations](../PILOT_HTTP01.md).
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 **Superseded design note:** the operator selected individual Let's Encrypt
 certificates with HTTP-01, not wildcard/DNS-01 certificates. Use the current
-[HTTP-01 installation and acceptance runbook](PILOT_HTTP01.md). The material below
+[HTTP-01 installation and acceptance runbook](../PILOT_HTTP01.md). The material below
 records the earlier wildcard proposal only; do not follow its DNS/API setup steps.
 
 The physical server at `135.181.209.167` can host the closed pilot alongside the
@@ -93,6 +101,6 @@ The disposable browser suite uses `example.localhost` and loopback ephemeral por
 it makes no public DNS changes or paid provider calls.
 
 Rebuild gateway, serving and UI together and follow the
-[conservative v2-to-v3 routing migration](PREVIEW_ACTIVATION.md#existing-installation-upgrade).
+[conservative v2-to-v3 routing migration](0018-architecture-decisions-preview-activation.md#existing-installation-upgrade).
 Custom domain creation and domain-alias mutation remain unsupported; this change
 does not enable either feature.

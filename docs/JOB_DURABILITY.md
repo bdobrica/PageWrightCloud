@@ -3,8 +3,8 @@
 M2.9 adds gateway recovery and PostgreSQL lifecycle history, a Redis startup
 durability gate, legacy-TTL protection, bounded metadata retention and a read-only
 audit command. Worker execution/isolation is unchanged: the selected worker stays
-`pagewright-worker:m2.8`. See [dispatch](QUEUE_DISPATCH.md),
-[fenced commits](FENCED_COMMITS.md) and [result recovery](RESULT_RECOVERY.md).
+`pagewright-worker:m2.8`. See [dispatch](adr/0011-architecture-decisions-queue-dispatch.md),
+[fenced commits](adr/0015-architecture-decisions-fenced-commits.md) and [result recovery](adr/0016-architecture-decisions-result-recovery.md).
 
 ## Persistence requirements
 

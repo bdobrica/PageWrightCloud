@@ -78,7 +78,7 @@ Updates nginx `server_name` directive and reloads nginx.
 - Public URL: `http://blog.example.com:8084/`
 - Preview URL: `http://blog.preview.example.com:8084/`
 
-See [hosting URL configuration, DNS/TLS and migration](../../docs/PREVIEW_ACTIVATION.md).
+See [hosting URL configuration, DNS/TLS and migration](../../docs/adr/0018-architecture-decisions-preview-activation.md).
 
 ## nginx Configuration
 
@@ -152,7 +152,7 @@ Automatic cleanup after each deployment:
 4. Remove only excess serving-cache copies; canonical storage archives remain available for rollback.
 
 Protected versions can exceed the budget and are never deleted. See [atomic activation,
-retention, rollback and upgrade boundaries](../../docs/ATOMIC_ACTIVATION.md).
+retention, rollback and upgrade boundaries](../../docs/adr/0021-architecture-decisions-atomic-activation.md).
 
 ## nginx Reload
 

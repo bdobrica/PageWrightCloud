@@ -1,5 +1,13 @@
 # Default build source (M2.5)
 
+ADR 0014 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 New build submissions select their source from the owner-checked site's storage
 version list, not the gateway's potentially stale `versions.status` rows:
 

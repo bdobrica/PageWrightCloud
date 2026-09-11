@@ -1,5 +1,13 @@
 # Version and serving contracts (M1.9)
 
+ADR 0009 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Gateway sends these serving JSON bodies:
 
 | Serving request | Body |

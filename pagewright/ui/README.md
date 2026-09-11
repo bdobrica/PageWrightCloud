@@ -4,8 +4,8 @@
 
 React/TypeScript user interface with chat-based site editing and real-time updates.
 
-The supported UI is the [text-only MVP](../../docs/MVP_CAPABILITIES.md).
-See [draft recovery and publication feedback](../../docs/DRAFT_RECOVERY.md) for
+The supported UI is the [text-only MVP](../../docs/adr/0022-architecture-decisions-mvp-capabilities.md).
+See [draft recovery and publication feedback](../../docs/adr/0023-architecture-decisions-draft-recovery.md) for
 same-tab re-authentication recovery, retry identity and the focused browser test.
 See [keyboard/focus and responsive acceptance](../../docs/UI_ACCESSIBILITY.md) for
 the five-viewport audit, native modal behavior and verification boundaries.
@@ -168,7 +168,7 @@ api.post(`/sites/${fqdn}/build`, { message, conversation_id? })
 ## Build updates
 
 The MVP uses owner-checked job history and bounded HTTP polling, not WebSockets.
-See [the history/polling contract and WebSocket re-enable gate](../../docs/JOB_HISTORY_API.md).
+See [the history/polling contract and WebSocket re-enable gate](../../docs/adr/0017-architecture-decisions-job-history-api.md).
 No socket connection, query-token transport, subscription or reconnect timer is
 created by the UI. The retired gateway `/ws` endpoint returns HTTP 501.
 

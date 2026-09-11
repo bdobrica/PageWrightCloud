@@ -1,5 +1,13 @@
 # Text-only MVP capabilities
 
+ADR 0022 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 This release is MVP-only. There is no environment switch that enables unfinished
 features; supplying OAuth credentials does not enable Google sign-in.
 

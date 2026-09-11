@@ -1,5 +1,13 @@
 # Cross-user access acceptance (M4.7)
 
+ADR 0026 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 The public gateway authenticates bearer tokens before protected handlers. Active
 site handlers resolve the requested site and compare its owner to the authenticated
 user before reading private state, invoking internal services or reserving work.
@@ -49,7 +57,7 @@ job reads, unchanged site rows/history, no persisted foreign deployment intent a
 zero storage/serving/manager calls on denial. Existing job-history tests additionally
 exercise pending/running/failed/completed snapshots and same-owner wrong-site IDs.
 
-The disposable [browser acceptance runner](BROWSER_ACCEPTANCE.md) additionally uses
+The disposable [browser acceptance runner](../BROWSER_ACCEPTANCE.md) additionally uses
 the real production router and services after its successful build/rollback journey.
 It logs in as the journey owner and registers a second synthetic account through
 the public API, creates that account's starter site and checks foreign access,

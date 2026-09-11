@@ -1,5 +1,13 @@
 # Preview activation and hosting URLs (M3.4–M3.6, M4.9)
 
+ADR 0018 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Selecting **Preview in New Tab** calls the owner-checked gateway deployment API
 with `{ "target": "preview" }` for the selected immutable build. Gateway downloads
 and stages the artifact through serving, activates its preview pointer, ensures
@@ -28,7 +36,7 @@ For local development, map e.g. `demo.pagewright.io` and
 `http://demo.pagewright.io:8084/` and `http://demo.preview.pagewright.io:8084/`.
 For HTTPS, provide certificates covering **both** names; a `*.pagewright.io`
 certificate does not cover `demo.preview.pagewright.io`; use an additional
-`*.preview.pagewright.io` certificate name. See [pilot DNS/TLS setup](PILOT_HTTPS.md).
+`*.preview.pagewright.io` certificate name. See [pilot DNS/TLS setup](0027-architecture-decisions-pilot-https.md).
 No DNS or TLS provisioning
 is performed automatically. Hosting scheme/port settings advertise an existing
 endpoint; they do not configure TLS or change the Docker port mapping.
@@ -47,7 +55,7 @@ policy, and reloaded. Preview does not create a live symlink. Nil arguments to
 clear live and publishing cannot clear preview. Gateway checks database write
 errors. This narrow prerequisite is brought forward from M3.7; distributed
 activation/DB reconciliation and concurrent deployment policy are now implemented
-by the [M3.7 durable deployment protocol](DEPLOYMENT_RECOVERY.md).
+by the [M3.7 durable deployment protocol](0020-architecture-decisions-deployment-recovery.md).
 
 ## Existing-installation upgrade
 
@@ -88,12 +96,12 @@ existing nginx policy preservation. No manual HTML seeding or database edits are
 used for the first-preview journey.
 
 At M3.4 handoff, production root Compose still lacked reload coordination. M3.5
-now supplies the [supervised hosting lifecycle](HOSTING_LIFECYCLE.md), config
+now supplies the [supervised hosting lifecycle](0019-architecture-decisions-hosting-lifecycle.md), config
 validation, acknowledged reloads, rollback and restart recovery. Integration uses
 that production supervisor and fixed public proxy. Routing is confirmed before
 changing an artifact pointer; unavailable reloads fail without opening a success URL.
 M3.7 reconciles durable intent/receipts and preserves the opposite pointer; it does
 not promise a compensating rollback. M3.8 adds [atomic symlink replacement and
-active-version-aware cache retention](ATOMIC_ACTIVATION.md).
+active-version-aware cache retention](0021-architecture-decisions-atomic-activation.md).
 Full rendered-browser acceptance remains M3.12. No private preview access
 control or safe-generated-content claim is made; pilot hardening remains M4.

@@ -1,5 +1,13 @@
 # Durable bounded dispatch (M2.2)
 
+ADR 0011 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 `POST /jobs` atomically stores the canonical job, reserves its site and appends
 its identity to Redis. A first successful response is **201 pending**; it does
 not acquire a lock or call Docker. Poll `GET /jobs/{job_id}` for execution and
@@ -23,8 +31,8 @@ launch. Restarting a manager preserves this recovery and the shared limit.
 **Intent is never automatically replayed**, including a crash immediately before
 Docker is called, a lost intent acknowledgement or an ambiguous launch. These
 jobs conservatively remain running and occupy capacity until
-[M2.8 result/exit/timeout reconciliation](RESULT_RECOVERY.md); broader restart
-and operator recovery follows the [M2.9 durability runbook](JOB_DURABILITY.md).
+[M2.8 result/exit/timeout reconciliation](0016-architecture-decisions-result-recovery.md); broader restart
+and operator recovery follows the [M2.9 durability runbook](../JOB_DURABILITY.md).
 This is duplicate-safe dispatch, not guaranteed
 eventual completion or exactly-once execution under arbitrary storage loss.
 Do not delete dispatch markers or expire reservations to force retries.
@@ -32,7 +40,7 @@ Do not delete dispatch markers or expire reservations to force retries.
 Terminal callbacks atomically free active capacity and the site's admission
 guard. Outcome updates preserve dispatch metadata and cannot reopen terminal
 jobs. Pending jobs cannot report execution outcomes. M2.7 adds
-[lease renewal and fenced storage/result commits](FENCED_COMMITS.md), including
+[lease renewal and fenced storage/result commits](0015-architecture-decisions-fenced-commits.md), including
 atomic lock removal and rejection of terminal callback retries. Authentication
 remains M4; internal APIs must still
 be restricted to trusted local operation.
@@ -81,7 +89,7 @@ unknown states or multiple active legacy jobs for one site stop initialization
 for reconciliation. Stop **all** old request-spawning managers before upgrading;
 mixed old/new dispatch implementations are unsupported. Existing legacy record
 TTLs are now removed from surviving reservations before admission by M2.9.
-[History retention and restart reconciliation](JOB_DURABILITY.md) preserve
+[History retention and restart reconciliation](../JOB_DURABILITY.md) preserve
 missing-evidence uncertainty, including gateway claims not received by the manager.
 
 ## Verification

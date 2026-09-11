@@ -48,7 +48,7 @@ receipt/restart tests use real Redis with controlled worker inspection/storage
 responses; stack restart tests use disposable production services. They are not
 one end-to-end paid-AI crash test, and do not prove disk-loss or multi-host HA
 recovery. Worker containers retain restart policy `no`; do not manually rerun a
-fenced attempt. See [result recovery](RESULT_RECOVERY.md),
+fenced attempt. See [result recovery](adr/0016-architecture-decisions-result-recovery.md),
 [durability](JOB_DURABILITY.md) and [retention](WORKER_RETENTION.md).
 
 Executor parsing tests were restored in M2.3 and cancellation/process-tree tests

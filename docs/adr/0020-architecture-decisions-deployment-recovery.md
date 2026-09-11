@@ -1,5 +1,13 @@
 # Deployment consistency and recovery (M3.7)
 
+ADR 0020 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Publishing/previewing is a durable operation, not an untracked pair of HTTP calls.
 Migration 010 stores one current deployment intent per site in PostgreSQL. Its
 global sequence increases for each new selection; an unresolved selection retains
@@ -76,14 +84,14 @@ run old unfenced gateways alongside the new protocol. Migration 010 does not inf
 deployment history or alter existing pointers; a site's first new selection enrolls
 it. Keep the PostgreSQL sequence and private serving receipts across recreation.
 Existing preview DNS/config upgrade requirements remain in
-[PREVIEW_ACTIVATION.md](PREVIEW_ACTIVATION.md).
+[PREVIEW_ACTIVATION.md](0018-architecture-decisions-preview-activation.md).
 
 Site deletion is refused once it has a deployment record (even a failed one), so a
 delayed request cannot recreate content after its sequence tombstone is removed.
 Deletion of never-enrolled sites is serialized with enrollment and stops on serving
 failure. Coordinated deletion/tombstone retirement is not yet implemented; M3.9
 should hide unsupported controls. M3.8 adds [atomic pointer replacement and safe
-serving-cache retention](ATOMIC_ACTIVATION.md): live, preview, receipt-pinned and
+serving-cache retention](0021-architecture-decisions-atomic-activation.md): live, preview, receipt-pinned and
 recently switched output is protected, and rollback can restage an evicted copy.
 The pointer no longer has a remove/create gap. This is restart/retry reconciliation
 and atomic pointer replacement, not instantaneous globally atomic publishing.

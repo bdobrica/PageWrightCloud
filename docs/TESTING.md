@@ -1,7 +1,8 @@
 # Baseline checks
 
 The [M4.13 release record](RELEASE_ACCEPTANCE.md) maps the nine release scenarios
-to fresh commands/results, browser failures and fixes, and pending paid/public gates.
+to fresh commands/results, browser failures/fixes, successful paid smoke and
+remaining public-pilot gates.
 
 See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from the repository root:
 
@@ -12,7 +13,8 @@ See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from 
 | Compiler fixture | `make test-compiler-smoke` | Starter theme produces three pages and required assets in a temporary directory |
 | UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, deterministic bounded polling/lifecycle/cleanup tests, zero-warning lint, production build |
 | Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP, worker callbacks, and shared artifact round-trips through worker/gateway/serving in isolated Compose |
-| Images | `docker compose --env-file /dev/null --profile worker build` | Selected service images, including the optional mock worker |
+| Images | `docker compose --profile worker build` | Selected production service/worker images; requires private configured secrets for Compose interpolation, but does not call the provider |
+| Documentation | `node --test scripts/check-doc-links.test.mjs && node scripts/check-doc-links.mjs` | Offline inline local file-target checks for root/docs/component READMEs; excludes site fixtures, external URLs and heading-anchor validation |
 | Startup/recreation | `make smoke-stack` | Fresh stack, UI assets, disabled `/ws`, real proxy/reload routing and supervised nginx crash recovery; SIGKILL disposable serving/Redis/gateway/manager, recreate retained volumes, verify config/history recovery and missing-evidence non-redispatch |
 
 The integration and startup checks use disposable, uniquely named projects and remove only their own test volumes. They do not require your development stack or `.env`. The image-build command only builds images; it does not start or remove containers. Startup needs Node as well as Docker. No paid AI credentials are needed.
@@ -61,23 +63,23 @@ milestone does not reintroduce sockets or change the polling transport. Race tes
 exercise the schedules observed; they are not proof that every possible race is
 absent. Production TLS/browser gates remain separate.
 
-The [job wire contract](JOB_CONTRACT.md) describes M1.1's gateway/manager/worker/UI
+The [job wire contract](adr/0001-architecture-decisions-job-contract.md) describes M1.1's gateway/manager/worker/UI
 schemas and HTTP acceptance tests. The instruction provider is faked in contract
 tests; no paid provider or worker executor is invoked.
 
-[M1.2 submission tests](BUILD_SUBMISSIONS.md) add PostgreSQL reservation/outcome
+[M1.2 submission tests](adr/0002-architecture-decisions-build-submissions.md) add PostgreSQL reservation/outcome
 atomicity, concurrent duplicate HTTP requests, failed/lost delivery, restart
 replay, real Redis deduplication scripts, and UI retry identity. The integration
 harness provides `TEST_REDIS_ADDR` for the isolated Redis tests; they do not flush
 an existing application's Redis data.
 
-[M1.3 artifact transport tests](ARTIFACT_TRANSPORT.md) pack one shared fixture
+[M1.3 artifact transport tests](adr/0003-architecture-decisions-artifact-transport.md) pack one shared fixture
 with the worker, persist it through real storage, and compare exact bytes and
 extracted files across all three storage clients. Gateway's authenticated
 download and interrupted upstream response are also exercised. Serving tests
 use its real extractor, not nginx activation or the publish workflow.
 
-[M1.4 metadata tests](VERSION_METADATA.md) verify manifest-last completion,
+[M1.4 metadata tests](adr/0004-architecture-decisions-version-metadata.md) verify manifest-last completion,
 required private-log writes, hidden partial/legacy versions, safe retry,
 backend restart and worker callback gating. Integration uses the actual worker
 metadata client and checks committed-version visibility through gateway.
@@ -87,30 +89,30 @@ acknowledged manager job survives AOF restart, reconciles its PostgreSQL lifecyc
 history, and preserves a gateway claimed-before-send fixture as uncertain.
 See [durability acceptance and operator limits](JOB_DURABILITY.md).
 
-[M1.5 immutability checks](IMMUTABLE_VERSIONS.md) add concurrent instance/process
+[M1.5 immutability checks](adr/0005-architecture-decisions-immutable-versions.md) add concurrent instance/process
 writes, retries, conflict preservation, failed-stream cleanup and disabled
 deletion. Startup/recreation smoke verifies all immutable object types and both
 deletion responses. UI contracts guard the removed deletion action.
 
-[M1.6 bootstrap checks](SITE_BOOTSTRAP.md) verify deterministic starter source,
+[M1.6 bootstrap checks](adr/0006-architecture-decisions-site-bootstrap.md) verify deterministic starter source,
 compiler compatibility, durable reservation/reconnect, partial-write/lost-response
 recovery, concurrent creation and pending-build rejection. Startup/recreation
 now creates the initial source through gateway rather than metadata alone.
 
-[M1.7 archive checks](ARCHIVE_LAYOUT.md) cover source/public separation, unsafe
+[M1.7 archive checks](adr/0007-architecture-decisions-archive-layout.md) cover source/public separation, unsafe
 paths and links, private runtime-file canaries, archive/decompression limits,
 legacy source-only compatibility, staged failure preservation and concurrent
 deployment retries. Worker and serving enforce identical policy files (checked
 by integration). Source survives a second edit; private paths return 404 from
 the public HTTP root. These checks do not certify compiler or nginx behavior.
 
-[M1.8 compiler fixtures](COMPILER_CONTRACT.md) exercise real starter rendering,
+[M1.8 compiler fixtures](adr/0008-architecture-decisions-compiler-contract.md) exercise real starter rendering,
 Markdown/MDX discovery and failures, navigation/TOC consistency, tokens/assets,
 malformed configuration, escaping, filesystem boundaries and CLI exit codes.
 Run `go test -race -count=1 -coverpkg=./internal/... ./...` in
 `pagewright/compiler` for race-enabled cross-package coverage.
 
-[M1.9 version API checks](VERSION_API.md) verify serving JSON fields, normalized
+[M1.9 version API checks](adr/0009-architecture-decisions-version-api.md) verify serving JSON fields, normalized
 owner-checked committed-version lists, pagination and upstream failures against
 real storage/PostgreSQL. UI contracts exercise version parsing and FQDN routing.
 These do not establish the full publish/preview journey.

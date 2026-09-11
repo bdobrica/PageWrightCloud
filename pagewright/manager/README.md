@@ -1,10 +1,10 @@
 # Manager Service
 
 Port 8081. Redis-backed durable job admission and bounded background Docker
-dispatch. See the [dispatch contract](../../docs/QUEUE_DISPATCH.md) for recovery,
+dispatch. See the [dispatch contract](../../docs/adr/0011-architecture-decisions-queue-dispatch.md) for recovery,
 persistence, configuration and upgrade requirements, and the
-[Docker launch contract](../../docs/DOCKER_SPAWNER.md) for image/network setup and
-socket authority. [Result recovery](../../docs/RESULT_RECOVERY.md) covers bounded
+[Docker launch contract](../../docs/adr/0010-architecture-decisions-docker-spawner.md) for image/network setup and
+socket authority. [Result recovery](../../docs/adr/0016-architecture-decisions-result-recovery.md) covers bounded
 callbacks, verified worker exits, artifact receipts and terminal timeouts.
 Paid-provider acceptance remains a later milestone.
 Production startup now requires the Redis settings in the
@@ -57,7 +57,7 @@ All variables use the `PAGEWRIGHT_` prefix.
 | `DISPATCH_CLAIM_TTL` | `30s`, range 1s–1m, pre-launch claim lease |
 | `LOCK_TTL` | `5m`; renewal remains unimplemented |
 | `WORKER_SPAWNER` | `docker`; Kubernetes is a historical logging stub |
-| `WORKER_IMAGE` | `pagewright-worker:m2.12`; [CLI contract and sandbox prerequisites](../../docs/WORKER_CLI.md) |
+| `WORKER_IMAGE` | `pagewright-worker:m2.12`; [CLI contract and sandbox prerequisites](../../docs/adr/0012-architecture-decisions-worker-cli.md) |
 | `WORKER_APPARMOR_PROFILE` | Empty or reviewed `pagewright-worker`; requires explicit host profile installation |
 | `WORKER_NETWORK` | Required dedicated Docker network |
 | `WORKER_STORAGE_URL` | `http://storage:8080`, reachable by workers |

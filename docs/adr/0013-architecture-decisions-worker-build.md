@@ -1,5 +1,13 @@
 # Trusted worker builds (M2.4)
 
+ADR 0013 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 The selected `pagewright-worker:m2.12` image packages `pagewrightc` **0.1.0**
 and starter theme **1.0.0** at `/usr/local/bin/pagewrightc` and
 `/opt/pagewright/themes/starter-1.0.0`. Both are root-owned, read-only to the
@@ -47,7 +55,7 @@ overrides, never workspace inputs. The production defaults are version checked.
 Full process cancellation/resource limits remain M2.6; this change preserves the
 existing non-root, capability-free sandbox and introduces no privileged mode.
 No paid-provider acceptance is implied by deterministic compilation tests.
-See [M2.12](PROVIDER_SMOKE.md) for the separate authorized provider run.
+See [M2.12](../PROVIDER_SMOKE.md) for the separate authorized provider run.
 
 The installed compiler suite runs without network or capabilities and verifies
 trusted-input permissions, real builds, asset bytes, deleted/stale output,

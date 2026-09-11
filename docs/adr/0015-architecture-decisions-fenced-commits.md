@@ -1,5 +1,13 @@
 # Site leases and fenced commits (M2.7)
 
+ADR 0015 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 The manager owns site leases and commit authority. A worker attempt is the tuple
 `job_id`, `site_id`, `owner_id`, source/target versions, `lock_token` and
 `fencing_token`. The random lock token is the unique attempt identity; the fence
@@ -62,9 +70,9 @@ Redis provides [atomic script execution](https://redis.io/docs/latest/develop/pr
 If storage crashes or the acknowledgement is lost after reservation, bytes may
 be staged/reserved but not visible. An identical object retry is allowed only
 while that attempt remains active and leased. M2.8 adds conservative
-[receipt and result reconciliation](RESULT_RECOVERY.md); do not delete a receipt
-to retry different bytes. [Restart durability](JOB_DURABILITY.md) is covered by M2.9 and receipt
-receipts remain nonexpiring under the [M2.10 retention policy](WORKER_RETENTION.md).
+[receipt and result reconciliation](0016-architecture-decisions-result-recovery.md); do not delete a receipt
+to retry different bytes. [Restart durability](../JOB_DURABILITY.md) is covered by M2.9 and receipt
+receipts remain nonexpiring under the [M2.10 retention policy](../WORKER_RETENTION.md).
 
 ## Results and retries
 
@@ -89,7 +97,7 @@ storage and worker together. Old workers do not send the new identity header;
 old active jobs lack the dispatch timestamp/commit receipts needed for this
 contract. Do not hot-mix worker generations or reset fence counters/receipts.
 Back up Redis and storage together; Redis persistence and uncertain-job recovery
-follow the [M2.9 durability gate and operator policy](JOB_DURABILITY.md). No live
+follow the [M2.9 durability gate and operator policy](../JOB_DURABILITY.md). No live
 application-data restore is performed; surviving legacy reservation TTLs are protected.
 
 Fencing is not authentication: the internal API is still trusted-network-only.

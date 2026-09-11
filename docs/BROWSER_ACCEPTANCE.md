@@ -93,7 +93,7 @@ and creates its starter site. It checks foreign site/job/version/download and
 live/preview activation rejection, disabled deletion/aliases, wrong-site ID
 substitution, successful owner download and unchanged owner state. These extra
 test-account/site writes remain confined to the disposable stack; they do not call
-the provider. See [ownership security](OWNERSHIP_SECURITY.md), including the explicit
+the provider. See [ownership security](adr/0026-architecture-decisions-ownership-security.md), including the explicit
 distinction between private management APIs and public generated preview HTML.
 
 The runner prints its unique project name and evidence directory under `/tmp`.

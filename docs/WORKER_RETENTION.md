@@ -1,9 +1,10 @@
 # Worker and staging retention (M2.10)
 
-Selected worker: `pagewright-worker:m2.12`. Isolation, the pinned CLI/compiler,
+The root default worker tag is `pagewright-worker:m4.5`; retain exact deployed image
+IDs for recovery instead of relying on mutable tags. Isolation, the pinned CLI/compiler,
 capabilities and resource ceilings are unchanged. No privileged containers are
 required. This policy complements [durable job recovery](JOB_DURABILITY.md) and
-[immutable result receipts](RESULT_RECOVERY.md); it does not garbage-collect versions.
+[immutable result receipts](adr/0016-architecture-decisions-result-recovery.md); it does not garbage-collect versions.
 
 ## Containers and operational diagnostics
 
@@ -47,7 +48,7 @@ completion verification needs their digest receipts and bytes. Historical logs
 are not retroactively scrubbed or rewritten. Source/artifacts, manifest summaries,
 prompts and existing API responses are not operational-log redaction targets.
 This is not a claim that all stored user content or every system log is sanitized;
-internal APIs still require a trusted network until M4 authentication lands.
+internal APIs now also enforce [service/scoped-worker authentication](INTERNAL_AUTH.md).
 
 ## Abandoned storage uploads
 

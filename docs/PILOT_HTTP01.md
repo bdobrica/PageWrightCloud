@@ -256,7 +256,7 @@ make test-integration
 The runtime test creates its own nginx container and test certificates, then
 removes that container. No CA calls, paid provider, privileged containers or
 production data are involved. Rebuild gateway/UI for readiness support; serving
-must already include the v3 [preview namespace migration](PREVIEW_ACTIVATION.md).
+must already include the v3 [preview namespace migration](adr/0018-architecture-decisions-preview-activation.md).
 
 Current verification limit (2026-09-09): the full pinned Firefox 146.0.1 browser
 journey timed out repeatedly on hosted navigation. A separate plain HTML server

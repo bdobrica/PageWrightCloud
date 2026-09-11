@@ -1,5 +1,13 @@
 # Identifier and filesystem boundaries (M4.4)
 
+ADR 0024 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 ## Platform names
 
 The operator owns `pagewright.io`. This milestone does not verify or change DNS,
@@ -53,8 +61,8 @@ These checks assume private operator-owned volumes with one supported writer and
 no concurrent external filesystem mutation. They are not a hostile-local-user
 race-proof filesystem API or protection against a Docker administrator. Do not
 mount generated-source workspaces over storage/hosting roots. Archive expansion,
-link/type/size limits and compiler budgets are recorded in [resource limits](RESOURCE_LIMITS.md); authentication
-continues to be required as described in [internal authentication](INTERNAL_AUTH.md).
+link/type/size limits and compiler budgets are recorded in [resource limits](0025-architecture-decisions-resource-limits.md); authentication
+continues to be required as described in [internal authentication](../INTERNAL_AUTH.md).
 
 ## Verification
 
@@ -63,5 +71,5 @@ platform names, wrong namespace suffixes, invalid IDs before queue/dependency us
 symlinked storage ancestors/final files, and serving receipt containment. Rejection
 tests verify outside files remain unchanged and no config/receipt is created.
 UI contracts cover reserved names and the owned namespace. Run `make test-all`,
-`make test-integration` and the [browser acceptance](BROWSER_ACCEPTANCE.md) journey
+`make test-integration` and the [browser acceptance](../BROWSER_ACCEPTANCE.md) journey
 to check normal authenticated workflows alongside these negative tests.

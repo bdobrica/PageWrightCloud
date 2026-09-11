@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Job wire types implement docs/JOB_CONTRACT.md. Job IDs identify executions,
+// Job wire types implement docs/adr/0001-architecture-decisions-job-contract.md. Job IDs identify executions,
 // never artifact versions. Internal manager lease fields are not exposed here.
 type JobStatus string
 

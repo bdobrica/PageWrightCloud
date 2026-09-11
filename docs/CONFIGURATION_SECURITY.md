@@ -61,8 +61,8 @@ are accessible to the deployment administrator: never publish expanded
 ## Routine logs versus private execution records
 
 Reset tokens and reset-account addresses are no longer logged. Password-reset
-email delivery and single-use consumption are still M4.8: logs are not a substitute
-delivery channel. Gateway/operator connection failures withhold raw driver errors;
+email delivery and single-use consumption are implemented; see [reset operations](PASSWORD_RESET.md).
+Logs are not a delivery channel. Gateway/operator failures withhold raw driver errors;
 manager startup/reconciliation withhold private dependency diagnostics. Production
 and legacy worker parse failures withhold job payloads; the legacy worker and
 Kubernetes stub no longer print prompts or job environments/callback URLs.
@@ -73,8 +73,8 @@ logs, which intentionally retain job content for diagnosis. Existing logs may
 contain compromised credentials/tokens: rotate affected credentials, restrict
 access, and handle retained logs under the operator's retention policy. Never
 rely on string-based secret replacement to sanitize arbitrary model output.
-Internal access restrictions and correlated safe observability remain later M4
-work; do not expose this stack to remote testers yet.
+Internal access restrictions are implemented. See [operations](OPERATIONS.md) for
+bounded diagnostics and [release evidence](RELEASE_ACCEPTANCE.md) for public gates.
 
 ## Verification
 

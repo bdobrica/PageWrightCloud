@@ -1,13 +1,21 @@
 # Version metadata and completion (M1.4)
 
-M2.7 adds [attempt-bound digest reservations](FENCED_COMMITS.md) before immutable
+ADR 0004 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
+M2.7 adds [attempt-bound digest reservations](0015-architecture-decisions-fenced-commits.md) before immutable
 publication. Non-bootstrap POST/PUT requests require the current worker attempt
 header; manifest fencing must match. Identical object retries require a live
 attempt, and terminal callback duplicates now return 409. The ordering below
 remains; recovery of reserved-but-not-materialized bytes remains M2.8/M2.9.
 
 Storage treats the manifest as the final commit record. M1.5 adds
-[write-once publication and byte-identical retries](IMMUTABLE_VERSIONS.md). The worker performs:
+[write-once publication and byte-identical retries](0005-architecture-decisions-immutable-versions.md). The worker performs:
 
 `artifact PUT → private log POST → manifest POST → manager completed callback`
 
@@ -22,7 +30,7 @@ remains M2; storage now enforces retry byte identity, not a distributed transact
 
 Prefix: `/sites/{site_id}/artifacts/{build_id}`, where `build_id` is the artifact
 version ID, not the execution job ID. Same identifier rules as
-[artifact transport](ARTIFACT_TRANSPORT.md).
+[artifact transport](0003-architecture-decisions-artifact-transport.md).
 
 | Method / suffix | Payload or result |
 | --- | --- |

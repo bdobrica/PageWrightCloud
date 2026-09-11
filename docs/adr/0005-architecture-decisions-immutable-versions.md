@@ -1,5 +1,13 @@
 # Immutable versions and disabled deletion (M1.5)
 
+ADR 0005 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Artifact, private-log and manifest files are write-once from their first
 publication, including partial versions and legacy files. M1.4's manifest-last
 completion boundary is stable because prerequisites cannot be replaced through

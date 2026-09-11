@@ -1,11 +1,19 @@
 # Durable build submissions — M1.2
 
+ADR 0002 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 The gateway commits a job-to-artifact mapping before calling the manager. The
 pending version uses `target_version`, never the execution's `job_id`.
-See [JOB_CONTRACT.md](JOB_CONTRACT.md) for wire shapes.
-M2.5 selects [the latest completed draft, then live, then bootstrap](BUILD_SOURCE.md)
+See [JOB_CONTRACT.md](0001-architecture-decisions-job-contract.md) for wire shapes.
+M2.5 selects [the latest completed draft, then live, then bootstrap](0014-architecture-decisions-build-source.md)
 for each new submission and exposes the persisted base in chat.
-M2.9 adds [durable lifecycle history and background recovery](JOB_DURABILITY.md).
+M2.9 adds [durable lifecycle history and background recovery](../JOB_DURABILITY.md).
 
 ## Retry identity
 
@@ -70,7 +78,7 @@ and the persisted job/target IDs. Retry with the same key.
 A crash between claiming and sending, or loss of manager evidence, can leave a
 submission uncertain even when GET returns 404. The gateway deliberately does
 not automatically redispatch or invent a new version. M2.9 records a durable
-operator-required diagnostic and supplies a [recovery runbook](JOB_DURABILITY.md).
+operator-required diagnostic and supplies a [recovery runbook](../JOB_DURABILITY.md).
 Do not delete a
 submission or switch keys to bypass uncertainty without checking whether work ran.
 
@@ -111,7 +119,7 @@ reservation, concurrent HTTP repeats, error stages, TTLs and nonresurrection. UI
 tests cover key reuse/rotation, double-send prevention and failed result parsing.
 
 Run `make test-all`, `make test-integration` and UI contract tests/lint/build from
-[TESTING.md](TESTING.md). Providers/spawning are faked; these checks do not invoke
+[TESTING.md](../TESTING.md). Providers/spawning are faked; these checks do not invoke
 paid AI or prove publishing works.
 
 Back up before upgrading and rebuild gateway/manager/UI together. Submission

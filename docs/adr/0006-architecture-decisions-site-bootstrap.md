@@ -1,5 +1,13 @@
 # Initial site source and retry (M1.6)
 
+ADR 0006 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Authenticated `POST /sites` accepts `fqdn` and `template_id: "starter"`. The old
 UI identifier `template-1` is explicitly mapped to `starter`; unsupported templates
 are rejected before writes. Domains are trimmed/lowercased and checked for DNS
@@ -22,7 +30,7 @@ The gateway binary embeds versioned starter source:
 
 - `content/site.json`: valid `site_name`, author and language configuration.
 - `content/home/index.md`: discoverable home page for the bundled starter theme.
-- `manifest.json`: safe source-layout metadata (revision 2; see [archive layout](ARCHIVE_LAYOUT.md)).
+- `manifest.json`: safe source-layout metadata (revision 2; see [archive layout](0007-architecture-decisions-archive-layout.md)).
 
 The archive is deterministic (fixed tar metadata and gzip header, stable file
 ordering). The private storage manifest identifies site, `build_id: "initial"`, creation time,

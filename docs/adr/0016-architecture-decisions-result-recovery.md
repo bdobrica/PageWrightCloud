@@ -1,7 +1,15 @@
 # Bounded result delivery and recovery (M2.8)
 
+ADR 0016 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Selected worker: `pagewright-worker:m2.12`. This extends the
-[M2.7 fenced commit contract](FENCED_COMMITS.md); it does not weaken worker
+[M2.7 fenced commit contract](0015-architecture-decisions-fenced-commits.md); it does not weaken worker
 commit checks, reacquire expired leases, restart workers, or overwrite artifacts.
 
 ## Callback delivery
@@ -82,21 +90,21 @@ A storage operation already holding a reservation may still finish materializing
 those exact bytes after observation, as defined by M2.7. This does not reopen a
 failed job or change its terminal result. Completed materializations remain
 immutable/readable; receipts and versions are preserved by the
-[M2.10 retention policy](WORKER_RETENTION.md).
+[M2.10 retention policy](../WORKER_RETENTION.md).
 Transient storage failure is not a definitive 404: it retains capacity until
 evidence becomes available. Renewal still ends at the configured lifetime.
 
 If Docker is unavailable at timeout, terminal fencing can proceed when storage
 evidence is sufficient even though termination cannot be confirmed. The container
 may remain; resource ceilings/watchdog are unchanged. Orphan-container cleanup
-follows [M2.10 verified-identity cleanup](WORKER_RETENTION.md), never broad pruning.
+follows [M2.10 verified-identity cleanup](../WORKER_RETENTION.md), never broad pruning.
 
 ## Operations and remaining scope
 
 Drain/reconcile before a coordinated manager/storage/worker upgrade. Do not reset
 fences, remove receipts, or hot-mix old active jobs lacking required metadata.
 Legacy/corrupt/missing Redis records remain fail-closed under the
-[M2.9 restart and durability policy](JOB_DURABILITY.md). Kubernetes remains a stub
+[M2.9 restart and durability policy](../JOB_DURABILITY.md). Kubernetes remains a stub
 without this Docker reconciler.
 All replicas must share configuration, Redis, storage and the same Docker daemon;
 multi-host scheduling is not supported.

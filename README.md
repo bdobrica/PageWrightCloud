@@ -1,144 +1,100 @@
 # PageWrightCloud
 
-Pilot access now defaults to operator-provisioned accounts and disabled paid AI.
-See [pilot limits and provisioning](docs/PILOT_LIMITS.md) before upgrading or
-enabling an allowance. Remaining M4 security/release gates still apply; this is
-not yet a remotely deployable pilot release.
+An AI-assisted static website builder: create a site, edit it through chat, preview
+an immutable version, publish it, and roll back without rebuilding.
 
-Startup requires explicit PostgreSQL and JWT secrets; see
-[configuration security and existing-volume rotation](docs/CONFIGURATION_SECURITY.md).
-Internal services also require separate service/Redis credentials and a rebuilt
-worker image; see [internal access and upgrade guidance](docs/INTERNAL_AUTH.md).
-M4.4 validates identifiers and filesystem boundaries; see the
-[naming policy and pagewright.io deployment notes](docs/IDENTIFIER_SECURITY.md).
-M4.5 enforces [request, archive and compiler resource limits](docs/RESOURCE_LIMITS.md).
-M4.6 configures [application origins and browser security headers](docs/ORIGIN_SECURITY.md).
-M4.7 verifies [cross-user ownership boundaries](docs/OWNERSHIP_SECURITY.md).
-M4.8 implements [password-reset delivery and session recovery](docs/PASSWORD_RESET.md).
+## Verified state
 
-An AI-assisted static website builder for non-technical users, built with Go services and a React UI.
+As of 2026-09-11, M1–M3 and M4.1–M4.8/M4.10–M4.13 are implemented and locally
+verified. Acceptance covers real services, sandboxed workers, compilation, browser
+publishing/rollback, cross-user isolation, restart recovery, delivered-email reset
+using a test SMTP server, and coordinated backup/restore. A separately authorized
+real-AI smoke passed. See [release evidence and limitations](docs/RELEASE_ACCEPTANCE.md).
 
-## Current status
+A closed pilot runs on pagewright.io, but **public release sign-off is still open**:
+M4.9 public failure-recovery/full-browser gates remain, and the latest hosting-cache
+fix has not been rolled out there. Local evidence does not establish that the pilot
+runs this checkout. Real inbox delivery and production restore are not established
+by local fixtures. No hosted CI result is claimed without a corresponding pushed
+run. [TODO.md](TODO.md) tracks remaining work; [PLAN.md](PLAN.md) retains evidence.
 
-The reproducible development baseline (M0) and M1.1–M1.6 contracts, storage and initial-site bootstrap are implemented and locally verified. This is **not yet a working end-to-end MVP**: real worker execution, live job status and publishing still need integration. Start with [PLAN.md](PLAN.md) for evidence and [TODO.md](TODO.md) for remaining M1 work.
+## Local setup
 
-Verified baseline: clean dependency/image builds, zero-warning UI lint/build, Go package tests, PostgreSQL migration and API integration tests, compiler fixture output, and fresh-stack/container-recreation checks. Five existing tests remain skipped; see [test coverage and CI](docs/TESTING.md). Hosted CI runs after a push; local checks are not a hosted CI result. Dependency advisories and security hardening remain open before any remote pilot.
+Use Linux/WSL2 with Docker Engine, Compose v2 and BuildKit. The verified development
+toolchain is Go 1.24.10 and Node 24.11.1. From the repository root:
 
-## Start locally
-
-Use Linux or WSL2 with Docker Engine, Compose v2 and BuildKit. Local checks use Go 1.24.10, Node 24.11.1 (npm 11.6.2) and GNU Make. Go/Node need not be installed on the host just to run the containerized stack; Node is required for the startup smoke test. See [development setup](docs/DEVELOPMENT.md) for details.
-
-From a checkout of this repository:
-
-```bash
-# Only if you do not already have .env:
+```sh
+# Only for a new checkout without an existing .env:
 cp .env.example .env
-# Review .env; preserve existing configuration when resuming an old checkout.
+```
+
+Privately configure independent PostgreSQL/Redis passwords and JWT/service secrets
+using [configuration security](docs/CONFIGURATION_SECURITY.md) and
+[internal authentication](docs/INTERNAL_AUTH.md). Keep closed signup and zero AI
+allowance until intentionally configured. Editing an env file does not rotate an
+existing database's stored password.
+
+```sh
+docker compose --profile worker build worker
 docker compose up -d --build --wait
-make docker-ps
+docker compose ps
 ```
 
-Open http://localhost:3000 for the UI. Email/password registration and login work; new sites receive [retry-safe starter source](docs/SITE_BOOTSTRAP.md), not a generated or hosted website. Google OAuth and AI credentials are not needed for startup checks. Adding an API key alone will not complete the unfinished build pipeline.
+Check [worker host prerequisites](docs/WORKER_ISOLATION.md), including the reviewed
+AppArmor profile where required. Never use privileged or unconfined workers.
+Provision an account using the [operator procedure](docs/PILOT_LIMITS.md), then
+open http://localhost:3000. AI needs an explicit allowance and provider setup;
+adding a key alone does not enable it. No paid tests run by default.
 
-This configuration is for trusted local development only: it publishes internal APIs/database ports and uses development credentials. Do not expose it to the internet; M4 is the remote-pilot gate. The root Compose database credentials are currently constants; changing `POSTGRES_*` in `.env` does not change them.
+Root Compose publishes UI (3000), gateway (8085) and generated-content edge (8084);
+internal APIs and databases are private. Root bindings are not a public deployment
+recipe. Use the reviewed [pilot HTTP-01 runbook](docs/PILOT_HTTP01.md) and pilot
+overlay for loopback bindings behind host Nginx. Configure separate app/live/preview
+origins and local DNS before testing hosted URLs; see [development](docs/DEVELOPMENT.md).
+Legacy service-only Compose and manual site-seeding diagnostics are not the release path.
 
-| Component | Default host port | Baseline role |
-| --- | --- | --- |
-| UI | 3000 | Built React app (Vite development server uses 5173) |
-| Gateway | 8085 | Auth and site metadata |
-| Manager | 8081 | Job API and Redis-backed coordination; execution integration pending |
-| Storage | 8080 | Filesystem artifacts on the existing `nfs_data` named volume |
-| Serving | 8083 | Hosting control API; lifecycle integration pending |
-| nginx | 8084 | Hosted-content HTTP server |
-| Themes | 8086 | Bundled starter theme registry |
-| PostgreSQL / Redis | 5432 / 6379 | Local infrastructure |
-
-There is no privileged NFS server in the single-host stack. The optional `worker` profile still builds a mock executor; it is not needed for the baseline. The compiler runs separately through its fixture command.
-
-`PAGEWRIGHT_*_PORT` settings change host ports without changing internal container ports. For example:
-
-```bash
-PAGEWRIGHT_STORAGE_PORT=18080 docker compose up -d --build --wait
+```sh
+docker compose stop
+# Resume retained state:
+docker compose up -d --wait
 ```
 
-If you change the gateway host port, update browser-facing `VITE_PAGEWRIGHT_API_URL` and rebuild the UI. The MVP uses bounded job polling; WebSockets and the former socket URL setting are disabled. See [.env.example](.env.example) for defaults. Historical per-service Compose files are not the supported root-stack startup path.
+Never use `down --volumes` or `make docker-clean` on data you intend to preserve.
+Back up before upgrades; [operator runbooks](docs/OPERATIONS.md) cover recovery.
+Attachments, customer domains/aliases, OAuth and deletion are unsupported; see the
+[capability decision](docs/adr/0022-architecture-decisions-mvp-capabilities.md).
 
-Hosting uses a [supervised serving API/nginx pair](docs/HOSTING_LIFECYCLE.md) behind
-the fixed public nginx proxy. Site changes are validated, acknowledged and rolled
-back on reload failure; interrupted config transactions recover before startup.
-Remove legacy no-op reload overrides and upgrade serving/proxy together without
-deleting their data volumes. Preview assets/remaining URL wiring and pilot security
-are still tracked in `TODO.md`.
+## Checks
 
-### Inspect, stop and resume
-
-```bash
-curl --fail http://localhost:8085/health
-make docker-logs-gateway
-make docker-down
-# Recreate containers using retained named volumes:
-docker compose up -d --build --wait
-```
-
-Stopping with `make docker-down` retains database/artifact volumes. Do not use `make docker-clean` or `down --volumes` if you want to keep data. Before upgrading an old installation, back it up and read the [migration notes](docs/DEVELOPMENT.md#database-migrations). If the previous configuration left an obsolete NFS container, `docker compose down --remove-orphans` removes project containers without deleting named volumes; use it only for the intended development project.
-
-The [text-only MVP capability policy](docs/MVP_CAPABILITIES.md) makes the gateway's
-`PAGEWRIGHT_SITE_DOMAIN` authoritative for new sites. The UI loads it at runtime;
-the old Vite default-domain setting is no longer used. Attachments, custom-domain
-creation, aliases, Google sign-in and site deletion are unavailable. Upgrade UI
-and gateway together and configure the namespace before resuming site setup.
-
-## Run checks
-
-```bash
-make test-all             # Six Go modules; no running infrastructure
-make test-compiler-smoke  # Compile starter fixture; check pages/assets
-make test-integration     # Isolated PostgreSQL/Redis/API suites with race checks
-make smoke-stack          # Isolated fresh startup and persistence after recreation
-
+```sh
+make test-all
+make test-integration
+make smoke-stack
+make test-compiler-smoke
+node scripts/check-doc-links.mjs
 cd pagewright/ui
 npm ci
+npm run test:contracts
 npm run lint -- --max-warnings=0
 npm run build
 ```
 
-Integration/startup checks create unique disposable Compose projects and remove their own synthetic data. They do not reset the development database or require your application `.env`. Image builds and these checks are configured in [CI](.github/workflows/ci.yml). See [TESTING.md](docs/TESTING.md) for exact coverage, prerequisites and known skips.
+Integration/smoke tests use disposable projects, not application volumes. See
+[testing](docs/TESTING.md), [browser acceptance](docs/BROWSER_ACCEPTANCE.md) and the
+explicitly authorized [real-provider smoke](docs/PROVIDER_SMOKE.md).
 
-## Hosting diagnostics versus MVP acceptance
+## Documentation
 
-[Deployment recovery](docs/DEPLOYMENT_RECOVERY.md) records publishing intent before
-activation, fences retries and reconciles serving/DB state after lost responses or
-gateway restart. Upgrade gateway and serving together; enrolled sites retain their
-deployment records and cannot yet be deleted through the UI/API.
+- [Operations and verification](docs/README.md): incidents, secrets, capacity,
+  backup/restore, rollback, TLS and acceptance.
+- [Architecture decisions](docs/adr/README.md): identities, submissions, fencing,
+  immutable artifacts, worker execution and deployment protocols.
+- [Plan](PLAN.md) and [checklist](TODO.md): evidence and remaining gates.
 
-`make smoke-stack` verifies startup, UI assets, auth, initial-site source, immutable storage and persistence across recreation. It does **not** exercise AI editing, compilation through the worker, preview or publishing.
-
-The optional [local-domain overlay](docker-compose.local-domain.yaml) uses `pagewright.io` as the app hostname. Map `pagewright.io`, a test hostname such as `demo.pagewright.io`, and `demo.preview.pagewright.io` to your Docker host in local DNS or your hosts file, then:
-
-```bash
-make docker-up-local-domain
-make docker-verify-local-domain
-# Only on a disposable development stack: seeds a user, site and placeholder HTML.
-make docker-verify-local-domain-strict
-make docker-down-local-domain
-```
-
-These older diagnostics assume default host ports. The basic check accepts a missing/unavailable site response. The strict check manually seeds files and reloads nginx; it mutates the selected stack and is not an isolated test or evidence of a working build/publish flow. See [preview hosting and upgrade guidance](docs/PREVIEW_ACTIVATION.md) for configured URLs, separate preview DNS/TLS and migration of existing sites.
-
-The actual MVP acceptance journey is create → edit → completed version → preview → publish → second edit → rollback, with failed builds preserving live content. It remains planned in M1–M4.
-
-## Project map
-
-Gateway owns users/sites/versions, manager coordinates jobs, worker will edit and compile versioned source, storage keeps artifacts, and serving/nginx deliver generated public files. The compiler renders Markdown/content with a trusted theme. These are intended responsibilities, not a claim that all interfaces or security boundaries are complete.
-
-- [MVP plan](PLAN.md) and [execution checklist](TODO.md)
-- [Development and migrations](docs/DEVELOPMENT.md)
-- [Checks, CI and coverage limits](docs/TESTING.md)
-- [Architecture notes](pagewright/README.md)
-- [Compiler](pagewright/compiler/README.md) and [themes](pagewright/themes/README.md)
-- [Gateway](pagewright/gateway/README.md), [manager](pagewright/manager/README.md), [storage](pagewright/storage/README.md), [worker](pagewright/worker/README.md), [serving](pagewright/serving/README.md), [UI](pagewright/ui/README.md)
-
-Older component documentation and code reviews may describe intended behavior or historical commands; the root setup and tracked acceptance evidence above are authoritative for this baseline.
+Gateway owns identity/site metadata; manager coordinates durable jobs; isolated
+workers edit source and run the trusted compiler; storage retains immutable
+artifacts; serving/Nginx hosts selected versions. Component READMEs contain detail
+and historical commands; use the root setup and current runbooks for deployment.
 
 ## License
 

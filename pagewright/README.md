@@ -1,5 +1,10 @@
 # PageWrightCloud Architecture
 
+Historical overview: this page predates the verified MVP and includes superseded
+interfaces (notably WebSockets, OAuth and mock execution). Use the current
+[architecture decisions](../docs/adr/README.md), [operations](../docs/README.md) and
+[root setup](../README.md); do not treat commands below as a deployment runbook.
+
 ## System Overview
 
 PageWrightCloud is a distributed platform for AI-powered static website creation and management. The system uses a microservices architecture with isolated concerns for authentication, job orchestration, artifact storage, AI-based editing, and web serving.

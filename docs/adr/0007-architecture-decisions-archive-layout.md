@@ -1,5 +1,13 @@
 # Version archive layout (M1.7)
 
+ADR 0007 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 Storage retains immutable raw tar.gz bytes. Worker packing/unpacking and serving
 deployment enforce the same versioned layout; storage itself remains opaque.
 
@@ -25,7 +33,7 @@ not proof of compiler execution, freshness, HTML safety or passed checks.
 Worker `checks_passed` remains false until trusted build checks land in M2.
 
 This small layout manifest is distinct from the private storage
-[build manifest and execution log](VERSION_METADATA.md). Prompts, source-version
+[build manifest and execution log](0004-architecture-decisions-version-metadata.md). Prompts, source-version
 provenance, timestamps, compiler/check results and logs belong in those private
 sidecars, not public output. Worker file counts/sizes describe regular archive
 entries, including the layout manifest, rather than the execution workspace.

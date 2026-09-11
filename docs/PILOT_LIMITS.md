@@ -2,8 +2,9 @@
 
 The supported root Compose deployment now defaults to operator-provisioned
 accounts and **no paid AI calls**. Existing accounts and data remain intact.
-This does not make the stack safe for remote testers: remaining M4 gates include
-identifier/archive hardening, origins, cross-user audits, password reset and TLS.
+This alone is not release sign-off. Local security/release acceptance passed;
+M4.9 public failure-recovery/full-browser gates and reviewed candidate rollout
+remain. See [current release evidence](RELEASE_ACCEPTANCE.md).
 
 ## Account provisioning
 

@@ -92,9 +92,9 @@ files are not a supported pilot configuration. Do not add public API port mappin
 to work around authentication errors. Use authorized container exec/admin access
 without printing real environment values, signed capabilities or private job data.
 Docker administrators/control-plane processes remain trusted; HTTP within the host
-network is not encrypted or protected against host compromise. Origin policy,
-identifier/archive hardening, cross-user audits, HTTPS and remaining M4 gates still
-block remote-pilot release.
+network is not encrypted or protected against host compromise. Local origin,
+identifier/archive and cross-user acceptance passed; public failure-recovery/
+full-browser gates remain. See [release evidence](RELEASE_ACCEPTANCE.md).
 
 ## Verification
 

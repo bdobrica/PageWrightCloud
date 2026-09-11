@@ -16,13 +16,13 @@ Artifact versioning and retrieval with pluggable storage backends.
 | POST | `/sites/{site_id}/logs` | Write event record (does not commit a version) |
 | GET | `/sites/{site_id}/versions` | List committed versions only |
 
-See the [metadata contract](../../docs/VERSION_METADATA.md) for schemas, limits,
+See the [metadata contract](../../docs/adr/0004-architecture-decisions-version-metadata.md) for schemas, limits,
 legacy visibility changes and privacy boundaries. Storage has no service
 authentication yet; do not expose its port to untrusted networks.
 
 M2.7 requires a matching `X-Pagewright-Attempt` JSON header on non-bootstrap
 artifact/log/manifest writes and a reachable `PAGEWRIGHT_MANAGER_URL` (default
-`http://manager:8081`). See [fenced commits and coordinated upgrade requirements](../../docs/FENCED_COMMITS.md).
+`http://manager:8081`). See [fenced commits and coordinated upgrade requirements](../../docs/adr/0015-architecture-decisions-fenced-commits.md).
 The legacy standalone Compose topology needs an explicitly reachable manager;
 root Compose configures the supported service connection.
 
@@ -119,7 +119,7 @@ Writes use a temporary-file pattern:
 
 Files use unique temporary files and no-replace hard-link publication, with
 checked write/sync/close and directory sync. Exact-byte retries succeed;
-different bytes conflict. See [immutable versions](../../docs/IMMUTABLE_VERSIONS.md)
+different bytes conflict. See [immutable versions](../../docs/adr/0005-architecture-decisions-immutable-versions.md)
 for concurrency and filesystem limits. Version deletion is disabled.
 
 ### Pluggable Backend Interface

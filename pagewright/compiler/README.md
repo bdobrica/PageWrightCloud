@@ -2,7 +2,7 @@
 
 A standalone Go binary that transforms Markdown/component content and a trusted
 theme into a static website. It is not an AI execution sandbox. See the
-[compiler contract and tested boundaries](../../docs/COMPILER_CONTRACT.md).
+[compiler contract and tested boundaries](../../docs/adr/0008-architecture-decisions-compiler-contract.md).
 
 ## Quick Start
 

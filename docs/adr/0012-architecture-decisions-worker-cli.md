@@ -1,5 +1,13 @@
 # Worker CLI and sandbox contract (M2.3–M2.7)
 
+ADR 0012 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 `pagewright-worker:m2.12` packages Codex CLI **0.153.4**, replacing the production
 mock. The npm lockfile pins both the wrapper and native platform packages with
 integrity hashes; the image checks the installed version. The worker invokes the
@@ -29,13 +37,13 @@ are disabled and secret-name exclusions are explicit: installed-binary testing
 showed that inheritance configuration alone was insufficient. The shell fixture
 checks that the provider key is absent while the API fixture confirms bearer auth.
 
-The [M2.6 isolation policy](WORKER_ISOLATION.md) cancels execution at
+The [M2.6 isolation policy](../WORKER_ISOLATION.md) cancels execution at
 the 1 MiB capture limit and adds outer PID/filesystem isolation and resource caps.
 Exact-key redaction is not comprehensive secret detection. Cleanup/recovery and
 per-job authorization remain separate concerns. An optional
 `PAGEWRIGHT_WORKER_LLM_MODEL` manager setting becomes `PAGEWRIGHT_LLM_MODEL` in
 the worker and an explicit CLI `--model` argument; empty retains the pinned CLI
-default. [M2.12 provider acceptance](PROVIDER_SMOKE.md) explicitly selects a model
+default. [M2.12 provider acceptance](../PROVIDER_SMOKE.md) explicitly selects a model
 behind a smoke-only budget gateway. A model being listed by the API does not
 prove generation access for the configured key.
 
@@ -51,7 +59,7 @@ default-deny seccomp allowlist adds nested user-namespace creation and the mount
 operations needed to construct the inner sandbox. The manager embeds the profile
 and sends its JSON to Docker; no daemon-side profile path or worker socket mount
 is needed. The kernel denies mounts by the outer capability-free user. See the
-[audited delta and provenance](../pagewright/manager/internal/spawner/docker/PROFILE_PROVENANCE.md).
+[audited delta and provenance](../../pagewright/manager/internal/spawner/docker/PROFILE_PROVENANCE.md).
 
 This adds kernel attack surface for user namespaces; it is not protection against
 kernel vulnerabilities. M2.6 adds a tool-only seccomp filter after sandbox setup,
@@ -88,7 +96,7 @@ jobs; do not use a privileged/unconfined Compose workaround.
 
 The WSL daemon does not enable AppArmor. The supplied Debian host passes the
 complete installed CLI/compiler suite with the new enforcing profile and shared
-manager launch policy; see [host evidence](M2_6_HOST_ACCEPTANCE.md). CI requires
+manager launch policy; see [host evidence](../M2_6_HOST_ACCEPTANCE.md). CI requires
 AppArmor and runs the same negative acceptance tests. Hosted CI has not been run
 here. Other LSMs/kernel
 restrictions require operator review and must fail closed, not be disabled.
@@ -114,5 +122,5 @@ race/vet and full service integration cover preflight failure, argv/environment,
 redaction/capture limits and existing deterministic build contracts. Two old
 executor/parsing skips and the kill test were restored; two serving skips remain.
 No paid API call or real AI edit was performed. Test containers/data are disposable;
-test images/build caches may remain. M2.7 adds [fenced commits](FENCED_COMMITS.md)
+test images/build caches may remain. M2.7 adds [fenced commits](0015-architecture-decisions-fenced-commits.md)
 without changing the pinned CLI or sandbox policy. M2.8 is the next milestone.

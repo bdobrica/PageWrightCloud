@@ -1,5 +1,13 @@
 # Supervised hosting lifecycle (M3.5)
 
+ADR 0019 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 ## Supported topology
 
 The root Compose `serving` container now runs the Go API and hosting nginx under
@@ -48,7 +56,7 @@ transaction. Brief health failures during a configuration transaction are expect
 First-preview routing preserves existing aliases/disabled policy.
 
 M3.6 uses distinct live/preview virtual hosts; see the [DNS/TLS and existing-config
-migration guide](PREVIEW_ACTIVATION.md). Generation acknowledgment proves new
+migration guide](0018-architecture-decisions-preview-activation.md). Generation acknowledgment proves new
 workers are ready, not that all old connections/workers have finished draining.
 The production smoke uses fresh connections and bounded convergence checks on
 both hosts after enable/disable; it does not claim instantaneous global cutover.

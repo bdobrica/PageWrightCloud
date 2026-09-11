@@ -1,5 +1,13 @@
 # Docker worker launch contract (M2.1)
 
+ADR 0010 · Status: accepted implementation record.
+
+This record preserves the milestone's design, contract and tradeoffs; dated
+verification and future-work statements below are historical, not current release
+status. For current procedures use the [operations index](../README.md); for
+verified scope use [release acceptance](../RELEASE_ACCEPTANCE.md).
+
+
 The supported worker is `pagewright/worker`, not the historical
 `pagewright/manager/cmd/worker` prototype. Root Compose, the worker Makefile and
 the manager's worker build targets agree on `pagewright-worker:m2.12`. The old
@@ -16,7 +24,7 @@ Do not start a standing `worker` Compose service without a canonical job. The
 manager creates one container per accepted job. It does not pull missing images;
 operators build/load the explicit tag (or configure a digest) first. Untagged and
 `:latest` images are rejected. This tag identifies the current launchable runner,
-which contains pinned real Codex CLI 0.153.4. See [CLI and sandbox acceptance](WORKER_CLI.md).
+which contains pinned real Codex CLI 0.153.4. See [CLI and sandbox acceptance](0012-architecture-decisions-worker-cli.md).
 Trusted compiler integration remains M2.4; a successful launch does not prove a
 paid-provider edit or a compiled build.
 
@@ -27,7 +35,7 @@ with bounded acknowledgements and HTTP timeouts. The daemon must support that
 API version. Remote TCP/context selection, shell interpolation, image pulls,
 privileged workers, worker host mounts and host-port publication are not used.
 
-M2.7 requires the [fenced attempt/commit contract](FENCED_COMMITS.md); drain and
+M2.7 requires the [fenced attempt/commit contract](0015-architecture-decisions-fenced-commits.md); drain and
 upgrade manager, storage and worker together rather than mixing generations.
 
 Root Compose derives the worker network from its own project name, sets `/work`
@@ -37,7 +45,7 @@ manager use, configure:
 | Variable | Default / requirement |
 | --- | --- |
 | `PAGEWRIGHT_WORKER_IMAGE` | `pagewright-worker:m2.12`; explicit non-latest tag or digest |
-| `PAGEWRIGHT_WORKER_APPARMOR_PROFILE` | Empty for Docker default; `pagewright-worker-proc` for M2.6 on AppArmor hosts after explicit profile loading. Legacy `pagewright-worker` retains Docker proc defaults. See [isolation policy](WORKER_ISOLATION.md). |
+| `PAGEWRIGHT_WORKER_APPARMOR_PROFILE` | Empty for Docker default; `pagewright-worker-proc` for M2.6 on AppArmor hosts after explicit profile loading. Legacy `pagewright-worker` retains Docker proc defaults. See [isolation policy](../WORKER_ISOLATION.md). |
 | `PAGEWRIGHT_WORKER_NETWORK` | Required dedicated Docker network; root Compose supplies it |
 | `PAGEWRIGHT_DOCKER_SOCKET` | `/var/run/docker.sock`; absolute Unix path |
 | `PAGEWRIGHT_WORKER_WORK_DIR` | `/work`; clean path at or below `/work` |
@@ -86,7 +94,7 @@ M2.7 renews current attempts up to a bounded lifetime and enforces fencing at
 storage/result commit. Do not infer that an expired lock or a container in
 `created`/`exited` state proves execution never happened. Restart reconciliation
 and recovery from an ambiguous launch remain M2.8/M2.9.
-M2.2 supplies [bounded asynchronous dispatch](QUEUE_DISPATCH.md):
+M2.2 supplies [bounded asynchronous dispatch](0011-architecture-decisions-queue-dispatch.md):
 submission acknowledges `201 pending`, and launch failures are read through job
 status rather than returned synchronously. Exited containers retain their environment in daemon metadata until
 removed; cleanup/retention and redacted log policy remain M2.10. No automatic

@@ -16,11 +16,11 @@ There is useful implementation across all services, but the application is still
 
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
-| Job submission | M1.1 aligns the [canonical job contract](docs/JOB_CONTRACT.md); M1.2 adds [durable submissions](docs/BUILD_SUBMISSIONS.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
+| Job submission | M1.1 aligns the [canonical job contract](docs/adr/0001-architecture-decisions-job-contract.md); M1.2 adds [durable submissions](docs/adr/0002-architecture-decisions-build-submissions.md), independent IDs and retry-key deduplication across gateway/manager/UI. | Wire and pre-dispatch persistence gaps fixed and HTTP-tested; reliable dispatch/recovery and live status synchronization remain M2/M3. |
 | Execution | M2.1–M2.11 implement isolated Docker execution, trusted compilation, fenced persistence, recovery, retention and fault acceptance. M2.12 (`4f17a3c`) verifies a budget-guarded real Luna edit in compiled HTML. Selected worker: `pagewright-worker:m2.12`; Kubernetes remains a historical logging stub. | M2 items complete; browser history/publishing and pilot security remain M3/M4. Missing evidence stays quarantined, never replayed or speculatively deleted. Drain/reconcile before coordinated upgrades, including storage writers; internal services require trusted operation. |
 | First site | M1.6 (`a43d0ac`) reserves deterministic starter source and exact upload bytes, commits the `initial` archive/metadata before DB readiness, and exposes retry-safe setup through UI/API. M1.7 adds revision-2 layout metadata without changing persisted retry bytes. | New sites have validated source, not compiled or hosted output. Legacy sites are not automatically repaired; compilation remains M2. |
 | Artifact transport | M1.3 (`0fa1044`) aligns raw gzip transport; M1.4 (`73d3635`) adds manifest-last completion. M1.5 (`0cbeaa5`) makes files write-once with retry/conflict semantics and disables version deletion in UI/API. | Storage is still opaque, not an archive-validation, authorization or publishing gate. Retention and future coordinated deletion remain separate work. |
-| Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/ARCHIVE_LAYOUT.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
+| Archive layout | M1.7 (`1d9b5bf`) enforces [content/public/layout metadata](docs/adr/0007-architecture-decisions-archive-layout.md), excludes runtime files, bounds staged extraction and deploys only public files. | Editable source survives future edits; structural checks do not identify secrets disguised in allowed files or establish safe HTML generation. |
 | Compilation | M1.8 adds compiler fixtures; M2.4 integrates trusted compilation/static checks; M2.5 verifies accumulated edits. M2.12 verifies a paid Luna edit through the actual sandboxed CLI and compiler. Serving validates archive structure. | Browser checks remain unperformed; one synthetic paid edit and static checks do not establish safe HTML for remote multi-user hosting. |
 | Deterministic round trip | M1.10 (`92ea617`) verifies [HTTP bootstrap → job → real worker/compiler → immutable storage → serving/nginx](docs/DETERMINISTIC_ROUNDTRIP.md), including byte-identical hosted HTML/assets and private-path 404s. | M1 contract exit verified with a test-only executor and launch bridge. This does not implement the production spawner, AI execution or root Compose hosting topology. |
 | Version state | M1.2 persists job/target identity; M2.9 atomically reconciles verified manager outcomes into submission/version/history. M3.1 (`38e908e`) exposes owner-scoped history and intersects completed submissions with committed storage. M3.2 (`b1af7d6`) polls active jobs on the current history page with bounded backoff and refreshes versions on completion. | Conservative terminal outcomes are never reopened by late materialization. Reads report the last saved observation; polling pauses at explicit limits and supports manual resume. Actual browser acceptance remains M3.12. |
@@ -50,15 +50,11 @@ fixes and passing verification; these initial failures are not the current statu
 
 No full browser journey or service integration run was performed. The existing `docker-verify-local-domain-strict` target writes placeholder HTML and manually reloads nginx; retain it as a hosting diagnostic, not the MVP acceptance test. Root integration targets also omit manager coverage and do not provision all prerequisites required by the service tests.
 
-## Implementation decisions
+## Architecture decisions
 
-1. **Keep identifiers explicit.** `job_id` identifies an execution; `target_version` identifies its immutable artifact. Persist their association with site and owner before dispatch. Use `pending → running → completed | failed` consistently, with bounded retries and idempotent terminal updates. Reject stale worker results using job identity and fencing/attempt information.
-2. **Keep editable source with each version.** Use an archive containing `content/`, generated `public/` when available, and safe layout metadata. Keep source-version provenance, theme/compiler versions and check results in the private build manifest; trusted compiler/check integration remains M2. Execution logs are private metadata. Publish only `public/`; never expose source, prompts, instruction files or secrets through nginx. Render from a trusted bundled theme outside the AI-writable directory. Preserve the same artifact when promoting preview to live.
-3. **Define the editing base.** Default the next edit to the latest completed draft, then the live version, then the bootstrapped source. Surface the selected base in the UI. A failed job must not become the next base; this avoids losing consecutive unpublished edits.
-4. **Start with reliable polling.** Gateway exposes owner-checked job status and persisted history; UI polls while a build is active and recovers after refresh. Disable the broken socket path in the MVP until it supports browser authentication, owner filtering, stable reconnection and the same event schema. WebSockets are optional, durable state is required.
-5. **Use one local deployment path.** Prefer a named volume for the existing filesystem storage backend on a single host; the privileged NFS server is unnecessary for this topology. Give the selected worker image an explicit tag that matches manager configuration. Define the Docker network, credentials and resource limits used by spawned jobs. The manager's Docker authority must remain inaccessible to worker processes.
-6. **Make serving own its nginx lifecycle.** For the MVP, run the serving controller and nginx together under a documented supervisor, with config validation and controlled reload. This removes the current cross-container reload gap. Return explicit live and preview URLs from the gateway, including local scheme/port. Use a preview hostname/origin strategy that supports promoting the same artifact; test links and assets under both hosts. Keep generated-site origins separate from the application origin, especially if cookies are introduced.
-7. **Bound AI execution.** Pin and verify a real supported non-interactive CLI at implementation time; verify authentication, instruction discovery, filesystem restrictions, timeout and cancellation with that installed version. Use a deterministic fake executor only in tests. Constrain runtime, concurrency, output size and per-user build usage before allowing paid requests from testers.
+See [MVP topology and principles](docs/adr/0000-architecture-decisions-mvp-topology.md)
+and the [numbered decision index](docs/adr/README.md). Operational procedures live
+in the [operations index](docs/README.md); this plan tracks milestones and evidence.
 
 ## Milestones and exit criteria
 
@@ -128,7 +124,7 @@ The application is not yet an end-to-end MVP, and no paid AI request was made.
 
 ### M1 — Contracts, bootstrap and artifact round trip (3–5 days)
 
-M1.1 completed (2026-09-05) in `ef544f9`. The [job contract](docs/JOB_CONTRACT.md)
+M1.1 completed (2026-09-05) in `ef544f9`. The [job contract](docs/adr/0001-architecture-decisions-job-contract.md)
 defines required identities, prompt/source/target fields, canonical statuses,
 terminal results and manager error envelopes. Gateway derives `owner_id` from
 the authenticated site's owner and returns the manager's accepted identity;
@@ -165,7 +161,7 @@ Failure handling is explicit: reservation failure sends no manager request;
 definite rejection atomically records a failed version; lost responses or failed
 outcome writes retain the mapping and reconcile by GET. Manager redirects are
 disabled so a later redirect dial failure cannot be mistaken for nondelivery.
-See [submission state and retry rules](docs/BUILD_SUBMISSIONS.md).
+See [submission state and retry rules](docs/adr/0002-architecture-decisions-build-submissions.md).
 
 Verification passed: six-module package baseline; gateway/manager race tests;
 two full isolated PostgreSQL/Redis/API integration runs; 16 UI contract/retry
@@ -195,7 +191,7 @@ request identity encoding and validate the gzip media type. Gateway streams its
 authenticated response; worker/serving stage unique sibling temporary files and
 preserve existing destinations on failed transfers. Storage/gateway abort broken
 streams, packing checks finalization errors, and both extractors validate the gzip
-trailer after tar EOF. See [transport contract and limits](docs/ARTIFACT_TRANSPORT.md).
+trailer after tar EOF. See [transport contract and limits](docs/adr/0003-architecture-decisions-artifact-transport.md).
 
 Verification passed: six-module package baseline; worker/serving and targeted
 storage race tests; two full five-module isolated integration runs; affected
@@ -224,7 +220,7 @@ callback only after all three succeed. Its reported manifest path is canonical.
 Storage listings contain one completed entry per valid manifest, newest first,
 without prompt/output content. Legacy event records no longer create entries;
 existing files are preserved and raw artifact retrieval remains available.
-See [metadata contract and compatibility boundaries](docs/VERSION_METADATA.md).
+See [metadata contract and compatibility boundaries](docs/adr/0004-architecture-decisions-version-metadata.md).
 
 Verification passed: six-module package baseline; storage/worker race tests,
 including final targeted reruns; two five-module isolated integration runs;
@@ -258,7 +254,7 @@ are removed, authenticated gateway DELETE returns `501` without DB/storage calls
 and storage DELETE remains unsupported (`405`). No version files are deleted,
 including active live/preview versions. Future deletion must coordinate active
 references and metadata cleanup; no retention/garbage collection is claimed.
-See [immutability, retry and filesystem limits](docs/IMMUTABLE_VERSIONS.md).
+See [immutability, retry and filesystem limits](docs/adr/0005-architecture-decisions-immutable-versions.md).
 
 Verification passed: six-module package baseline; storage and final gateway race
 tests; concurrent backend-instance and competing-subprocess tests; five-module
@@ -293,7 +289,7 @@ Retryable failures return `503`; immutable data conflicts return `409` with repa
 guidance. Existing sites remain legacy, not falsely certified initialized. The
 seed includes valid site configuration and home Markdown; no public output,
 instructions, credentials or trusted theme code is embedded in the source archive.
-See [bootstrap semantics and compatibility](docs/SITE_BOOTSTRAP.md).
+See [bootstrap semantics and compatibility](docs/adr/0006-architecture-decisions-site-bootstrap.md).
 
 Verification passed: six-module package baseline and final gateway race tests;
 two five-module isolated integration runs; migration 007→008, legacy preservation,
@@ -312,7 +308,7 @@ real worker compiler path, latest-draft selection, legacy repair, domain ownersh
 cross-service atomicity, orphan cleanup or publishing. Full M1 exit remains unverified.
 
 M1.7 completed (2026-09-06) in `1d9b5bf`. The
-[archive contract](docs/ARCHIVE_LAYOUT.md) defines editable `content/`, optional
+[archive contract](docs/adr/0007-architecture-decisions-archive-layout.md) defines editable `content/`, optional
 generated `public/`, and a strict versioned layout manifest, distinct from private
 build metadata/logs. Packing includes only those trees and generated metadata;
 root execution instructions, logs, credentials and theme code do not travel.
@@ -375,7 +371,7 @@ files; this dependency is recorded in M2.4.
 
 The compiler's binary ignore rule also accidentally excluded `cmd/pagewrightc/`.
 It now applies only to the root binary; CLI source and subprocess exit-code tests
-are tracked. The [compiler contract](docs/COMPILER_CONTRACT.md) and README describe
+are tracked. The [compiler contract](docs/adr/0008-architecture-decisions-compiler-contract.md) and README describe
 the actual scope rather than claiming an AI sandbox or existing worker integration.
 
 Verification passed: six-module package baseline; compiler race tests with 86.3%
@@ -404,7 +400,7 @@ UI version parsing checks identities, canonical status, timestamps and paginatio
 Load failures are visible; stale selections/lists and late responses are cleared
 or ignored when the site changes. Shared `/chat/:fqdn` routing and encoded site
 links agree with Chat's FQDN lookup, covered by executable router matching.
-See [version/serving contract and remaining boundaries](docs/VERSION_API.md).
+See [version/serving contract and remaining boundaries](docs/adr/0009-architecture-decisions-version-api.md).
 
 Verification passed: six-module package baseline; gateway client/handler race
 tests; five-module isolated integration using real PostgreSQL/storage for version
@@ -613,7 +609,7 @@ granting new write authority. Missing/incomplete bytes fail conservatively while
 preserving receipts. Redis compares the observed receipt and current attempt,
 then atomically records terminal outcome and releases matching lease/site/capacity
 reservations. Definite spawn failure now releases its lease in the same atomic
-dispatch outcome. See [recovery semantics and limits](docs/RESULT_RECOVERY.md).
+dispatch outcome. See [recovery semantics and limits](docs/adr/0016-architecture-decisions-result-recovery.md).
 
 Acceptance passed: repository-wide package suite, full race-enabled service
 integration, manager/worker race and vet, selected production worker image build,
@@ -647,7 +643,7 @@ the filesystem. Manifests require artifact/log prerequisites and matching fencin
 Completion callbacks require the manifest reservation. Outcome, lock removal and
 site/capacity release are atomic; stale/superseded and duplicate terminal callbacks
 return 409 without mutation. Admission retries remain idempotent. See
-[commit semantics and upgrade requirements](docs/FENCED_COMMITS.md).
+[commit semantics and upgrade requirements](docs/adr/0015-architecture-decisions-fenced-commits.md).
 
 Acceptance passed: six-module package suite, full race-enabled service
 integration, manager/storage/worker race and vet, selected production image build,
@@ -723,7 +719,7 @@ this milestone changes gateway/UI selection and test-only executor fixtures.
 
 Next: **M2.6**, complete the broader worker isolation/resource/cancellation gate.
 Durable browser history remains M3. Selection is a persisted submission-time
-snapshot, not a queued-job rebase. See [build source semantics](docs/BUILD_SOURCE.md).
+snapshot, not a queued-job rebase. See [build source semantics](docs/adr/0014-architecture-decisions-build-source.md).
 
 M2.4 completed (2026-09-06) in `ef864e5`. The selected image is
 `pagewright-worker:m2.4`, retaining the pinned CLI and existing unprivileged
@@ -754,7 +750,7 @@ may remain. No paid calls, browser acceptance, hosted CI verification or push.
 
 Next: **M2.5**, latest-draft source selection and accumulating unpublished edits.
 Broader cancellation/resource/credential isolation remains M2.6; real-provider
-acceptance remains M2.12. See [trusted build scope and limitations](docs/WORKER_BUILD.md).
+acceptance remains M2.12. See [trusted build scope and limitations](docs/adr/0013-architecture-decisions-worker-build.md).
 
 M2.3 completed (2026-09-06) in `b8fb6c0`. The selected worker image is now
 `pagewright-worker:m2.3`, with integrity-locked Codex CLI 0.153.4 instead of a mock.
@@ -788,7 +784,7 @@ data; test image caches may remain. No paid calls or push occurred.
 Next: **M2.4**, trusted compiler/theme integration. Full resource limits,
 cancellation, credential isolation, AppArmor host enforcement and user-namespace
 attack-surface review remain M2.6; real-provider acceptance remains M2.12. See the
-[CLI contract, provenance and host prerequisites](docs/WORKER_CLI.md).
+[CLI contract, provenance and host prerequisites](docs/adr/0012-architecture-decisions-worker-cli.md).
 
 M2.2 completed (2026-09-06) in `5da77ad`. HTTP admission now atomically stores
 and queues `pending` jobs without spawning. A background dispatcher enforces a
@@ -805,7 +801,7 @@ Redis data was not migrated; preserve/export and restore writable-layer data
 before replacing an old container. Startup imports bounded legacy queue entries,
 preserves history and reserves capacity for old running jobs without relaunch.
 Malformed/conflicting legacy state fails closed. See the
-[dispatch contract and upgrade requirements](docs/QUEUE_DISPATCH.md).
+[dispatch contract and upgrade requirements](docs/adr/0011-architecture-decisions-queue-dispatch.md).
 
 Verification passed: six-module package baseline; two full isolated integration
 runs including real-Redis expiry, stale claims, intent interruption, independent
@@ -861,7 +857,7 @@ changing application volumes. Five existing skips remain; no paid provider or
 browser publishing journey was run and nothing was pushed.
 
 Next: M2.2, bounded queue dispatch. See [configuration, authority and remaining
-limitations](docs/DOCKER_SPAWNER.md). The manager now has host-level Docker socket
+limitations](docs/adr/0010-architecture-decisions-docker-spawner.md). The manager now has host-level Docker socket
 authority; this is not a remote-safe deployment or an AI sandbox. The worker still
 contains the placeholder executor, its compiler is not integrated, callback/storage
 credentials are not per-job tokens, and exited containers retain daemon metadata
@@ -963,7 +959,7 @@ At M3.11 handoff, next was **M3.12**, the real-service browser journey, sequenti
 preview/live state, refresh, build failure and rollback without manual HTML/DB seeding.
 
 M3.10 completed (2026-09-06) in `5ad744d`.
-[Draft recovery and publication feedback](docs/DRAFT_RECOVERY.md) defines the
+[Draft recovery and publication feedback](docs/adr/0023-architecture-decisions-draft-recovery.md) defines the
 account/site-scoped, current-tab storage contract. Text changes are saved
 synchronously; exact payload fingerprints and request keys are persisted before
 dispatch. Reload or same-account re-authentication restores uncertain submissions
@@ -1012,7 +1008,7 @@ journey. Tab-local storage is not encrypted backup, cross-device persistence or
 server-side conversation history.
 
 M3.9 completed (2026-09-06) in `d61a2e2`.
-[Text-only MVP capabilities](docs/MVP_CAPABILITIES.md) documents the release boundary,
+[Text-only MVP capabilities](docs/adr/0022-architecture-decisions-mvp-capabilities.md) documents the release boundary,
 API behavior and legacy-site upgrade path. This release is MVP-only, without a
 switch that enables unaccepted features. The gateway's `PAGEWRIGHT_SITE_DOMAIN`
 (default `pagewright.dev`, local-domain override `pagewright.io`) is authoritative.
@@ -1054,7 +1050,7 @@ At M3.9 handoff, next was **M3.10**, preserve drafts across session expiry/re-au
 progress, retry/empty states, version labels and dashboard refresh.
 
 M3.8 completed (2026-09-06) in `4466271`.
-[Atomic activation and retention guide](docs/ATOMIC_ACTIVATION.md) defines the
+[Atomic activation and retention guide](docs/adr/0021-architecture-decisions-atomic-activation.md) defines the
 filesystem and upgrade contract. Compiled output is validated/extracted privately,
 synced and renamed into its immutable cache directory before activation. Serving
 creates a temporary symlink on the destination filesystem and renames it over only
@@ -1109,7 +1105,7 @@ coordinated backup/restore and security remain M4 work.
 At M3.8 handoff, next was **M3.9**, hide/disable unsupported MVP controls and backend actions.
 
 M3.7 completed (2026-09-06) in `ec47934`.
-[Deployment consistency/recovery runbook](docs/DEPLOYMENT_RECOVERY.md) defines the
+[Deployment consistency/recovery runbook](docs/adr/0020-architecture-decisions-deployment-recovery.md) defines the
 protocol. Migration 010 adds a bounded current deployment record per site and a
 monotonically increasing PostgreSQL sequence. Site-row reservation admits only one
 unresolved operation across live/preview and gateway instances; identical pending
@@ -1168,7 +1164,7 @@ were removed. This is retry/restart reconciliation, not globally atomic publishi
 At M3.7 handoff, next was **M3.8**, atomic artifact-pointer replacement, active-version retention and rollback tests.
 
 M3.6 completed (2026-09-06) in `830c476`.
-[Hosting URLs and preview upgrade guidance](docs/PREVIEW_ACTIVATION.md) define
+[Hosting URLs and preview upgrade guidance](docs/adr/0018-architecture-decisions-preview-activation.md) define
 shared gateway scheme/port URL generation for site create/list/detail and deployment
 responses. Dashboard and Chat validate/use these destinations, disable unavailable
 links, and Chat refreshes hosting state after successful preview/publish operations.
@@ -1215,7 +1211,7 @@ M3.8, and full rendered-browser acceptance M3.12.
 At M3.6 handoff, next was **M3.7**, reconcile partial activation and define concurrent deployment policy.
 
 M3.5 completed (2026-09-06) in `2e1eea2`.
-[Supervised hosting lifecycle](docs/HOSTING_LIFECYCLE.md) defines the production
+[Supervised hosting lifecycle](docs/adr/0019-architecture-decisions-hosting-lifecycle.md) defines the production
 topology: the serving API and hosting nginx share a Tini/Go-supervised container;
 the existing public nginx is a fixed proxy preserving Host and re-resolving Docker
 DNS after replacement. Either supervised child's exit terminates its sibling;
@@ -1249,7 +1245,7 @@ remote deployment or push occurred. Full rendered-browser acceptance remains M3.
 At M3.5 handoff, next was **M3.6**, configured URLs across UI entry points and preview assets/navigation.
 
 M3.4 completed (2026-09-06) in `e22362d`.
-[Preview activation contract](docs/PREVIEW_ACTIVATION.md) documents staging,
+[Preview activation contract](docs/adr/0018-architecture-decisions-preview-activation.md) documents staging,
 activation, first-host routing, checked DB state and returned URL sequencing.
 The version modal calls the preview deployment API, validates its response and
 opens only after confirmation; pending actions are guarded, errors remain visible,
@@ -1280,7 +1276,7 @@ preview can succeed. Preview assets and remaining configured URLs are M3.6, dura
 reconciliation/atomic operations M3.7/M3.8, rendered-browser acceptance M3.12.
 
 M3.3 completed (2026-09-06) in `7f99456`.
-[WebSocket retirement and re-enable gate](docs/JOB_HISTORY_API.md) documents the
+[WebSocket retirement and re-enable gate](docs/adr/0017-architecture-decisions-job-history-api.md) documents the
 polling-only MVP. Removed the browser connection hook, reconnect timer, query-token
 URL, socket configuration/build arguments, gateway upgrader/broadcast hub/pumps and
 unused Go dependency. Removed code is retained in Git history, not behind a flag.
@@ -1303,7 +1299,7 @@ was not rerun for this transport-removal milestone.
 At M3.3 handoff, next was **M3.4**, make Preview activate deployment before opening its returned URL.
 
 M3.2 completed (2026-09-06) in `b1af7d6`.
-[Polling contract](docs/JOB_HISTORY_API.md) defines sequential checks of active jobs
+[Polling contract](docs/adr/0017-architecture-decisions-job-history-api.md) defines sequential checks of active jobs
 on the current history page, with 2/4/8/15-second backoff, 10-second transport
 timeouts, a 60-round/15-minute budget and a five-consecutive-error limit. Terminal
 pages stop; 401/403/404 pause immediately. Manual refresh resumes checks. Other
@@ -1329,7 +1325,7 @@ M3.12. No paid calls, remote changes, application-data changes or push occurred.
 At M3.2 handoff, next was **M3.3**, remove the broken/unused WebSocket connection for the polling MVP.
 
 M3.1 completed (2026-09-06) in `38e908e`.
-[Owner-scoped history contract](docs/JOB_HISTORY_API.md) documents the authenticated
+[Owner-scoped history contract](docs/adr/0017-architecture-decisions-job-history-api.md) documents the authenticated
 single-job and paginated site-history endpoints, public allowlisted fields and
 diagnostic codes, and last-observed-state semantics. Count and rows share a
 read-only PostgreSQL snapshot; reads never contact upstream services or enqueue
@@ -1703,7 +1699,7 @@ the existing rollback/recovery protocol. Old preview bookmarks are not redirecte
 Rebuild gateway/serving/UI together and reactivate previews before admitting users;
 startup does not automatically rewrite saved configs. Worker isolation is unchanged.
 
-[Pilot DNS/TLS runbook](docs/PILOT_HTTPS.md) records local equivalents, host coexistence,
+[Pilot DNS/TLS runbook](docs/adr/0027-architecture-decisions-pilot-https.md) records local equivalents, host coexistence,
 the operator-owned apex/www Certbot lineage and remaining production gates. The
 operator updated DNS; both authoritative servers resolve app/api and arbitrary live
 names to `135.181.209.167`, and the approved new preview layout was also verified.
@@ -1789,7 +1785,7 @@ Disposable stacks/data were removed; local evidence/build caches remain. Next:
 **M4.9**. Remaining M4 gates still block admitting remote testers.
 
 M4.7 completed (2026-09-08) in `9f3a6e0`.
-[Ownership security](docs/OWNERSHIP_SECURITY.md) records the endpoint matrix,
+[Ownership security](docs/adr/0026-architecture-decisions-ownership-security.md) records the endpoint matrix,
 regression coverage and public-preview distinction. The audit found existing
 owner checks before active site operations and database filtering by both current
 site owner and submission owner before public job polling responses. There is no
@@ -1886,7 +1882,7 @@ evidence/build caches remain. Next: **M4.7**. Remaining M4 gates still block rem
 testers.
 
 M4.5 completed (2026-09-07) in `954ab9a`.
-[Resource limits](docs/RESOURCE_LIMITS.md) records the fixed MVP budgets,
+[Resource limits](docs/adr/0025-architecture-decisions-resource-limits.md) records the fixed MVP budgets,
 publication behavior, verification and upgrade requirements. General JSON handlers
 now consume the entire bounded representation before strict decoding, rejecting
 unknown fields, additional values and oversized whitespace suffixes without trusting
@@ -1934,7 +1930,7 @@ Disposable stacks/data were removed; local evidence/build caches remain.
 Next: **M4.6**. Remaining M4 gates still block admitting remote testers.
 
 M4.4 completed (2026-09-07) in `da73a4d`.
-[Identifier security](docs/IDENTIFIER_SECURITY.md) records canonical naming,
+[Identifier security](docs/adr/0024-architecture-decisions-identifier-security.md) records canonical naming,
 reserved labels, bounded identities, filesystem assumptions and upgrade notes.
 The user confirms ownership of `pagewright.io`. The apex redirect and live DNS
 are unchanged; M4.9 will configure the chosen owned namespace and both live and
