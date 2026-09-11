@@ -58,7 +58,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user already exists
-	existingUser, err := h.db.GetUserByEmail(req.Email)
+	existingUser, err := h.db.WithContext(r.Context()).GetUserByEmail(req.Email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to check existing user")
 		return
@@ -76,7 +76,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create user
-	user, err := h.db.CreateUser(req.Email, passwordHash, nil, nil)
+	user, err := h.db.WithContext(r.Context()).CreateUser(req.Email, passwordHash, nil, nil)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to create user")
 		return
@@ -112,7 +112,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user
-	user, err := h.db.GetUserByEmail(req.Email)
+	user, err := h.db.WithContext(r.Context()).GetUserByEmail(req.Email)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to get user")
 		return
@@ -184,7 +184,7 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	const message = "If the email exists, a password reset link will be sent"
 	// Keep existing/nonexistent/ineligible accounts and delivery failures identical.
-	user, err := h.db.GetUserByEmail(req.Email)
+	user, err := h.db.WithContext(r.Context()).GetUserByEmail(req.Email)
 	if err != nil {
 		log.Print("Password reset account lookup failed")
 	}
@@ -195,12 +195,15 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		token := hex.EncodeToString(bytes[:])
-		record, err := h.db.CreatePasswordResetToken(user.ID, token, time.Now().Add(time.Hour))
+		record, err := h.db.WithContext(r.Context()).CreatePasswordResetToken(user.ID, token, time.Now().Add(time.Hour))
 		if err != nil {
 			log.Print("Password reset token persistence failed")
 		} else if err := h.resetSender.SendReset(r.Context(), user.Email, token); err != nil {
 			log.Print("Password reset delivery failed; verify SMTP configuration")
-			if err := h.db.MarkPasswordResetTokenUsed(record.ID); err != nil {
+			// Invalidate even when delivery failed because the browser disconnected.
+			cleanup, cancel := outcomeContext(r)
+			defer cancel()
+			if err := h.db.WithContext(cleanup).MarkPasswordResetTokenUsed(record.ID); err != nil {
 				log.Print("Password reset delivery-failure invalidation failed")
 			}
 		}
@@ -274,7 +277,7 @@ func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user from database
-	dbUser, err := h.db.GetUserByID(user.UserID)
+	dbUser, err := h.db.WithContext(r.Context()).GetUserByID(user.UserID)
 	if err != nil || dbUser == nil {
 		respondError(w, http.StatusNotFound, "user not found")
 		return
@@ -300,7 +303,7 @@ func (h *AuthHandler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update password
-	if err := h.db.UpdateUserPassword(dbUser.ID, newPasswordHash); err != nil {
+	if err := h.db.WithContext(r.Context()).UpdateUserPassword(dbUser.ID, newPasswordHash); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update password")
 		return
 	}

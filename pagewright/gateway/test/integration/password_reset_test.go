@@ -191,3 +191,21 @@ func TestResetDeliveryFailureAndDisabled(t *testing.T) {
 		t.Fatal("failed delivery left usable token")
 	}
 }
+
+func TestCancelledResetDeliveryStillInvalidatesToken(t *testing.T) {
+	email := uuid.NewString() + "@cancelled-reset.test"
+	user, err := testDB.CreateUser(email, "hash", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h := handlers.NewAuthHandler(testDB, testJWTManager, nil)
+	h.SetResetSender(resetDelivery(func(context.Context, string, string) error { cancel(); return context.Canceled }))
+	w := httptest.NewRecorder()
+	h.ForgotPassword(w, httptest.NewRequest("POST", "/auth/forgot-password", strings.NewReader(`{"email":"`+email+`"}`)).WithContext(ctx))
+	var usable int
+	if err := testDB.Get(&usable, `SELECT count(*) FROM password_reset_tokens WHERE user_id=$1 AND NOT used`, user.ID); err != nil || usable != 0 {
+		t.Fatal("cancelled delivery left usable token", err)
+	}
+}

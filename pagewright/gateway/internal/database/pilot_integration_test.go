@@ -35,7 +35,7 @@ func TestPilotAdmissionRaceQuotaReplayAndRestart(t *testing.T) {
 		t.Fatalf("admitted %d", admitted.Load())
 	}
 	// New DB wrapper represents a restarted client against the same durable state.
-	restarted := &DB{db.DB}
+	restarted := &DB{DB: db.DB}
 	if err := restarted.AdmitPilot(ctx, p.OwnerID, p.SiteID, uuid.NewString(), p.RequestHash, limits); !errors.Is(err, ErrPilotLimit) {
 		t.Fatalf("restart bypass: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestPilotProviderPrepaidReservationRaceAndRestart(t *testing.T) {
 	if count.Load() != 3 {
 		t.Fatalf("budget admitted %d", count.Load())
 	}
-	if err := (&DB{db.DB}).ReservePilotProvider(ctx, uuid.NewString(), 300, 16); !errors.Is(err, ErrPilotLimit) {
+	if err := (&DB{DB: db.DB}).ReservePilotProvider(ctx, uuid.NewString(), 300, 16); !errors.Is(err, ErrPilotLimit) {
 		t.Fatalf("restart refunded: %v", err)
 	}
 	// Increasing the allowance grants only the increment, never resets history.
@@ -150,7 +150,7 @@ func TestPilotRateDurableAtomicWindow(t *testing.T) {
 	if count.Load() != 5 {
 		t.Fatalf("rate admitted %d", count.Load())
 	}
-	if err := (&DB{db.DB}).TakePilotRate(ctx, "test", 5); !errors.Is(err, ErrPilotLimit) {
+	if err := (&DB{DB: db.DB}).TakePilotRate(ctx, "test", 5); !errors.Is(err, ErrPilotLimit) {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(`UPDATE pilot_rates SET window_start=now()-interval '3 minutes' WHERE key='test'`); err != nil {

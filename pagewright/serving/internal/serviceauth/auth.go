@@ -87,12 +87,12 @@ func Allowed(s Scope, service, method, path string) bool {
 	return false
 }
 
-// Wrap gates all internal API reads/writes; only GET /health is public.
+// Wrap gates all internal API reads/writes; only GET /health and GET /ready are public.
 // Callback and write bodies still pass the existing identity/fencing validators.
 func Wrap(service string, next http.Handler) http.Handler {
 	key := Key()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" && r.URL.Path == "/health" && r.URL.RawQuery == "" {
+		if r.Method == "GET" && (r.URL.Path == "/health" || r.URL.Path == "/ready") && r.URL.RawQuery == "" {
 			next.ServeHTTP(w, r)
 			return
 		}

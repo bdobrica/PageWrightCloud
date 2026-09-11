@@ -193,7 +193,11 @@ func PrepareRuntime(dir string) error {
 }
 
 func (m *Manager) probe(expected string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	return m.probeContext(context.Background(), expected)
+}
+
+func (m *Manager) probeContext(parent context.Context, expected string) error {
+	ctx, cancel := context.WithTimeout(parent, time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", m.probeURL, nil)
 	if err != nil {
@@ -217,6 +221,10 @@ func (m *Manager) probe(expected string) error {
 }
 
 func (m *Manager) Ready() error {
+	return m.ReadyContext(context.Background())
+}
+
+func (m *Manager) ReadyContext(ctx context.Context) error {
 	if m.probeURL == "" {
 		return nil
 	}
@@ -225,7 +233,7 @@ func (m *Manager) Ready() error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	return m.probe("")
+	return m.probeContext(ctx, "")
 }
 
 func (m *Manager) awaitGeneration(token string) error {

@@ -26,6 +26,7 @@ class ApiClient {
   constructor() {
     this.client = axios.create({
       baseURL: config.apiUrl,
+      timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -167,7 +168,7 @@ class ApiClient {
     const payload: BuildRequest = { message: data.message, conversation_id: data.conversation_id };
     const response = await this.client.post<unknown>(`/sites/${fqdn}/build`, payload, {
       headers: { 'Idempotency-Key': data.requestKey, 'X-Pagewright-Draft-Owner': owner },
-      timeout: 30000,
+      timeout: 60000,
     });
     return parseBuildResponse(response.data);
   }

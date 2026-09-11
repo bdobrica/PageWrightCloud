@@ -67,10 +67,6 @@ func (h *Handler) SetupRoutes() *mux.Router {
 }
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	if err := h.nginxMgr.Ready(); err != nil {
-		http.Error(w, "hosting unavailable", http.StatusServiceUnavailable)
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"status":      "healthy",
@@ -107,7 +103,7 @@ func (h *Handler) DeployArtifact(w http.ResponseWriter, r *http.Request) {
 	tmp.Close()
 	defer os.Remove(tmpFile)
 
-	if err := h.storageCli.FetchArtifact(req.SiteID, req.Version, tmpFile); err != nil {
+	if err := h.storageCli.FetchArtifactContext(r.Context(), req.SiteID, req.Version, tmpFile); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to fetch artifact: %v", err), http.StatusInternalServerError)
 		return
 	}

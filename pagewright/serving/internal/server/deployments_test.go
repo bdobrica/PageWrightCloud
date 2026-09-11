@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,42 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/storage"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCancelledDeploymentRetainsPendingIntent(t *testing.T) {
+	entered := make(chan struct{})
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(entered); <-r.Context().Done() }))
+	defer s.Close()
+	am := artifact.NewManager(t.TempDir(), 0)
+	h := NewHandler(am, nginx.NewManager(t.TempDir(), "true", "/tmp/503.html"), storage.NewClient(s.URL))
+	d := deploymentReceipt{SiteID: "site-id", FQDN: "cancel.example.test", Sequence: 1, Version: "v1", Target: "live", Status: "pending"}
+	data, _ := json.Marshal(d)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	w := httptest.NewRecorder()
+	go func() {
+		defer close(done)
+		h.SetupRoutes().ServeHTTP(w, httptest.NewRequest("POST", "/sites/"+d.FQDN+"/deployment", bytes.NewReader(data)).WithContext(ctx))
+	}()
+	select {
+	case <-entered:
+	case <-done:
+		t.Fatalf("deployment ended before download: %d %s", w.Code, w.Body.String())
+	case <-time.After(5 * time.Second):
+		t.Fatal("no download")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("deployment ignored cancellation")
+	}
+	prior, err := readReceipt(h.receiptPath(d.FQDN))
+	require.NoError(t, err)
+	require.Equal(t, "pending", prior.Status)
+	_, err = os.Lstat(filepath.Join(am.GetSitePath(d.FQDN), "public"))
+	require.True(t, os.IsNotExist(err))
+}
 
 func TestDurableFencedDeployment(t *testing.T) {
 	var archive bytes.Buffer

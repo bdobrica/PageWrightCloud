@@ -33,7 +33,7 @@ func (h *BuildHandler) dispatchBuild(w http.ResponseWriter, r *http.Request, s *
 		}
 		if claimed {
 			s.DispatchState = "dispatching"
-			job, err := h.managerClient.EnqueueJob(clients.ManagerJobRequest{
+			job, err := h.managerClient.EnqueueJobContext(r.Context(), clients.ManagerJobRequest{
 				JobID: s.JobID, SiteID: s.SiteID, OwnerID: s.OwnerID,
 				Prompt: s.Prompt, SourceVersion: s.SourceVersion, TargetVersion: s.TargetVersion,
 			})
@@ -60,7 +60,7 @@ func (h *BuildHandler) dispatchBuild(w http.ResponseWriter, r *http.Request, s *
 	}
 	// A prior attempt may have reached the manager even if the response or local
 	// outcome write was lost. Read back the exact ID; never blindly re-dispatch.
-	job, err := h.managerClient.GetJobStatus(s.JobID)
+	job, err := h.managerClient.GetJobStatusContext(r.Context(), s.JobID)
 	if err != nil || job.SiteID != s.SiteID || job.OwnerID != s.OwnerID || job.SourceVersion != s.SourceVersion || job.TargetVersion != s.TargetVersion || job.Prompt != s.Prompt {
 		uncertainSubmission(w, s, "submission outcome is uncertain; retry with the same Idempotency-Key to reconcile (no automatic redispatch)")
 		return

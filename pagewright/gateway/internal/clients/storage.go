@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
 )
 
@@ -61,7 +62,7 @@ func NewStorageClient(baseURL string) *StorageClient {
 	return &StorageClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
-			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key()},
+			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key(), Base: runtimehttp.Transport()},
 			Timeout:       30 * time.Second,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},

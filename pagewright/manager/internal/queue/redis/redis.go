@@ -23,11 +23,16 @@ type RedisBackend struct {
 	jobKeyPrefix string
 }
 
+func (r *RedisBackend) Ready(ctx context.Context) error { return r.client.Ping(ctx).Err() }
+
 func NewRedisBackend(addr, password string, db int) (*RedisBackend, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: password,
-		DB:       db,
+		Addr:                  addr,
+		Password:              password,
+		DB:                    db,
+		ContextTimeoutEnabled: true,
+		DialTimeout:           5 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 3 * time.Second,
+		PoolTimeout: 3 * time.Second, PoolSize: 16, MaxRetries: -1,
 	})
 
 	// Test connection
@@ -35,6 +40,7 @@ func NewRedisBackend(addr, password string, db int) (*RedisBackend, error) {
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
+		client.Close()
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 

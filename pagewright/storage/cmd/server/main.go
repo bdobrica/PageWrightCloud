@@ -12,6 +12,7 @@ import (
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/api"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/config"
+	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage"
 	"github.com/bdobrica/PageWrightCloud/pagewright/storage/internal/storage/nfs"
@@ -47,18 +48,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	router := serviceauth.Wrap("storage", handler.SetupRoutes())
+	routes := handler.SetupRoutes()
+	routes.HandleFunc("/ready", runtimehttp.Ready(runtimehttp.Directory(cfg.NFSBasePath)))
+	router := runtimehttp.Budget(45*time.Second, serviceauth.Wrap("storage", routes))
 	cleanupContext, stopCleanup := context.WithCancel(context.Background())
 	cleanupDone := make(chan struct{})
 	go func() { defer close(cleanupDone); backend.(*nfs.NFSBackend).MaintainStaging(cleanupContext) }()
 
 	// Create HTTP server
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              fmt.Sprintf(":%d", cfg.Port),
+		Handler:           router,
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// Start server in a goroutine

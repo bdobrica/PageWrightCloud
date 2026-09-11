@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
 )
@@ -23,7 +24,7 @@ func NewManagerClient(baseURL string) *ManagerClient {
 	return &ManagerClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Transport: serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key()},
+			Transport: serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key(), Base: runtimehttp.Transport()},
 			Timeout:   30 * time.Second,
 			// A redirect could deliver POST before a later dial failure, making
 			// that error unsafe to classify as definitely not submitted.

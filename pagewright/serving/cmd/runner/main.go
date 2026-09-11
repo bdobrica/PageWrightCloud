@@ -13,6 +13,7 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/artifact"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/config"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/nginx"
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/server"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/storage"
@@ -47,7 +48,11 @@ func main() {
 
 	// Setup HTTP server
 	handler := server.NewHandler(artifactMgr, nginxMgr, storageCli)
-	router := serviceauth.Wrap("serving", handler.SetupRoutes())
+	routes := handler.SetupRoutes()
+	routes.HandleFunc("/ready", runtimehttp.Ready(runtimehttp.Directory(cfg.WWWRoot),
+		runtimehttp.Directory(cfg.NginxSitesEnabled), runtimehttp.HTTP(cfg.StorageURL+"/ready"),
+		nginxMgr.ReadyContext))
+	router := runtimehttp.Budget(45*time.Second, serviceauth.Wrap("serving", routes))
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	fmt.Printf("Server listening on %s\n", addr)

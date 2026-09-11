@@ -27,7 +27,7 @@ services:
     depends_on:
       redis: { condition: service_healthy }
     healthcheck:
-      test: [CMD, wget, -q, --spider, 'http://localhost:8081/health']
+      test: [CMD, wget, -q, --spider, 'http://localhost:8081/ready']
       interval: 2s
       retries: 30
   storage:
@@ -40,7 +40,7 @@ services:
     tmpfs: [/nfs]
     networks: [smoke, control]
     healthcheck:
-      test: [CMD, wget, -q, --spider, 'http://localhost:8080/health']
+      test: [CMD, wget, -q, --spider, 'http://localhost:8080/ready']
       interval: 2s
       retries: 30
   budget:

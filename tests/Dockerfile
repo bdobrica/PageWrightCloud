@@ -18,4 +18,5 @@ COPY pagewright/themes/starter pagewright/themes/starter
 RUN cd pagewright/compiler && go build -o /usr/local/bin/pagewrightc ./cmd/pagewrightc
 RUN cd pagewright/worker && go build -tags=integration -o /usr/local/bin/deterministic-executor ./test/deterministic-executor && go test -c -race -tags=integration -o /usr/local/bin/worker-contract.test ./cmd/runner
 COPY tests/fixtures tests/fixtures
+COPY tests/readiness.go tests/readiness.go
 COPY scripts/integration-suites.sh scripts/integration-suites.sh

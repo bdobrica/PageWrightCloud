@@ -40,7 +40,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: [CMD, wget, -q, --spider, 'http://localhost:8081/health']
+      test: [CMD, wget, -q, --spider, 'http://localhost:8081/ready']
       interval: 2s
       timeout: 3s
       retries: 30
@@ -54,7 +54,7 @@ services:
     tmpfs:
       - /nfs
     healthcheck:
-      test: [CMD, wget, -q, --spider, 'http://localhost:8080/health']
+      test: [CMD, wget, -q, --spider, 'http://localhost:8080/ready']
       interval: 2s
       timeout: 3s
       retries: 30
@@ -70,7 +70,7 @@ services:
       storage:
         condition: service_healthy
     healthcheck:
-      test: [CMD, wget, -q, --spider, 'http://localhost:8083/health']
+      test: [CMD, wget, -q, --spider, 'http://localhost:8083/ready']
       interval: 2s
       timeout: 3s
       retries: 30

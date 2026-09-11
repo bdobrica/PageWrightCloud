@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -15,7 +16,7 @@ type sourceVersions struct {
 	site     string
 }
 
-func (s *sourceVersions) ListVersions(site string) ([]clients.StorageVersion, error) {
+func (s *sourceVersions) ListVersionsContext(_ context.Context, site string) ([]clients.StorageVersion, error) {
 	s.site = site
 	return s.versions, s.err
 }
@@ -47,7 +48,7 @@ func TestBuildSourcePrecedence(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &sourceVersions{versions: tc.versions, err: tc.err}
 			h := &BuildHandler{storageClient: store}
-			got, err := h.selectBuildSource(&types.Site{ID: "owned-site", LiveVersionID: tc.live})
+			got, err := h.selectBuildSource(context.Background(), &types.Site{ID: "owned-site", LiveVersionID: tc.live})
 			if tc.fail {
 				if err == nil || got != "" {
 					t.Fatalf("expected failure, got %q, %v", got, err)

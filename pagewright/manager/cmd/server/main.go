@@ -18,6 +18,7 @@ import (
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue"
 	queueRedis "github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/queue/redis"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/reconciler"
+	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/serviceauth"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner"
 	"github.com/bdobrica/PageWrightCloud/pagewright/manager/internal/spawner/docker"
@@ -94,7 +95,13 @@ func main() {
 
 	// Create API handler
 	handler := api.NewHandler(queueBackend, lockMgr)
-	router := serviceauth.Wrap("manager", handler.SetupRoutes())
+	routes := handler.SetupRoutes()
+	checks := []runtimehttp.Check{queueBackend.(*queueRedis.RedisBackend).Ready}
+	if dependency, ok := workerSpawner.(interface{ Ready(context.Context) error }); ok {
+		checks = append(checks, dependency.Ready)
+	}
+	routes.HandleFunc("/ready", runtimehttp.Ready(checks...))
+	router := runtimehttp.Budget(15*time.Second, serviceauth.Wrap("manager", routes))
 	dispatchQueue := queueBackend.(queue.DispatchBackend)
 	initialization, endInitialization := context.WithTimeout(context.Background(), 60*time.Second)
 	if _, testOnly := testSpawners[cfg.WorkerSpawner]; !testOnly {
@@ -141,11 +148,12 @@ func main() {
 
 	// Create HTTP server
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              fmt.Sprintf(":%d", cfg.Port),
+		Handler:           router,
+		ReadTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// Start server in a goroutine

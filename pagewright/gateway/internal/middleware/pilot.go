@@ -18,7 +18,7 @@ type RateStore interface {
 func PilotThrottle(store RateStore, authenticated bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == "OPTIONS" || r.URL.Path == "/health" {
+			if r.Method == "OPTIONS" || (r.URL.Path == "/health" || r.URL.Path == "/ready") {
 				next.ServeHTTP(w, r)
 				return
 			}

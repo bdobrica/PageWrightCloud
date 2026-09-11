@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
 )
 
@@ -20,7 +21,7 @@ func NewServingClient(baseURL string) *ServingClient {
 	return &ServingClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
-			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key()},
+			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key(), Base: runtimehttp.Transport()},
 			Timeout:       30 * time.Second,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse },
 		},

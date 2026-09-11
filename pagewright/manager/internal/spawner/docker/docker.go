@@ -75,6 +75,23 @@ func validURL(raw string) bool {
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != "" && u.User == nil && u.RawQuery == "" && u.Fragment == ""
 }
 
+// Read-only daemon probe; readiness never pulls an image or starts a worker.
+func (d *DockerSpawner) Ready(ctx context.Context) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://docker/_ping", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Docker unavailable")
+	}
+	return nil
+}
+
 func (d *DockerSpawner) Spawn(ctx context.Context, job *types.Job, managerURL string) (string, error) {
 	if job == nil || !validURL(managerURL) {
 		return "", fmt.Errorf("%w: invalid job or callback endpoint", spawner.ErrNotStarted)

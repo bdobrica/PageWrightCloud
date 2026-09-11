@@ -19,3 +19,19 @@ trap 'exit 143' TERM
 compose build
 compose up -d --wait --wait-timeout 120 postgres redis manager storage serving nginx
 compose run --rm tests
+
+# Fail dependencies only after the stateful contracts finish. Test process
+# liveness independently, then require readiness to recover without a rebuild.
+probe() {
+    compose run --rm --no-deps tests go run /workspace/tests/readiness.go "$@"
+}
+probe http://manager:8081/ready 200 http://storage:8080/ready 200 http://serving:8083/ready 200
+compose stop redis
+probe http://manager:8081/ready 503 http://manager:8081/health 200
+compose start redis
+compose up -d --wait --wait-timeout 120 redis manager
+compose stop storage
+probe http://serving:8083/ready 503 http://serving:8083/health 200
+compose start storage
+compose up -d --wait --wait-timeout 120 storage serving
+probe http://manager:8081/ready 200 http://storage:8080/ready 200 http://serving:8083/ready 200

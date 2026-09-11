@@ -86,7 +86,7 @@ services:
       - pagewright
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8085/ready"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -129,7 +129,7 @@ services:
       - pagewright
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/ready"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -151,7 +151,7 @@ services:
       - pagewright
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/ready"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -182,7 +182,7 @@ services:
       - pagewright
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8083/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8083/ready"]
       interval: 10s
       timeout: 5s
       retries: 3

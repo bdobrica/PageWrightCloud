@@ -132,13 +132,19 @@ func (h *Handler) ApplyDeployment(w http.ResponseWriter, r *http.Request) {
 		archive := tmp.Name()
 		tmp.Close()
 		defer os.Remove(archive)
-		err = h.storageCli.FetchArtifact(d.SiteID, d.Version, archive)
+		err = h.storageCli.FetchArtifactContext(r.Context(), d.SiteID, d.Version, archive)
+		if r.Context().Err() != nil {
+			return
+		} // keep pending/activating intent for recovery
 		if err == nil {
 			err = h.artifactMgr.DeployArtifact(d.FQDN, d.Version, archive)
 		}
 		if err == nil {
 			err = h.nginxMgr.EnsureSiteConfig(d.FQDN, h.artifactMgr.GetSitePath(d.FQDN))
 		}
+		if r.Context().Err() != nil {
+			return
+		} // no new activation after cancellation
 		if err != nil {
 			if d.Status == "activating" {
 				http.Error(w, "activation recovery unavailable", 503)

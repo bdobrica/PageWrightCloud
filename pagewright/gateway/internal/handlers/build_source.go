@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/types"
@@ -8,11 +9,11 @@ import (
 
 // Select once per new reservation. Idempotent retries replay the persisted base.
 // Manifest-committed builds remain usable even if their manager callback is lost.
-func (h *BuildHandler) selectBuildSource(site *types.Site) (string, error) {
+func (h *BuildHandler) selectBuildSource(ctx context.Context, site *types.Site) (string, error) {
 	if h.storageClient == nil {
 		return "", fmt.Errorf("storage client required")
 	}
-	stored, err := h.storageClient.ListVersions(site.ID)
+	stored, err := h.storageClient.ListVersionsContext(ctx, site.ID)
 	if err != nil {
 		return "", err
 	}

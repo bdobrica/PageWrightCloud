@@ -45,7 +45,7 @@ func (h *VersionsHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
-	site, err := h.db.GetSiteByFQDN(fqdn)
+	site, err := h.db.WithContext(r.Context()).GetSiteByFQDN(fqdn)
 	if err != nil || site == nil {
 		respondError(w, http.StatusNotFound, "site not found")
 		return
@@ -57,7 +57,7 @@ func (h *VersionsHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch versions from storage service
-	stored, err := h.storageClient.ListVersions(site.ID)
+	stored, err := h.storageClient.WithContext(r.Context()).ListVersions(site.ID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to list versions")
 		return
@@ -165,7 +165,7 @@ func (h *VersionsHandler) DeployVersion(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	site, err := h.db.GetSiteByFQDN(fqdn)
+	site, err := h.db.WithContext(r.Context()).GetSiteByFQDN(fqdn)
 	if err != nil || site == nil {
 		respondError(w, http.StatusNotFound, "site not found")
 		return
@@ -222,7 +222,7 @@ func (h *VersionsHandler) DownloadVersion(w http.ResponseWriter, r *http.Request
 	fqdn := vars["fqdn"]
 	versionID := vars["version_id"]
 
-	site, err := h.db.GetSiteByFQDN(fqdn)
+	site, err := h.db.WithContext(r.Context()).GetSiteByFQDN(fqdn)
 	if err != nil || site == nil {
 		respondError(w, http.StatusNotFound, "site not found")
 		return
@@ -234,7 +234,7 @@ func (h *VersionsHandler) DownloadVersion(w http.ResponseWriter, r *http.Request
 	}
 
 	// Fetch artifact from storage
-	reader, err := h.storageClient.OpenArtifact(site.ID, versionID)
+	reader, err := h.storageClient.WithContext(r.Context()).OpenArtifact(site.ID, versionID)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to fetch artifact")
 		return

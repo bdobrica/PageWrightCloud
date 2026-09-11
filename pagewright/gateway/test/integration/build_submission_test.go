@@ -28,19 +28,21 @@ type submissionProvider struct{ calls atomic.Int32 }
 
 type emptyCompletedVersions struct{}
 
-func (emptyCompletedVersions) ListVersions(string) ([]clients.StorageVersion, error) { return nil, nil }
+func (emptyCompletedVersions) ListVersionsContext(context.Context, string) ([]clients.StorageVersion, error) {
+	return nil, nil
+}
 
-func (p *submissionProvider) EvaluateRequest(string) (*clients.EvaluationResponse, error) {
+func (p *submissionProvider) EvaluateRequestContext(context.Context, string) (*clients.EvaluationResponse, error) {
 	p.calls.Add(1)
 	return &clients.EvaluationResponse{IsClear: true}, nil
 }
-func (p *submissionProvider) GenerateJobInstructions(string, string) (string, error) {
+func (p *submissionProvider) GenerateJobInstructionsContext(context.Context, string, string) (string, error) {
 	p.calls.Add(1)
 	return "Change the title", nil
 }
 
 type submissionStore interface {
-	GetSiteByFQDN(string) (*types.Site, error)
+	GetSiteByFQDNContext(context.Context, string) (*types.Site, error)
 	FindBuildSubmission(context.Context, string, string, string) (*database.BuildSubmission, error)
 	ReserveBuildSubmission(context.Context, *database.BuildSubmission) (*database.BuildSubmission, bool, error)
 	ClaimBuildDispatch(context.Context, string) (bool, error)
@@ -165,7 +167,7 @@ func submissionGateway(t *testing.T, store submissionStore, provider *submission
 	return submissionGatewayWithVersions(t, store, provider, managerURL, emptyCompletedVersions{})
 }
 func submissionGatewayWithVersions(t *testing.T, store submissionStore, provider *submissionProvider, managerURL string, versions interface {
-	ListVersions(string) ([]clients.StorageVersion, error)
+	ListVersionsContext(context.Context, string) ([]clients.StorageVersion, error)
 }) *httptest.Server {
 	t.Helper()
 	h := handlers.NewBuildHandler(store, provider, clients.NewManagerClient(managerURL), versions)
@@ -244,7 +246,7 @@ type fixedCompletedVersions struct {
 	err      error
 }
 
-func (s fixedCompletedVersions) ListVersions(string) ([]clients.StorageVersion, error) {
+func (s fixedCompletedVersions) ListVersionsContext(context.Context, string) ([]clients.StorageVersion, error) {
 	return s.versions, s.err
 }
 

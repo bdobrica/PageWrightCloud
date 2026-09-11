@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -33,6 +34,10 @@ func (db *DB) CreateSite(userID, fqdn, templateID string) (*types.Site, error) {
 	}
 
 	return site, nil
+}
+
+func (db *DB) GetSiteByFQDNContext(ctx context.Context, fqdn string) (*types.Site, error) {
+	return db.WithContext(ctx).GetSiteByFQDN(fqdn)
 }
 
 func (db *DB) GetSiteByFQDN(fqdn string) (*types.Site, error) {

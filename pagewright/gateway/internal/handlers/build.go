@@ -42,11 +42,11 @@ func (h *BuildHandler) SetPilotLimits(store pilotAdmission, limits database.Pilo
 func (h *BuildHandler) SetPilotAIAllowance(cents int) { h.pilotAIDisabled = cents < 100 }
 
 type completedVersionStore interface {
-	ListVersions(string) ([]clients.StorageVersion, error)
+	ListVersionsContext(context.Context, string) ([]clients.StorageVersion, error)
 }
 
 type buildStore interface {
-	GetSiteByFQDN(string) (*types.Site, error)
+	GetSiteByFQDNContext(context.Context, string) (*types.Site, error)
 	FindBuildSubmission(context.Context, string, string, string) (*database.BuildSubmission, error)
 	ReserveBuildSubmission(context.Context, *database.BuildSubmission) (*database.BuildSubmission, bool, error)
 	ClaimBuildDispatch(context.Context, string) (bool, error)
@@ -54,8 +54,8 @@ type buildStore interface {
 }
 
 type instructionProvider interface {
-	EvaluateRequest(string) (*clients.EvaluationResponse, error)
-	GenerateJobInstructions(string, string) (string, error)
+	EvaluateRequestContext(context.Context, string) (*clients.EvaluationResponse, error)
+	GenerateJobInstructionsContext(context.Context, string, string) (string, error)
 }
 
 func NewBuildHandler(db buildStore, llmClient instructionProvider, managerClient *clients.ManagerClient, storageClient completedVersionStore) *BuildHandler {
@@ -109,7 +109,7 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	site, err := h.db.GetSiteByFQDN(fqdn)
+	site, err := h.db.GetSiteByFQDNContext(r.Context(), fqdn)
 	if err != nil || site == nil {
 		respondError(w, http.StatusNotFound, "site not found")
 		return
@@ -181,7 +181,7 @@ func (h *BuildHandler) Build(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Initial request - evaluate if clear
-	evaluation, err := h.llmClient.EvaluateRequest(req.Message)
+	evaluation, err := h.llmClient.EvaluateRequestContext(r.Context(), req.Message)
 	if err != nil {
 		if errors.Is(err, clients.ErrAIAllowance) {
 			w.Header().Set("Retry-After", "60")
@@ -239,7 +239,7 @@ func (h *BuildHandler) handleClarification(w http.ResponseWriter, r *http.Reques
 
 func (h *BuildHandler) enqueueJob(w http.ResponseWriter, r *http.Request, site *types.Site, originalMessage, clarification, requestKey, requestHash string) {
 	// Generate job instructions using LLM
-	instructions, err := h.llmClient.GenerateJobInstructions(originalMessage, clarification)
+	instructions, err := h.llmClient.GenerateJobInstructionsContext(r.Context(), originalMessage, clarification)
 	if err != nil {
 		if errors.Is(err, clients.ErrAIAllowance) {
 			w.Header().Set("Retry-After", "60")
@@ -252,7 +252,7 @@ func (h *BuildHandler) enqueueJob(w http.ResponseWriter, r *http.Request, site *
 
 	// Storage's manifest-last list is authoritative for completed artifacts;
 	// gateway version rows can still say pending after a worker completes.
-	baseBuildID, err := h.selectBuildSource(site)
+	baseBuildID, err := h.selectBuildSource(r.Context(), site)
 	if err != nil {
 		respondError(w, http.StatusBadGateway, "failed to determine latest completed build; no job was dispatched")
 		return

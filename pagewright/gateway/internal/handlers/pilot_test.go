@@ -21,7 +21,7 @@ type pilotBuildStore struct {
 	prior *database.BuildSubmission
 }
 
-func (*pilotBuildStore) GetSiteByFQDN(string) (*types.Site, error) {
+func (*pilotBuildStore) GetSiteByFQDNContext(context.Context, string) (*types.Site, error) {
 	return &types.Site{ID: "site", UserID: "owner"}, nil
 }
 func (s *pilotBuildStore) FindBuildSubmission(context.Context, string, string, string) (*database.BuildSubmission, error) {

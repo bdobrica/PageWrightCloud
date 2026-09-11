@@ -14,7 +14,7 @@ import (
 func (h *VersionsHandler) DeploymentStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	user, _ := middleware.GetUserFromContext(r)
-	site, err := h.db.GetSiteByFQDN(mux.Vars(r)["fqdn"])
+	site, err := h.db.GetSiteByFQDNContext(r.Context(), mux.Vars(r)["fqdn"])
 	if err != nil || site == nil {
 		respondError(w, 404, "site not found")
 		return

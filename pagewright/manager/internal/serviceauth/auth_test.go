@@ -21,6 +21,8 @@ func TestServiceAndWorkerBoundary(t *testing.T) {
 	}{
 		{"manager", "POST", "/jobs", "", 401}, {"storage", "PUT", "/sites/site-a/artifacts/initial", "", 401}, {"serving", "POST", "/sites/site-a/deployment", "", 401},
 		{"manager", "GET", "/health", "", 204}, {"manager", "POST", "/jobs", key, 204},
+		{"manager", "GET", "/ready", "", 204}, {"storage", "GET", "/ready", "", 204}, {"serving", "GET", "/ready", "", 204},
+		{"manager", "POST", "/ready", "", 401}, {"manager", "GET", "/ready?extra=1", "", 401},
 		{"manager", "POST", "/jobs/job-a/result", token, 204}, {"manager", "POST", "/jobs/job-b/result", token, 403},
 		{"manager", "GET", "/jobs/job-a", token, 204}, {"manager", "GET", "/jobs/job-b", token, 403},
 		{"manager", "POST", "/jobs/job-a/write-commit", token, 403}, {"manager", "POST", "/jobs", token, 403},

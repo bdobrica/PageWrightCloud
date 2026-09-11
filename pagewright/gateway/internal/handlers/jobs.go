@@ -38,7 +38,7 @@ func (h *BuildHandler) Jobs(w http.ResponseWriter, r *http.Request) {
 		respondError(w, 401, "authentication required")
 		return
 	}
-	site, err := h.db.GetSiteByFQDN(mux.Vars(r)["fqdn"])
+	site, err := h.db.GetSiteByFQDNContext(r.Context(), mux.Vars(r)["fqdn"])
 	if err != nil || site == nil {
 		respondError(w, 404, "site not found")
 		return

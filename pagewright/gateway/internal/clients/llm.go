@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/runtimehttp"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -24,6 +27,8 @@ func providerError(err error) error {
 
 func NewLLMClient(apiKey, baseURL string) *LLMClient {
 	config := openai.DefaultConfig(apiKey)
+	config.HTTPClient = &http.Client{Transport: runtimehttp.Transport(), Timeout: 25 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	if baseURL != "" {
 		config.BaseURL = baseURL
 	}
@@ -35,6 +40,10 @@ func NewLLMClient(apiKey, baseURL string) *LLMClient {
 
 // EvaluateRequest evaluates if the user request is clear or needs clarification
 func (c *LLMClient) EvaluateRequest(userMessage string) (*EvaluationResponse, error) {
+	return c.EvaluateRequestContext(context.Background(), userMessage)
+}
+
+func (c *LLMClient) EvaluateRequestContext(ctx context.Context, userMessage string) (*EvaluationResponse, error) {
 	template := fmt.Sprintf(`You are a website build assistant. A user wants to make changes to their website.
 
 User request: %s
@@ -55,7 +64,7 @@ Examples:
 Your response:`, userMessage)
 
 	resp, err := c.client.CreateChatCompletion(
-		context.Background(),
+		ctx,
 		openai.ChatCompletionRequest{
 			Model: openai.GPT3Dot5Turbo,
 			Messages: []openai.ChatCompletionMessage{
@@ -101,6 +110,10 @@ Your response:`, userMessage)
 
 // GenerateJobInstructions generates detailed instructions for the worker
 func (c *LLMClient) GenerateJobInstructions(userMessage, clarification string) (string, error) {
+	return c.GenerateJobInstructionsContext(context.Background(), userMessage, clarification)
+}
+
+func (c *LLMClient) GenerateJobInstructionsContext(ctx context.Context, userMessage, clarification string) (string, error) {
 	var template string
 
 	if clarification != "" {
@@ -133,7 +146,7 @@ Instructions:`, userMessage)
 	}
 
 	resp, err := c.client.CreateChatCompletion(
-		context.Background(),
+		ctx,
 		openai.ChatCompletionRequest{
 			Model: openai.GPT3Dot5Turbo,
 			Messages: []openai.ChatCompletionMessage{

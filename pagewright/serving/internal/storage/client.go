@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"mime"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/serving/internal/serviceauth"
 )
 
@@ -23,8 +25,8 @@ func NewClient(baseURL string) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
-			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key()},
-			Timeout:       5 * time.Minute,
+			Transport:     serviceauth.Transport{Origin: baseURL, Token: serviceauth.Key(), Base: runtimehttp.Transport()},
+			Timeout:       30 * time.Second,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
@@ -34,11 +36,15 @@ var artifactID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$`)
 
 // FetchArtifact downloads an artifact to the specified destination
 func (c *Client) FetchArtifact(siteID, versionID, destPath string) error {
+	return c.FetchArtifactContext(context.Background(), siteID, versionID, destPath)
+}
+
+func (c *Client) FetchArtifactContext(ctx context.Context, siteID, versionID, destPath string) error {
 	if !artifactID.MatchString(siteID) || !artifactID.MatchString(versionID) {
 		return fmt.Errorf("invalid artifact site or version identifier")
 	}
 	url := fmt.Sprintf("%s/sites/%s/artifacts/%s", c.baseURL, siteID, versionID)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("create artifact request: %w", err)
 	}
@@ -83,6 +89,9 @@ func (c *Client) FetchArtifact(siteID, versionID, destPath string) error {
 	}
 	if err := out.Close(); err != nil {
 		return fmt.Errorf("close artifact file: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if err := os.Rename(out.Name(), destPath); err != nil {
 		return fmt.Errorf("commit artifact file: %w", err)

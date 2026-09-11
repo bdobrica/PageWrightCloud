@@ -88,7 +88,7 @@ func (h *SitesHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if site.InitializationStatus != "ready" {
-		if err := h.storageClient.InitializeSource(site.ID, record.VersionID, record.Archive, record.ExecutionLog, record.Manifest); err != nil {
+		if err := h.storageClient.WithContext(r.Context()).InitializeSource(site.ID, record.VersionID, record.Archive, record.ExecutionLog, record.Manifest); err != nil {
 			if errors.Is(err, clients.ErrBootstrapConflict) {
 				respondError(w, http.StatusConflict, "initial source conflicts with stored data; no files were replaced; operator repair is required")
 				return
@@ -100,7 +100,7 @@ func (h *SitesHandler) CreateSite(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusServiceUnavailable, "site initialization confirmation failed; retry the same domain")
 			return
 		}
-		site, err = h.db.GetSiteByFQDN(req.FQDN)
+		site, err = h.db.WithContext(r.Context()).GetSiteByFQDN(req.FQDN)
 		if err != nil || site == nil || site.ID != record.SiteID || site.UserID != user.UserID {
 			respondError(w, http.StatusServiceUnavailable, "site initialization confirmed but response failed; retry the same domain")
 			return
@@ -141,7 +141,7 @@ func (h *SitesHandler) ListSites(w http.ResponseWriter, r *http.Request) {
 
 	offset := (page - 1) * pageSize
 
-	sites, totalCount, err := h.db.GetUserSites(user.UserID, pageSize, offset)
+	sites, totalCount, err := h.db.WithContext(r.Context()).GetUserSites(user.UserID, pageSize, offset)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to get sites")
 		return
@@ -168,7 +168,7 @@ func (h *SitesHandler) GetSite(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
-	site, err := h.db.GetSiteByFQDN(fqdn)
+	site, err := h.db.WithContext(r.Context()).GetSiteByFQDN(fqdn)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to get site")
 		return
@@ -200,7 +200,7 @@ func (h *SitesHandler) EnableSite(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
-	site, err := h.db.GetSiteByFQDN(fqdn)
+	site, err := h.db.WithContext(r.Context()).GetSiteByFQDN(fqdn)
 	if err != nil || site == nil {
 		respondError(w, http.StatusNotFound, "site not found")
 		return
@@ -216,13 +216,15 @@ func (h *SitesHandler) EnableSite(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusConflict, "site initialization incomplete; retry site creation first")
 		return
 	}
-	if err := h.servingClient.EnableSite(fqdn); err != nil {
+	if err := h.servingClient.WithContext(r.Context()).EnableSite(fqdn); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to enable site")
 		return
 	}
 
 	// Update database
-	if err := h.db.UpdateSiteEnabled(fqdn, true); err != nil {
+	save, cancel := outcomeContext(r)
+	defer cancel()
+	if err := h.db.WithContext(save).UpdateSiteEnabled(fqdn, true); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update site")
 		return
 	}
@@ -236,7 +238,7 @@ func (h *SitesHandler) DisableSite(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	fqdn := vars["fqdn"]
 
-	site, err := h.db.GetSiteByFQDN(fqdn)
+	site, err := h.db.WithContext(r.Context()).GetSiteByFQDN(fqdn)
 	if err != nil || site == nil {
 		respondError(w, http.StatusNotFound, "site not found")
 		return
@@ -248,13 +250,15 @@ func (h *SitesHandler) DisableSite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Disable in serving infrastructure
-	if err := h.servingClient.DisableSite(fqdn); err != nil {
+	if err := h.servingClient.WithContext(r.Context()).DisableSite(fqdn); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to disable site")
 		return
 	}
 
 	// Update database
-	if err := h.db.UpdateSiteEnabled(fqdn, false); err != nil {
+	save, cancel := outcomeContext(r)
+	defer cancel()
+	if err := h.db.WithContext(save).UpdateSiteEnabled(fqdn, false); err != nil {
 		respondError(w, http.StatusInternalServerError, "failed to update site")
 		return
 	}

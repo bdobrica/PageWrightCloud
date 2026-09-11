@@ -20,6 +20,36 @@ import (
 func configFixture() Config {
 	return Config{Image: "pagewright-worker:m2.1", Network: "test-network", Socket: "/var/run/docker.sock", WorkDir: "/work", StorageURL: "http://storage:8080", LLMURL: "https://provider.test/v1", LLMKey: "worker-only-secret"}
 }
+
+func TestReadyOnlyPingsDaemon(t *testing.T) {
+	var failed atomic.Bool
+	d := fakeEngine(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/_ping" {
+			t.Error("readiness attempted non-ping operation")
+		}
+		if failed.Load() {
+			w.WriteHeader(503)
+			return
+		}
+		w.Write([]byte("OK"))
+	})
+	if err := d.Ready(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	failed.Store(true)
+	if err := d.Ready(context.Background()); err == nil {
+		t.Fatal("failed daemon ready")
+	}
+	failed.Store(false)
+	if err := d.Ready(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := d.Ready(ctx); err == nil {
+		t.Fatal("ignored cancellation")
+	}
+}
 func jobFixture() *types.Job {
 	return &types.Job{JobID: uuid.NewString(), SiteID: "site", OwnerID: "owner", Prompt: "quoted \" request\n$DO_NOT_EXECUTE", SourceVersion: "initial", TargetVersion: uuid.NewString(), Status: types.JobStatusRunning, LockToken: "lease", FencingToken: 7, CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
 }

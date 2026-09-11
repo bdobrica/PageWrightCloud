@@ -50,9 +50,12 @@ type RedisLockManager struct {
 
 func NewRedisLockManager(addr, password string, db int) (*RedisLockManager, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: password,
-		DB:       db,
+		Addr:                  addr,
+		Password:              password,
+		DB:                    db,
+		ContextTimeoutEnabled: true,
+		DialTimeout:           5 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 3 * time.Second,
+		PoolTimeout: 3 * time.Second, PoolSize: 16, MaxRetries: -1,
 	})
 
 	// Test connection
@@ -60,6 +63,7 @@ func NewRedisLockManager(addr, password string, db int) (*RedisLockManager, erro
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
+		client.Close()
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
 

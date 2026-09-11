@@ -18,6 +18,7 @@ import (
 	resetmail "github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/mail"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/middleware"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/pilot"
+	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/runtimehttp"
 	"github.com/bdobrica/PageWrightCloud/pagewright/gateway/internal/serviceauth"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -107,6 +108,9 @@ func main() {
 
 	// Setup router
 	r := mux.NewRouter()
+	r.HandleFunc("/ready", runtimehttp.Ready(db.PingContext,
+		runtimehttp.HTTP(cfg.StorageURL+"/ready"), runtimehttp.HTTP(cfg.ManagerURL+"/ready"),
+		runtimehttp.HTTP(cfg.ServingURL+"/ready")))
 
 	// The server's outer origin policy runs before router throttling and auth.
 	r.Use(middleware.PilotThrottle(db, false))
@@ -167,11 +171,12 @@ func main() {
 	log.Printf("BFF server starting on %s", addr)
 
 	server := &http.Server{
-		Addr:         addr,
-		Handler:      originPolicy(r),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              addr,
+		Handler:           runtimehttp.Budget(55*time.Second, originPolicy(r)),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      65 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	providerServer := &http.Server{Addr: ":8087", Handler: provider, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 30 * time.Second}
 	go func() {

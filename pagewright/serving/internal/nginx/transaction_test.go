@@ -1,7 +1,10 @@
 package nginx
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
@@ -9,6 +12,22 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestReadyContextRetainsRecoveryJournalGuard(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ready")) }))
+	defer s.Close()
+	dir := t.TempDir()
+	m := NewManager(dir, "true", "/tmp/503.html")
+	m.SetLifecycle("true", s.URL)
+	require.NoError(t, m.ReadyContext(context.Background()))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, journalName), []byte("pending"), 0600))
+	require.Error(t, m.ReadyContext(context.Background()))
+	require.NoError(t, os.Remove(filepath.Join(dir, journalName)))
+	require.NoError(t, m.ReadyContext(context.Background()))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.Error(t, m.ReadyContext(ctx))
+}
 
 func TestConfigTransactionRollbackAndRecovery(t *testing.T) {
 	for _, existing := range []bool{false, true} {
