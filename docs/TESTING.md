@@ -1,5 +1,8 @@
 # Baseline checks
 
+The [M4.13 release record](RELEASE_ACCEPTANCE.md) maps the nine release scenarios
+to fresh commands/results, browser failures and fixes, and pending paid/public gates.
+
 See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from the repository root:
 
 | Check | Command | Scope |
@@ -112,23 +115,18 @@ owner-checked committed-version lists, pagination and upstream failures against
 real storage/PostgreSQL. UI contracts exercise version parsing and FQDN routing.
 These do not establish the full publish/preview journey.
 
-## Known skipped tests
+## Provider and skip boundaries
 
 `make test-provider-budget` tests the smoke-only spend guard without a real key.
 `make smoke-provider PROVIDER_SMOKE_ARGS='--offline'` verifies its complete disposable
 worker/compiler/storage topology. Paid acceptance is separately authorized and
 explicitly invoked; see [M2.12 procedure and limits](PROVIDER_SMOKE.md).
 
-Two serving tests explicitly skip. Executor parsing and cancellation tests were
-restored in M2.3/M2.6 and remain enabled. M2.11 adds
+No serving tests remain skipped after M4.12. Executor parsing and cancellation
+tests were restored in M2.3/M2.6 and remain enabled. M2.11 adds
 [actual runner failure and restart acceptance](RUNNER_ACCEPTANCE.md).
 Keep verbose test output visible and remove skips only when the underlying
 behavior and tests are repaired.
-
-| File | Test | Gap / follow-up |
-| --- | --- | --- |
-| `pagewright/serving/internal/config/config_test.go` | `TestLoadConfigDefaults` | Environment-sensitive defaults; M4.12 |
-| `pagewright/serving/internal/artifact/manager_test.go` | `TestCleanupOldVersions` | Flaky cleanup coverage; M3.8 / M4.12 |
 
 ## What passing does not prove
 

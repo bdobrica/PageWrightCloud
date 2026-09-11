@@ -1,6 +1,8 @@
 # Explicit real-provider smoke (M2.12)
 
-Selected worker: `pagewright-worker:m2.12`. This is a manually authorized test,
+The harness builds a uniquely tagged production worker from the current checkout
+for each invocation (updated for M4.13; historical M2.12 results below retain their
+original image identity). This is a manually authorized test,
 never a dependency of normal tests or CI. It submits one synthetic job directly
 to a disposable production manager, uses the actual sandboxed CLI and trusted
 compiler, stores fenced results in production storage, and verifies the requested
@@ -15,10 +17,9 @@ For AppArmor hosts, install the reviewed profile as documented and export
 `PAGEWRIGHT_WORKER_APPARMOR_PROFILE=pagewright-worker-proc`. Do not use privileged,
 unconfined or added-capability workarounds.
 
-Build the selected production image and test without a key first:
+Test without a key first; the harness builds its own worker image:
 
 ```sh
-docker compose --env-file /dev/null --profile worker build worker
 make test-provider-budget
 make smoke-provider PROVIDER_SMOKE_ARGS='--offline'
 ```
@@ -41,6 +42,10 @@ key file. A non-root budget gateway alone reads that file. The worker receives a
 random run-local proxy token, not the OpenAI key, and uses an internal Docker
 network without external routing. Only the gateway has the real credential and
 forwards generation to the fixed `https://api.openai.com/v1/responses` endpoint.
+Manager and storage use an independent run-local service credential. Host fixture
+requests send it only to those resolved service origins; the worker receives a
+scoped job token, never the service signing secret. Remote Docker contexts are
+refused before loading credentials or creating resources.
 Loopback-only control ports allow the host harness to reach manager/storage; they
 do not change the worker's network, namespace or tool restrictions.
 

@@ -382,4 +382,4 @@ smoke-provider:
 	node scripts/provider-smoke.mjs $(PROVIDER_SMOKE_ARGS)
 
 test-provider-budget:
-	node --test scripts/provider-budget.test.mjs
+	node --test scripts/provider-budget.test.mjs scripts/provider-smoke.test.mjs

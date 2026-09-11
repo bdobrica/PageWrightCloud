@@ -289,6 +289,11 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Mutable publication URLs must not reuse old validators, even when
+		// equal-size versions share filesystem timestamps or a client has a
+		// pre-upgrade cache entry. An upstream '*' match would otherwise be 304.
+		req.Header.Set("If-None-Match", "*")
+		req.Header.Set("If-Modified-Since", time.Now().AddDate(10, 0, 0).UTC().Format(http.TimeFormat))
 		req.Host = fqdn + ":8084"
 		if len(previewHost) > 0 && previewHost[0] {
 			req.Host = previewFQDN + ":8084"
@@ -298,6 +303,9 @@ func TestCompiledArtifactRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer resp.Body.Close()
+		if resp.Header.Get("Cache-Control") != "no-store" || resp.Header.Get("ETag") != "" || resp.Header.Get("Last-Modified") != "" {
+			t.Fatal("mutable hosting response exposed stale cache policy/validators")
+		}
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Fatal(err)

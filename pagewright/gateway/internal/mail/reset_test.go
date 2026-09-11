@@ -56,15 +56,32 @@ func TestTLSResetDelivery(t *testing.T) {
 }
 
 func testResetDelivery(t *testing.T, mode string) {
+	s, received := smtpFixture(t, mode)
+	if err := s.SendReset(context.Background(), "user@example.test", "secret-token"); err != nil {
+		t.Fatal(err)
+	}
+	message := <-received
+	for _, want := range []string{"To: user@example.test", "From: reset@example.test", "https://app.example.test/reset-password#token=secret-token"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("missing mail field: %s", want)
+		}
+	}
+	if strings.Contains(message, "test-only") {
+		t.Fatal("SMTP credential in message")
+	}
+}
+
+func smtpFixture(t *testing.T, mode string) (Sender, <-chan string) {
+	t.Helper()
 	certServer := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	defer certServer.Close()
+	t.Cleanup(certServer.Close)
 	roots := x509.NewCertPool()
 	roots.AddCert(certServer.Certificate())
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	t.Cleanup(func() { listener.Close() })
 	received := make(chan string, 1)
 	go func() {
 		conn, err := listener.Accept()
@@ -122,18 +139,7 @@ func testResetDelivery(t *testing.T, mode string) {
 		}
 	}()
 	s := Sender{Address: listener.Addr().String(), From: "reset@example.test", Username: "test-user", Password: "test-only", ResetURL: "https://app.example.test/reset-password", Mode: mode, tlsConfig: &tls.Config{RootCAs: roots, ServerName: "example.com", MinVersion: tls.VersionTLS12}}
-	if err := s.SendReset(context.Background(), "user@example.test", "secret-token"); err != nil {
-		t.Fatal(err)
-	}
-	message := <-received
-	for _, want := range []string{"To: user@example.test", "From: reset@example.test", "https://app.example.test/reset-password#token=secret-token"} {
-		if !strings.Contains(message, want) {
-			t.Fatalf("missing mail field: %s", want)
-		}
-	}
-	if strings.Contains(message, "test-only") {
-		t.Fatal("SMTP credential in message")
-	}
+	return s, received
 }
 
 func TestNoPlaintextFallback(t *testing.T) {

@@ -9,11 +9,11 @@ import { checkPilotAccess } from '../pagewright/ui/test/pilotBrowser.mjs';
 import { checkOriginBoundaries } from '../pagewright/ui/test/originBrowser.mjs';
 import { checkOwnership } from '../pagewright/ui/test/ownershipBrowser.mjs';
 
-const [modulePath, executablePath] = process.argv.slice(2);
-if (!modulePath || !executablePath) throw Error('Usage: node scripts/browser-acceptance.mjs <playwright/index.mjs> <firefox executable>');
-const { firefox } = await import(pathToFileURL(resolve(modulePath)).href);
-const launchBrowser = () => firefox.launch({ executablePath: resolve(executablePath), headless: true,
-  firefoxUserPrefs: { 'browser.cache.disk.enable': false, 'browser.cache.memory.enable': false } });
+const [modulePath, executablePath, browserName = 'firefox'] = process.argv.slice(2);
+if (!modulePath || !executablePath || !['firefox', 'chromium'].includes(browserName)) throw Error('Usage: node scripts/browser-acceptance.mjs <playwright/index.mjs> <matching browser executable> [firefox|chromium]');
+const engines = await import(pathToFileURL(resolve(modulePath)).href);
+const launchBrowser = () => engines[browserName].launch({ executablePath: resolve(executablePath), headless: true,
+  ...(browserName === 'firefox' ? { firefoxUserPrefs: { 'browser.cache.disk.enable': false, 'browser.cache.memory.enable': false } } : {}) });
 const project = `pagewright-browser-${Date.now()}-${process.pid}`;
 const evidence = mkdtempSync(`${tmpdir()}/pagewright-browser-`);
 const env = {
@@ -53,7 +53,7 @@ let browser;
 // local daemon, and this task does not authorize deploying to another host.
 if (!docker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], true).startsWith('unix://')) throw Error('A local Unix-socket Docker context is required');
 try {
-  console.log(`Isolated project ${project}; evidence ${evidence}; provider spend $0`);
+  console.log(`Isolated project ${project}; browser ${browserName}; evidence ${evidence}; provider spend $0`);
   docker(['build', '--target', 'production', '-t', env.PAGEWRIGHT_WORKER_IMAGE, '-f', 'pagewright/worker/Dockerfile', '.']);
   compose('up', '-d', '--build', '--wait', '--wait-timeout', '180', 'nginx', 'postgres', 'fixture', 'manager');
   env.PAGEWRIGHT_HOSTING_PORT = port('nginx', 80);
@@ -66,7 +66,7 @@ try {
   browser = await launchBrowser();
   await runJourney(browser, `http://localhost:${port('ui', 80)}`, evidence);
   await checkOwnership(browser, env.VITE_PAGEWRIGHT_API_URL, env.PAGEWRIGHT_APP_ORIGINS);
-  // Keep independent acceptance phases isolated in fresh Firefox processes,
+  // Keep independent acceptance phases isolated in fresh browser processes,
   // including after the journey has opened opener-isolated generated pages.
   await browser.close();
   browser = await launchBrowser();

@@ -8,12 +8,17 @@ privileged containers or weaken sandbox settings to make this test pass.
 ```sh
 node --test scripts/browser-provider.test.mjs
 node scripts/browser-acceptance.mjs /absolute/path/to/playwright/index.mjs /absolute/path/to/firefox
+# Optional independent engine, using the Chromium build matching Playwright:
+node scripts/browser-acceptance.mjs /absolute/path/to/playwright/index.mjs /absolute/path/to/chrome-headless-shell chromium
 ```
 
 The runner builds the production worker and services, starts a uniquely named
 stack, binds published ports to random loopback ports, and builds the UI against
 that stack's gateway. Firefox resolves `*.localhost` to loopback, so live and
 preview use their actual distinct hosts through the production nginx edge.
+Firefox remains the default; an explicit third argument selects Chromium without
+changing assertions, application security headers or worker isolation. Record the
+engine/version and result separately, including failures on the other engine.
 An existing administrator-installed worker AppArmor profile can be selected with
 `PAGEWRIGHT_WORKER_APPARMOR_PROFILE`; no other application environment is inherited.
 The private `.env` is not loaded. Production volumes and running stacks are not

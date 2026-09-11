@@ -54,6 +54,9 @@ export async function runJourney(browser, baseURL, evidence) {
       // isolation. DOM readiness plus explicit content/asset checks is stable.
       const response = await tab.goto(url, { waitUntil: 'domcontentloaded' });
       assert.equal(response.status(), status, url);
+      assert.equal(response.headers()['cache-control'], 'no-store');
+      assert.equal(response.headers()['etag'], undefined);
+      assert.equal(response.headers()['last-modified'], undefined);
       if (status !== 200) return;
       await tab.getByRole('heading', { name: 'Journey first heading', exact: true }).waitFor();
       assert.equal((await tab.locator('body').innerText()).includes('Journey second paragraph'), second);
@@ -63,10 +66,11 @@ export async function runJourney(browser, baseURL, evidence) {
         assert.equal(new URL(asset).origin, new URL(url).origin);
         const response = await tab.evaluate(async url => {
           const result = await fetch(url, { cache: 'no-store' });
-          return { status: result.status, length: (await result.arrayBuffer()).byteLength };
+          return { status: result.status, length: (await result.arrayBuffer()).byteLength, cache: result.headers.get('cache-control') };
         }, asset);
         assert.equal(response.status, 200, asset);
         assert.ok(response.length);
+        assert.equal(response.cache, 'no-store');
       }
       await tab.screenshot({ path: `${evidence}/${second ? 'second' : 'first'}-${new URL(url).hostname}.png` });
     } finally { await tab.close(); }
