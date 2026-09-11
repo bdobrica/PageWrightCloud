@@ -5,6 +5,7 @@ See [development prerequisites](DEVELOPMENT.md) for pinned toolchains. Run from 
 | Check | Command | Scope |
 | --- | --- | --- |
 | Go packages | `make test-all` | Six Go modules; no running infrastructure required |
+| State races | `make test-race-state` | Three uncached race-enabled runs of gateway handlers, worker status/cancellation and serving config/artifact/Nginx tests |
 | Compiler fixture | `make test-compiler-smoke` | Starter theme produces three pages and required assets in a temporary directory |
 | UI | `cd pagewright/ui && npm ci && npm run test:contracts && npm run lint -- --max-warnings=0 && npm run build` | Lockfile install, job response parsers, deterministic bounded polling/lifecycle/cleanup tests, zero-warning lint, production build |
 | Integration | `make test-integration` | Gateway PostgreSQL/migrations/CLI, manager/storage HTTP, worker callbacks, and shared artifact round-trips through worker/gateway/serving in isolated Compose |
@@ -23,6 +24,39 @@ checks are also available through `make test-backup-unit`. No pilot data is used
 [MVP baseline](../.github/workflows/ci.yml) runs five independent jobs on pushes, pull requests and manual dispatch: Go/compiler/workflow validation, UI, isolated integration, image/startup/recreation, and backup/restore checks. Workflow configuration follows the upstream [checkout v4](https://github.com/actions/checkout/tree/v4), [setup-go v5](https://github.com/actions/setup-go/tree/v5), and [setup-node v4](https://github.com/actions/setup-node/tree/v4) documentation. YAML and workflow expressions are checked with [actionlint v1.7.7](https://github.com/rhysd/actionlint/releases/tag/v1.7.7).
 
 These checks have local verification evidence in [PLAN.md](../PLAN.md). A hosted CI result requires pushing the branch; local validation is not a claim that GitHub Actions has run.
+
+## State/concurrency acceptance (M4.12)
+
+`make test-race-state` is also part of the Go CI job. The previously skipped serving
+defaults test now isolates and restores every relevant environment variable using
+`t.Setenv` and checks the actual localhost storage default. Serving cleanup tests
+already exercise real archives, pinned live/preview versions, retention ordering,
+pending deployment stages and concurrent publication/deletion; none are skipped.
+
+The new gateway test interleaves 320 clarification creations and reads across 32
+goroutines, checks exact prompt identity, rejects other owners/sites before the
+provider, and preserves context over failed retries. The provider is an in-process
+fake; this checks synchronization and isolation, not cache expiry, persistence or
+provider availability. Worker tests race status updates, JSON snapshots, callback
+replacement and 800 cancellations, including a callback that reenters status
+mutation. The snapshot must never combine fields from different updates.
+
+`make test-integration` runs all five service test binaries with `-race` against
+real disposable PostgreSQL/Redis and manager/storage/serving services. The latter
+service images are not race-instrumented; the in-process unit/integration code is.
+Existing
+job tests cover concurrent reservation/replay, queue claims, terminal transitions
+and durable dispatch/fencing. A direct Redis lease test adds 32 competing acquirers
+(exactly one winner), a monotonic successor fence, and concurrent stale-token
+release/renew attempts while the successor renews. Only its unique lease keys are
+removed; there is no database flush. Run this target as well as the local race
+target: a race detector alone cannot prove distributed lock correctness.
+
+There is no enabled WebSocket hub. The production `/ws` route uses the retired
+endpoint, whose tests require 501, no upgrade and no credential reflection. This
+milestone does not reintroduce sockets or change the polling transport. Race tests
+exercise the schedules observed; they are not proof that every possible race is
+absent. Production TLS/browser gates remain separate.
 
 The [job wire contract](JOB_CONTRACT.md) describes M1.1's gateway/manager/worker/UI
 schemas and HTTP acceptance tests. The instruction provider is faked in contract
