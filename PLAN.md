@@ -1368,6 +1368,50 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.10 completed (2026-09-11), implementation `ab8306a`: bounded runtime work and
+dependency readiness. Gateway foreground database and provider/storage/manager/
+serving calls inherit request cancellation, including streamed artifact bodies.
+Request-local views preserve shared pools and HTTP client deadlines. Public
+gateway work has a 55s context budget, its two possible provider calls each have
+a 25s HTTP limit, and the browser build request allows 60s. Internal request and
+transport budgets are explicit; PostgreSQL caps open/idle connections at 10/5,
+and manager Redis clients have bounded pools/I/O with automatic retries disabled.
+Worker execution limits, isolation, credentials and provider reservations are
+unchanged. See [runtime limits and readiness](docs/RUNTIME_LIMITS.md).
+
+Cancellation never supplies a rollback receipt. Durable job identities and
+deployment recovery remain authoritative; interrupted serving preparation keeps
+pending/activating intent and cannot replace a partial downloaded destination.
+Confirmed site-toggle persistence and failed password-reset token invalidation
+use bounded five-second cleanup contexts even after a disconnect. Existing
+accepted-build outcome persistence retains its detached deadline.
+
+Anonymous exact `GET /ready` reports only generic, non-cacheable readiness within
+two seconds: gateway checks PostgreSQL and internal services; manager checks Redis
+and its Docker daemon; storage checks its artifact directory; serving checks
+directories, storage, local Nginx and absence of a pending Nginx recovery journal.
+The graph is acyclic and makes no paid provider calls. Compose health checks use
+readiness; `/health` is liveness. Directory checks do not claim free space or
+writability, and readiness is not an end-to-end publication/sandbox/TLS test.
+
+Verification passed: `make test-all`; final race-enabled `make test-integration`;
+focused gateway and serving race tests; `go vet ./...` in all four changed Go
+service modules; 48 UI contract tests, lint and production build; shared auth/
+runtime conformance, shell syntax and whitespace checks. Integration proves pool
+wait/query cancellation, reset-token cleanup after cancellation, pending intent
+preservation, and readiness degradation/recovery under real disposable Redis and
+storage outages while dependent liveness remains 200. Tests also preserve the
+Nginx recovery-journal guard and show Docker readiness only pings the daemon.
+During validation, cancellation fixtures were corrected to consume POST bodies
+and to separate a five-second setup wait from the unchanged one-second cancellation
+assertion. Repeated local/container race checks and the final full suite passed.
+
+The uniquely named test stacks were removed; existing application data was not
+used. No paid provider requests, key reads, remote changes or push occurred.
+These settings require rebuilt/recreated services before they apply to the pilot.
+M4.9's remaining public security/failure-recovery and full-browser gates remain
+open; M4.10 does not close them. Next implementation item: **M4.11**.
+
 M4.9 subsequent public acceptance and offline artifact tool (2026-09-10),
 implementation `2e7201d`; **still not complete**. Dedicated Certbot passed
 restricted startup, production app/API issuance, restricted reconciliation,
