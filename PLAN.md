@@ -1368,6 +1368,53 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.11 completed (2026-09-11), implementation `64ef049`: coordinated offline
+backup and fresh-target recovery. See the [operator runbook](docs/BACKUP_RESTORE.md).
+The trusted local Docker operator CLI requires an acknowledged maintenance window,
+idle PostgreSQL/Redis work and stopped application writers. It dumps PostgreSQL
+and preserves the entire cold Redis data directory together with immutable
+artifacts, published trees/live-preview symlinks, private deployment receipts,
+generated Nginx and serving configuration. A private completion manifest records
+checksums, sizes, source volumes, exact service image IDs and an operator-attested
+revision; it is not an authentication signature or an encryption mechanism.
+
+Restore validates the whole bundle before contacting its target, requires a
+different explicit project and exact images/revision, and rejects shared source
+volumes, existing database objects and nonempty data volumes. There is no force,
+clean or in-place restore. The recovery overlay removes public ports and the
+manager socket, blocks gateway/manager startup and disables Docker volume copy-up.
+Archive helpers are short-lived, networkless, resource-bounded and unprivileged
+containers with only necessary file capabilities; they are reaped on failure
+without deleting volumes. Partial restores remain stopped for inspection and must
+be retried into another fresh project. Worker isolation is unchanged.
+
+Verification passed: 11 Python guard tests, final `make test-backup-restore`,
+six-module `make test-all`, fixture `go vet`, actionlint and whitespace checks.
+The drill published explicit synthetic v1/v2 artifacts through real deployment
+APIs, backed up state, removed the original test volumes, and restored into a
+second disposable project. It checked owners/password hashes, all three initial/
+v1/v2 database and storage versions, cross-owner denial, exact artifact checksums,
+private serving receipts, allowance reservations and Redis job/commit/fence state.
+Real edge HTTP responses retained distinct live/preview HTML, CSS, JS and nested
+pages; a subsequent deployment advanced the sequence. A second restore correctly
+refused populated state. The actual recovery overlay's no-port/no-dispatch/no-socket
+and nocopy guards also passed. The new drill is wired into CI; hosted CI has not
+been run by this change.
+
+During development, Docker's default copy-up correctly triggered the nonempty
+target guard; fresh nocopy mounts fixed setup without weakening restore safety.
+The extended fixture initially omitted the bootstrap version from its expected
+database count; the final check requires all three distinct identities and passed.
+Final private fixture evidence: `/tmp/pagewright-backup-drill-3ca4znbe`. Generated
+test containers/volumes were removed; the fixture backup remains available locally.
+No real user data, private environment files, paid provider calls, remote pilot
+changes or push were involved. This is maintenance-window recovery, not live
+backup/PITR/HA or a production restore. Encrypted off-host retention, separate host
+secrets/TLS recovery, old-host fencing and post-snapshot spending reconciliation
+remain explicit operator responsibilities. No remote backup schedule is installed.
+M4.9's remaining public security/failure-recovery and full-browser gates stay open.
+Next implementation item: **M4.12**.
+
 M4.10 completed (2026-09-11), implementation `ab8306a`: bounded runtime work and
 dependency readiness. Gateway foreground database and provider/storage/manager/
 serving calls inherit request cancellation, including streamed artifact bodies.
