@@ -1368,6 +1368,61 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.13 partial release acceptance (2026-09-11), implementation `337da9f`;
+**not complete pending a fresh paid smoke authorization/result**. The
+[release evidence matrix](docs/RELEASE_ACCEPTANCE.md) maps all nine scenarios to
+commands, actual service/browser checks, test-double boundaries and remaining gates.
+Fresh package/race, UI contracts/lint/build, compiler, five-service integration,
+SIGKILL/recreation smoke, source-volume-destruction backup restore, Docker-spawner
+and installed sandboxed CLI/compiler acceptance passed. A new integration test
+joins real TLS/STARTTLS SMTP delivery to PostgreSQL reset handlers: it extracts the
+secret only from the received email, consumes it once, rejects reuse, and verifies
+old-password rejection/new-password login. No external recipient was contacted.
+
+The old provider smoke referenced an M2.12 worker tag and omitted current service
+credentials. It now builds a unique production worker from this checkout, gives
+host fixture calls an independent origin-scoped service token, and requires a
+scoped worker token without exposing the signing secret. Remote Docker contexts
+are refused before credentials/resources, with a no-network preflight regression
+test. Updated offline smoke passed with the actual sandboxed CLI/compiler and
+synthetic model responses. OpenAI Docs/model pricing was rechecked on 2026-09-11;
+the existing three-request $1.6192368 reservation envelope was unchanged. No paid
+requests or real provider-key reads occurred. A fresh paid run is explicitly
+pending user authorization; older M2.12/pilot successes remain historical evidence.
+
+Firefox build 1509 completed the edit/publish/rollback and two-account phases but
+timed out in the generated-page origin check. A small local navigation diagnostic
+also behaved inconsistently; its exact cause is unresolved. An explicit matching
+Chromium option preserves all application/security assertions and uncovered a real
+cache defect: the browser reused old HTML after a preview switch. Firefox's
+cache-disabled harness had masked it. The generated-content edge now sets
+`Cache-Control: no-store` on pages/assets/errors, hides upstream validators/cache
+policy and strips conditional validators before proxying. Mutable live/preview
+URLs no longer invite browser freshness reuse. This trades cache efficiency for
+correct publication; pre-existing fresh cache entries may require hard refresh.
+No application security headers, worker capabilities or isolation were weakened.
+
+Final post-fix Chromium acceptance with normal caching passed source inheritance,
+active-build refresh, first preview before live, independent pointers/assets,
+expected third-build failure, publish/rollback, two-user site/job/version/download/
+deployment isolation, actual generated-page CSP enforcement, direct internal API/
+Redis and scoped-worker misuse rejection, closed signup, operator-provisioned UI
+login and zero-AI rejection. Evidence: `/tmp/pagewright-browser-FrDJQX`. Final
+full race-enabled integration passed delivered-email and conditional-hosting
+regressions plus readiness degradation/recovery. Focused rendered expiry/re-auth,
+retry/reset and five-viewport accessibility checks, seven spending/preflight tests,
+four browser-provider tests, focused vet, syntax and whitespace checks also passed.
+The failed Firefox/initial Chromium traces remain documented alongside the success.
+
+Existing app/API/live/preview pilot hosts passed read-only trusted HTTPS, TLS-ready,
+security-header and exact-origin checks; no deployment or remote fault injection
+was done. The cache fix is not installed on the pilot: a reviewed edge rollout is
+still required. All generated test stacks/workers/data were removed, with private
+fixture evidence and image/browser caches retained. No remote configuration/CA
+changes, real email or push occurred. M4.9's public failure-recovery/full-browser
+gates stay open. Finish the fresh paid smoke gate before closing M4.13; M4.14 remains
+the subsequent operator-runbook/release-state item.
+
 M4.12 completed (2026-09-11), implementation `395a95f`: serving skip resolution
 and meaningful state/concurrency acceptance. The remaining serving defaults test
 was skipped because it depended on ambient environment and expected an obsolete
