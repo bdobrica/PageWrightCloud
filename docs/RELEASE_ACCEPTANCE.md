@@ -2,7 +2,7 @@
 
 Run date: 2026-09-11. Starting revision: `f1d9175`; the changes accompanying this
 record close acceptance-harness gaps and a mutable-hosting cache defect. Local
-deterministic acceptance passed; a fresh paid-provider smoke remains pending.
+deterministic acceptance and a fresh authorized paid-provider smoke passed.
 This is a local release-candidate record, not approval to admit public testers.
 
 ## Scenario matrix
@@ -14,7 +14,7 @@ tests with mocked APIs. A previous paid run is not a fresh candidate run.
 | Scenario | Evidence and remaining boundary |
 | --- | --- |
 | 1. Fresh startup, provisioning, login, domain validation | Disposable startup/recreation and final Chromium closed-signup/operator-provisioned UI login passed. Gateway tests cover duplicate/invalid names. |
-| 2. Job lifecycle and changed compiled content | Five-service race integration passed. Firefox completed two actual CLI/compiler jobs with the deterministic provider. Updated offline provider smoke passed; fresh paid run awaits authorization. |
+| 2. Job lifecycle and changed compiled content | Five-service race integration passed. Firefox completed two actual CLI/compiler jobs with the deterministic provider. Updated offline and fresh authorized paid Luna smoke passed with the current production worker, changed source/HTML and preserved isolation. |
 | 3. Preview before live, pages/assets, publication | Final normal-cache Chromium and real-edge integration passed after correcting stale preview caching. Public existing pilot app/API/live/preview HTTPS returned 200. |
 | 4. Sequential unpublished edits, pointer independence, rollback | Compiled round-trip integration and Firefox journey passed these checks. Chromium's initial cache-related failure is retained, not silently rerun away. |
 | 5. Refresh, expiry/re-auth, retry | Actual browser journey refreshed active/completed builds; focused rendered tests passed expiry, retained input, owner isolation, retry identity, clarification and failure recovery with a mocked gateway. Race integration separately proves durable idempotency/state recovery. |
@@ -140,11 +140,29 @@ a repeated restore into populated state was refused.
 
 ### Paid-provider gate
 
-No new paid requests have been sent in this release run. A fresh run requires the
-user's explicit total budget authorization. Prior M2.12 and pilot success remain
-historical evidence only. Official GPT-5.6 Luna pricing/context assumptions were
-rechecked on 2026-09-11 using OpenAI Docs and the
-[official model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
+After the user authorized $2 total, one fresh paid invocation passed on candidate
+`02bb2c6` (implementation `337da9f`), at `2026-09-11T19:23:28.194Z`:
+
+```sh
+make test-provider-budget
+node scripts/provider-smoke.mjs --execute --authorize-usd=2 --price-verified-on=2026-09-11
+```
+
+All seven spending/preflight tests passed. The paid harness exited 0 after cleanup;
+three Luna requests reserved **$1.6192368**, with a usage-derived model-token cost
+upper bound of **$0.00241242** (not an account invoice). There were no additional
+attempts. Official pricing/context assumptions were rechecked on 2026-09-11 using
+OpenAI Docs, the [pricing table](https://developers.openai.com/api/docs/pricing)
+and [model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
+Evidence: `/tmp/pagewright-provider-smoke-6pt8lu/acceptance.json` and
+`budget-summary.json`; job `ca76d708-e592-474d-8a21-8c79f057b4e6`, version
+`b28c1c0c-3c1e-4402-a2c5-b5455ec2cbb5`. The actual sandboxed CLI edited only the
+requested content file; trusted compilation produced the expected heading in HTML,
+initial source stayed byte-identical, and scoped credentials/worker isolation passed.
+The guard remained unblocked. Exact-project container/network and exact-job worker
+queries returned empty after cleanup; the temporary provider-key file was absent.
+The user's `.env` was not modified. No remote pilot change or publication occurred.
+
 The unchanged guard reserves at most $1.6192368 per invocation (three requests),
 retains reservations on uncertainty, and never automatically retries upstream.
 Do not start a second invocation without accounting for the first reservation.
@@ -163,7 +181,8 @@ These checks do not establish that the remote pilot runs this candidate revision
 
 ## Remaining gates
 
-Fresh paid smoke authorization/result remains pending; M4.13 is not marked complete.
+The fresh paid gate passed, completing M4.13's local release-scenario acceptance.
+M4.14 operator-runbook/release-state work remains next; this is not public sign-off.
 The Firefox runtime/harness limitation remains documented despite the independent
 Chromium pass. M4.9's remaining public
 failure-recovery and full-browser acceptance is not closed by local tests. Retained

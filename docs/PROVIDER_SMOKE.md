@@ -51,7 +51,7 @@ do not change the worker's network, namespace or tool restrictions.
 
 ## Budget policy
 
-Pricing checked on 2026-09-06: GPT-5.6 Luna input $0.20/million tokens, cached input
+Pricing rechecked on 2026-09-11: GPT-5.6 Luna input $0.20/million tokens, cached input
 $0.02/million, output $1.20/million; documented context window 1,050,000 tokens.
 Inputs above 272,000 tokens have 2x input and 1.5x output pricing; cache writes
 cost 1.25x uncached input. See
@@ -118,6 +118,43 @@ body bounds, usage accounting, credential redaction, permanent uncertain-charge
 blocking and restart refusal. Existing package/race/service/installed-CLI/compiler
 and Docker tests remain required regressions. M3 owns browser history/publishing;
 M4 owns internal-service authorization and pilot hardening.
+
+## M4.13 candidate acceptance — 2026-09-11
+
+One explicitly authorized $2-total invocation on revision `02bb2c6` passed with
+the current-checkout worker and current service/scoped-worker authentication.
+The seven spending/preflight tests also passed. Command:
+
+```sh
+node scripts/provider-smoke.mjs --execute --authorize-usd=2 --price-verified-on=2026-09-11
+```
+
+| Request | Input | Cached input | Cache writes | Output | Cost upper bound USD |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 7,069 | 0 | 7,066 | 106 | 0.00189430 |
+| 2 | 7,203 | 7,066 | 134 | 58 | 0.00024502 |
+| 3 | 7,285 | 7,200 | 82 | 90 | 0.00027310 |
+| Total | 21,557 | 14,266 | 7,282 | 254 | **0.00241242** |
+
+The usage-derived amount is not an invoice. Conservative reservations remained
+**$1.6192368**, below the authorized total, with no retries/new invocation and no
+guard block. Evidence is retained in `/tmp/pagewright-provider-smoke-6pt8lu`:
+
+- Job: `ca76d708-e592-474d-8a21-8c79f057b4e6`
+- Site: `e269eb36-3f91-41d1-a546-28958def4945`
+- Version: `b28c1c0c-3c1e-4402-a2c5-b5455ec2cbb5`
+- Worker image ID: `sha256:caed14a99a18e406b60c89796f24a73a70168f1ce24dba9afc0b904245c37f46`
+- HTML SHA-256: `25b7f4b86e3f0449d4947350af1936c3e3d13e6ce8a1d16441a3197df94fd685`
+- Observation: `2026-09-11T19:23:28.194Z`
+
+The real worker changed only `content/home/index.md`; compiler 0.1.0 and static
+checks passed, source and HTML contained `PageWright provider smoke verified`,
+and initial source bytes were unchanged. Browser checks were explicitly unperformed
+by this harness (the separate M4.13 Chromium journey passed). Non-root, read-only,
+capability-dropped, non-privileged internal-network isolation and scoped credentials
+passed. Cleanup exited 0; independent exact-project/job queries found no containers
+or networks, and the temporary key file was absent. Evidence and image caches were
+retained; application data and remote pilot were untouched.
 
 ## Acceptance record — 2026-09-06
 
