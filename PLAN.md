@@ -1368,8 +1368,8 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
-M4.13 partial release acceptance (2026-09-11), implementation `337da9f`;
-**not complete pending a fresh paid smoke authorization/result**. The
+M4.13 completed local release acceptance (2026-09-11), implementation `337da9f`;
+final authorized paid evidence `b4dbc92`. The
 [release evidence matrix](docs/RELEASE_ACCEPTANCE.md) maps all nine scenarios to
 commands, actual service/browser checks, test-double boundaries and remaining gates.
 Fresh package/race, UI contracts/lint/build, compiler, five-service integration,
@@ -1386,9 +1386,17 @@ scoped worker token without exposing the signing secret. Remote Docker contexts
 are refused before credentials/resources, with a no-network preflight regression
 test. Updated offline smoke passed with the actual sandboxed CLI/compiler and
 synthetic model responses. OpenAI Docs/model pricing was rechecked on 2026-09-11;
-the existing three-request $1.6192368 reservation envelope was unchanged. No paid
-requests or real provider-key reads occurred. A fresh paid run is explicitly
-pending user authorization; older M2.12/pilot successes remain historical evidence.
+the existing three-request $1.6192368 reservation envelope was unchanged. After
+the user authorized a fresh $2 total cap, one invocation on candidate `02bb2c6`
+passed using the configured key only through the isolated budget gateway. Three
+requests retained $1.6192368 in conservative reservations; returned usage gave a
+$0.00241242 model-token cost upper bound, not an invoice. The actual sandboxed CLI
+changed the requested source heading, trusted compilation produced matching HTML,
+initial bytes remained unchanged, and scoped credentials/isolation passed. Evidence:
+`/tmp/pagewright-provider-smoke-6pt8lu`, job `ca76d708-e592-474d-8a21-8c79f057b4e6`,
+observed `2026-09-11T19:23:28.194Z`. Seven spending/preflight tests passed again.
+No second paid invocation was needed. Exact-project/job cleanup queries confirmed
+no remaining containers/networks; the temporary key was removed and `.env` unchanged.
 
 Firefox build 1509 completed the edit/publish/rollback and two-account phases but
 timed out in the generated-page origin check. A small local navigation diagnostic
@@ -1420,8 +1428,8 @@ was done. The cache fix is not installed on the pilot: a reviewed edge rollout i
 still required. All generated test stacks/workers/data were removed, with private
 fixture evidence and image/browser caches retained. No remote configuration/CA
 changes, real email or push occurred. M4.9's public failure-recovery/full-browser
-gates stay open. Finish the fresh paid smoke gate before closing M4.13; M4.14 remains
-the subsequent operator-runbook/release-state item.
+gates stay open. M4.13's local scenario acceptance is complete, not public release
+sign-off. Next: M4.14 operator-runbook/release-state work.
 
 M4.12 completed (2026-09-11), implementation `395a95f`: serving skip resolution
 and meaningful state/concurrency acceptance. The remaining serving defaults test
