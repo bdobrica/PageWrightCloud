@@ -26,3 +26,6 @@ go.work.sum
 
 # Playwright test results for MCP
 .playwright-mcp/
+
+# Python operator-tool test caches
+__pycache__/

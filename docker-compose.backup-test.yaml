@@ -1,0 +1,92 @@
+# Disposable M4.11 drill only. No ports, Docker socket, .env or provider access.
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: pagewright
+      POSTGRES_USER: pagewright
+      POSTGRES_PASSWORD: backup-fixture-only
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD, pg_isready, -U, pagewright]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, 'yes', --appendfsync, always, --aof-load-truncated, 'no', --save, '']
+    volumes:
+      - type: volume
+        source: redis_data
+        target: /data
+        volume: {nocopy: true}
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  storage:
+    image: pagewright-backup-storage:test
+    build: ./pagewright/storage
+    environment:
+      PAGEWRIGHT_SERVICE_TOKEN: backup-internal-service-token-only
+      PAGEWRIGHT_NFS_BASE_PATH: /nfs
+    volumes:
+      - type: volume
+        source: nfs_data
+        target: /nfs
+        volume: {nocopy: true}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://localhost:8080/ready']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  serving:
+    image: pagewright-backup-serving:test
+    build: ./pagewright/serving
+    environment:
+      PAGEWRIGHT_SERVICE_TOKEN: backup-internal-service-token-only
+      PAGEWRIGHT_STORAGE_URL: http://storage:8080
+    volumes:
+      - type: volume
+        source: www_data
+        target: /var/www
+        volume: {nocopy: true}
+      - type: volume
+        source: nginx_config
+        target: /etc/nginx/sites-enabled
+        volume: {nocopy: true}
+      - type: volume
+        source: pagewright_config
+        target: /etc/pagewright
+        volume: {nocopy: true}
+    depends_on:
+      storage: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://localhost:8083/ready']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  nginx:
+    image: nginx:alpine
+    volumes: [./pagewright/serving/edge.conf:/etc/nginx/nginx.conf:ro]
+    depends_on:
+      serving: {condition: service_healthy}
+  fixture:
+    profiles: [test]
+    image: pagewright-backup-fixture:test
+    build:
+      context: .
+      dockerfile: tests/backup.Dockerfile
+    environment:
+      TEST_DATABASE_URL: postgres://pagewright:backup-fixture-only@postgres:5432/pagewright?sslmode=disable
+      PAGEWRIGHT_SERVICE_TOKEN: backup-internal-service-token-only
+    volumes: [nfs_data:/nfs, 'www_data:/restored-www:ro']
+    entrypoint: [/fixture]
+volumes:
+  postgres_data:
+  redis_data:
+  nfs_data:
+  www_data:
+  nginx_config:
+  pagewright_config:

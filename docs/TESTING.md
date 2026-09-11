@@ -15,7 +15,12 @@ The integration and startup checks use disposable, uniquely named projects and r
 
 ## CI
 
-[MVP baseline](../.github/workflows/ci.yml) runs four independent jobs on pushes, pull requests and manual dispatch: Go/compiler/workflow validation, UI, isolated integration, and image/startup/recreation checks. Workflow configuration follows the upstream [checkout v4](https://github.com/actions/checkout/tree/v4), [setup-go v5](https://github.com/actions/setup-go/tree/v5), and [setup-node v4](https://github.com/actions/setup-node/tree/v4) documentation. YAML and workflow expressions are checked with [actionlint v1.7.7](https://github.com/rhysd/actionlint/releases/tag/v1.7.7).
+The additional M4.11 backup/restore job runs `make test-backup-restore`. Its
+[offline drill](BACKUP_RESTORE.md) removes the generated source volumes and checks
+the restored state and published content in a fresh project. Docker-free safety
+checks are also available through `make test-backup-unit`. No pilot data is used.
+
+[MVP baseline](../.github/workflows/ci.yml) runs five independent jobs on pushes, pull requests and manual dispatch: Go/compiler/workflow validation, UI, isolated integration, image/startup/recreation, and backup/restore checks. Workflow configuration follows the upstream [checkout v4](https://github.com/actions/checkout/tree/v4), [setup-go v5](https://github.com/actions/setup-go/tree/v5), and [setup-node v4](https://github.com/actions/setup-node/tree/v4) documentation. YAML and workflow expressions are checked with [actionlint v1.7.7](https://github.com/rhysd/actionlint/releases/tag/v1.7.7).
 
 These checks have local verification evidence in [PLAN.md](../PLAN.md). A hosted CI result requires pushing the branch; local validation is not a claim that GitHub Actions has run.
 

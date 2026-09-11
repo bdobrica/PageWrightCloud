@@ -80,3 +80,12 @@ jobs:
         run: docker compose --env-file /dev/null --profile worker build
       - name: Fresh startup and data-preserving recreation
         run: make smoke-stack
+  backup-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Offline backup guards and disposable restore drill
+        run: make test-backup-restore

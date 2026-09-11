@@ -7,7 +7,7 @@ TEST_FQDN ?= demo.pagewright.io
 TEST_EMAIL ?= local-domain-test@pagewright.io
 TEST_PASSWORD ?= TestPass123!
 
-.PHONY: test-docker-spawner
+.PHONY: test-docker-spawner test-backup-restore test-backup-unit
 
 # Default target
 help:
@@ -34,6 +34,8 @@ help:
 	@echo "Testing Commands:"
 	@echo "  make test-all            - Run Go package tests (no external services)"
 	@echo "  make test-integration    - Run isolated database/API integration suites"
+	@echo "  make test-backup-unit    - Check offline backup safety guards"
+	@echo "  make test-backup-restore - Exercise backup/restore in disposable containers"
 	@echo "  make test-compiler-smoke - Compile starter fixture and check output"
 	@echo "  make smoke-stack         - Check isolated startup and persistence after recreation"
 	@echo "  make test-gateway        - Run gateway tests"
@@ -258,6 +260,12 @@ test-compiler:
 # Isolated HTTP/database integration tests; no development volumes or ports.
 test-integration:
 	sh scripts/test-integration.sh
+
+test-backup-unit:
+	python3 -B -m unittest discover -s scripts -p test_pilot_backup.py -v
+
+test-backup-restore: test-backup-unit
+	python3 -B scripts/test-backup-restore.py
 
 test-docker-spawner:
 	sh scripts/test-docker-spawner.sh
