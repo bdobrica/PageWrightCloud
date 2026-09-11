@@ -2,6 +2,11 @@
 
 Updated: 2026-09-11. Strategy, code evidence, scope and acceptance scenarios: [PLAN.md](PLAN.md).
 
+Current state: M4.14 documentation is complete. Next is the remaining M4.9 public
+failure-recovery/full-browser acceptance and a separately approved candidate rollout,
+not another paid local smoke. See [operations](docs/README.md). No public release
+sign-off, remote upgrade or push is implied by completed local milestones.
+
 This replaces the March security-first two-week schedule with a dependency-ordered MVP backlog. Existing components are acknowledged below; a checked component does not imply an integrated feature. All unfinished MVP work is unchecked. Longer-term ideas are retained in the deferred backlog.
 
 ## Verified starting point (historical assessment, before M0)
@@ -17,7 +22,7 @@ See completed M0 items for fixes and verification evidence.
 - [x] Run UI lint: baseline is **17 errors and 1 warning**, not passing.
 - [x] Validate Compose syntax and inspect project containers: config valid with missing OAuth/LLM variables; no project containers running.
 - [x] Create an evidence-backed MVP plan with milestone exit criteria.
-- [ ] Demonstrate a complete real AI build, preview, publication and rollback. **Not currently working or verified.**
+- Historical acceptance gap: the full build/preview/publish/rollback path was unverified at assessment. M2.12/M3.12/M4.13 now provide layered real-AI and browser/service acceptance; remaining public checks are tracked once under M4.9.
 
 ## M0 — Reproducible development and checks
 
@@ -115,7 +120,7 @@ Apply relevant protections while building M1/M2; all items below block admitting
   - Implementation: `337da9f`; final paid evidence: `b4dbc92` (2026-09-11); [nine-scenario release record](docs/RELEASE_ACCEPTANCE.md). Fresh deterministic package/race/integration, UI contracts/lint/build, compiler, abrupt stack restart, source-destruction backup restore, Docker-spawner and installed sandboxed CLI/compiler checks passed. Added actual TLS/STARTTLS delivered-email-to-reset/login acceptance, current-checkout/scoped-auth provider smoke and an explicit Chromium browser option. Offline provider smoke passed with zero paid calls; remote-context preflight is tested before key access or resource creation.
   - Release testing found stale preview HTML with normal Chromium caching. Hosting edge now sends no-store for mutable pages/assets/errors, hides upstream validators and strips conditional upstream requests. Final five-service race integration and full normal-cache Chromium browser journey passed, including source inheritance, first preview, independent live/preview assets, failed-build preservation, publish/rollback, two-user isolation, generated-page CSP enforcement, internal/scoped-worker denials and closed-signup/operator login. Final browser evidence: `/tmp/pagewright-browser-FrDJQX`. Firefox navigation timeout remains documented, not relabelled a pass. All generated stacks/workers/data were cleaned up; fixture evidence and image/browser caches retained.
   - Fresh paid Luna smoke passed under the newly authorized $2 total cap: one invocation, three requests, $1.6192368 conservative reservations and $0.00241242 usage-derived token-cost upper bound (not an invoice). Current worker/source/compiled HTML, initial immutability, scoped credentials and isolation passed; guard/preflight tests 7/7. Evidence: `/tmp/pagewright-provider-smoke-6pt8lu`. Disposable services/worker/networks and temporary key were removed; `.env` unchanged. Public read-only HTTPS/readiness/origin checks passed; no remote configuration, deployment, CA request, real email or push occurred. Cache fix is local only and requires reviewed pilot edge rollout. M4.9 public failure-recovery/full-browser gates remain separate; M4.13 completion is not public release sign-off. Next: M4.14.
-- [ ] M4.14 Publish operator runbooks for failed jobs, credential rotation, disk pressure, backup restore and rollback; update README to the verified release state.
+- [x] M4.14 Publish operator runbooks for failed jobs, credential rotation, disk pressure, backup restore and rollback; update README to the verified release state. Implementation: `9625a61` (2026-09-11). [Operational index](docs/README.md), incident/content/application rollback and credential-rotation runbooks link the existing coordinated backup/restore and HTTP-01 procedures. Root README and stale operational notes now reflect verified scope. Preserved 27 design/contract documents plus PLAN's principles in 28 numbered ADRs; references updated. Offline link checker/tests, more than 400 local targets, 14 shell syntax blocks, dummy-secret configuration acceptance, 11 backup safety tests and whitespace checks passed. No runtime behavior, application secrets/data, paid calls, remote rollout or push changed. Next: finish M4.9's separate public gates and reviewed rollout before release sign-off.
 
 ## Deferred backlog — not MVP blockers
 

@@ -2,6 +2,13 @@
 
 Assessed: 2026-09-05. Execution checklist: [TODO.md](TODO.md).
 
+Current status (2026-09-11): local release scenarios passed in M4.13; M4.14
+operational documentation is complete. Remaining public-pilot acceptance and
+candidate rollout are tracked under M4.9. Use the [operational index](docs/README.md)
+and [release record](docs/RELEASE_ACCEPTANCE.md) for current procedures/evidence.
+The assessment and incremental milestone snapshots below retain historical context;
+their future-tense statements are not current status or deployment instructions.
+
 ## Outcome and scope
 
 Deliver an invite-only MVP in which a non-technical user signs in, creates a site, requests a change in chat, sees a completed version, previews it, publishes it, and can restore an earlier version. A second edit must preserve the first edit. Failed builds must leave the published site intact.
@@ -10,9 +17,12 @@ Planning assumptions: one operator, one Docker Compose host, a small group of te
 
 Defer arbitrary custom domains, Google OAuth, attachments, a theme marketplace, billing, teams, Kubernetes, alternative queues/storage providers, autoscaling, and extensive analytics. Hide or disable unfinished controls and their unsupported API operations in the MVP configuration. Email/password login remains the supported authentication path; remote testers need working account recovery.
 
-## What the repository actually provides
+## Historical implementation snapshots
 
-There is useful implementation across all services, but the application is still a collection of partially connected components. The March README and review describe some UI and service features as complete that have not been connected end to end. Existing tests passing does not establish a working MVP.
+At assessment the application was a collection of partially connected components,
+and the March README overstated integration. The table below records incremental
+milestone observations; the current release record above supersedes its remaining-work
+and old image/hostname statements. Passing isolated tests alone was not MVP acceptance.
 
 | Area | Evidence in the current code | Consequence / required work |
 | --- | --- | --- |
@@ -1363,6 +1373,28 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 **Exit:** through the UI only, a tester creates a site, edits, reloads to recover status, previews, publishes, edits again, and rolls back. Preview leaves live unchanged, all pages/assets resolve, and failed deployment leaves the last working version served.
 
 ### M4 — Controlled remote pilot (3–5 days)
+
+M4.14 completed (2026-09-11), implementation `9625a61`: published the
+[operational index](docs/README.md), failed/stuck-job, capacity and content/application
+rollback runbooks, and a coordinated credential-rotation matrix. Existing
+backup/restore and HTTP-01 procedures remain the authoritative detailed commands;
+runbooks preserve durable receipts/reservations, shared-host isolation and fresh-target
+restore requirements. Manual disk thresholds are explicitly proposed policy, not
+installed monitoring. README now distinguishes the verified local MVP from the
+older hosted pilot and pending public sign-off.
+
+Documentation is separated into operational guides/evidence at `docs/` and 28
+numbered architecture records at `docs/adr/`: 27 relocated contracts/design notes
+plus this plan's implementation principles. Historical evidence is preserved and
+the rejected wildcard-certificate proposal is marked superseded. Relative links
+and source-comment references were updated. Verification passed: two link-checker
+tests, more than 400 local targets, no old moved-path references, 14 operational
+shell blocks parsed without execution, dummy-secret configuration acceptance,
+11 offline backup safety tests and whitespace checks. Full runtime/browser/paid
+suites were not rerun for documentation/comment changes; M4.13 remains their baseline.
+No application secrets/data, runtime behavior, remote host, paid calls or push were
+changed. Next: M4.9 public failure-recovery/full-browser acceptance and a separately
+reviewed candidate rollout; this completion is not authorization for either action.
 
 M4.13 completed local release acceptance (2026-09-11), implementation `337da9f`;
 final authorized paid evidence `b4dbc92`. The
