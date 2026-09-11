@@ -1368,6 +1368,47 @@ Connect persisted job status to chat and version history; normalize timestamps/s
 
 ### M4 — Controlled remote pilot (3–5 days)
 
+M4.12 completed (2026-09-11), implementation `395a95f`: serving skip resolution
+and meaningful state/concurrency acceptance. The remaining serving defaults test
+was skipped because it depended on ambient environment and expected an obsolete
+empty storage URL. It now checks the actual localhost default and uses `t.Setenv`
+to isolate and restore every configuration input; custom configuration is likewise
+restored safely. Existing cleanup tests already cover real archives, live/preview
+pins, deterministic retention, pending stages, fail-closed receipts and concurrent
+publication/deletion. No serving test skips remain.
+
+New gateway tests interleave 320 conversation creations/reads across 32 goroutines,
+assert prompt identity and cross-owner/site denial before provider access, and
+retain context after two failed retries. The provider is synthetic and in-process;
+no paid calls occur. Worker tests interleave status mutations, JSON snapshots,
+cancel callback replacement and 800 cancellation requests, requiring coherent
+step/progress fields and allowing the callback to reenter status mutation without
+deadlocking. Direct real-Redis lock tests require exactly one of 32 concurrent
+acquirers to win, a monotonic successor fence, and rejection of concurrent stale
+release/renew attempts while the successor renews. Cleanup targets only unique
+test lease/fence keys, never a database flush. Existing job reservation/replay,
+queue claim, terminal-state and durable dispatch/fencing tests also ran under race
+instrumentation. WebSockets remain retired: the actual `/ws` route uses the tested
+501/no-upgrade/no-credential-reflection handler, not an enabled shared-state hub.
+
+Verification passed: six-module `make test-all`; new `make test-race-state` with
+three uncached race-enabled runs and bounded test timeouts; full disposable
+`make test-integration` (five service test suites with `-race`, PostgreSQL/Redis,
+real service APIs and dependency failure/recovery probes); ten shuffled config
+runs with nondefault ambient values; focused vet; actionlint and whitespace checks.
+The new local race target is wired into the Go CI job; hosted CI has not been run.
+The race detector instruments test binaries and their in-process code, not the
+separate service images. Distributed lease assertions complement race detection;
+neither proves all possible schedules or conversation-cache expiry/persistence.
+See [test commands and coverage boundaries](docs/TESTING.md#stateconcurrency-acceptance-m412).
+
+The generated integration project `pagewright-test-1789151913-244787` was removed
+with its containers/network and ephemeral data. No production code changes were
+needed. No worker-isolation changes, remote pilot actions, private environment
+changes, paid provider requests or push occurred. M4.9's remaining public security/
+failure-recovery and full-browser gates remain open. Next implementation item:
+**M4.13**, the consolidated release-scenario acceptance run.
+
 M4.11 completed (2026-09-11), implementation `64ef049`: coordinated offline
 backup and fresh-target recovery. See the [operator runbook](docs/BACKUP_RESTORE.md).
 The trusted local Docker operator CLI requires an acknowledged maintenance window,
