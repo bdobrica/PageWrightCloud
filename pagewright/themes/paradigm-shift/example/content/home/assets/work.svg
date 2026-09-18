@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="750" viewBox="0 0 1000 750">
+  <title>Geometric study</title>
+  <rect width="1000" height="750" fill="#f0ede6"/>
+  <path d="M180 750V350a260 260 0 0 1 520 0v400Z" fill="#163b37"/>
+  <circle cx="680" cy="270" r="180" fill="#49fcd4"/>
+  <path d="M0 630h1000M0 660h1000M0 690h1000" stroke="#ffffff" stroke-width="2"/>
+</svg>

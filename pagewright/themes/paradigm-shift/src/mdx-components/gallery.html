@@ -1,0 +1,11 @@
+<!-- Props: images (array of objects with src, alt, caption, href string fields) -->
+<div class="pw-gallery">
+  {{ range .images }}
+  <figure>
+    {{ if .href }}<a href="{{ .href }}">{{ end }}
+    <img src="{{ .src }}" alt="{{ .alt }}" loading="lazy">
+    {{ if .href }}</a>{{ end }}
+    {{ if .caption }}<figcaption>{{ .caption }}</figcaption>{{ end }}
+  </figure>
+  {{ end }}
+</div>

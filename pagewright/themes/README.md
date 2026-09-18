@@ -334,4 +334,6 @@ Style it with CSS:
 ## Example Themes
 
 - **starter** - Minimal responsive theme with sidebar
-- *(more themes coming soon)*
+- **paradigm-shift** - HTML5 UP's responsive split layout, adapted for portfolios
+  and editorial sites. CC BY 3.0 with visible creator attribution. See
+  [usage, components, and example build](paradigm-shift/instructions.md).

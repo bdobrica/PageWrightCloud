@@ -1,0 +1,5 @@
+<!-- Props: video_id, title, caption (strings) -->
+<figure class="pw-video">
+  <iframe src="https://www.youtube-nocookie.com/embed/{{ .video_id }}" title="{{ if .title }}{{ .title }}{{ else }}YouTube video{{ end }}" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen></iframe>
+  {{ if .caption }}<figcaption>{{ .caption }}</figcaption>{{ end }}
+</figure>

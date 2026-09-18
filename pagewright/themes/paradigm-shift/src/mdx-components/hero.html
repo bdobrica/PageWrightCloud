@@ -1,0 +1,7 @@
+<!-- Props: headline, subheadline, image_src, image_alt, cta_text, cta_href (strings) -->
+<div class="pw-hero">
+  {{ if .headline }}<h2>{{ .headline }}</h2>{{ end }}
+  {{ if .subheadline }}<p>{{ .subheadline }}</p>{{ end }}
+  {{ if and .cta_text .cta_href }}<a class="button primary" href="{{ .cta_href }}">{{ .cta_text }}</a>{{ end }}
+  {{ if .image_src }}<span class="image main"><img src="{{ .image_src }}" alt="{{ .image_alt }}"></span>{{ end }}
+</div>

@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- Paradigm Shift by HTML5 UP (html5up.net), CC BY 3.0.
+     Adapted for PageWrightCloud; see /assets/licenses/ATTRIBUTION.txt. -->
+<html lang="{{ .Site.Lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ .Page.Title }} · {{ .Site.Name }}</title>
+  {{ if .Page.Description }}<meta name="description" content="{{ .Page.Description }}">{{ end }}
+  <link rel="stylesheet" href="/assets/css/tokens.css">
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="stylesheet" href="/assets/css/theme.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="wrapper">
+    <section class="page">
+      <header>
+        <a class="brand" href="{{ .Site.BaseURL }}/">
+          {{ if .Site.LogoURL }}<img class="brand-logo" src="{{ .Site.LogoURL }}" alt="">{{ end }}
+          {{ .Site.Name }}
+        </a>
+        <h1>{{ .Page.Title }}</h1>
+        <nav aria-label="Main navigation">{{ .NavHTML }}</nav>
+        {{ if .Site.PrimaryCTA }}<a class="button" href="{{ .Site.PrimaryCTA.Href }}">{{ .Site.PrimaryCTA.Label }}</a>{{ end }}
+      </header>
+      <main id="main" class="content" tabindex="-1">
+        {{ .ContentHTML }}
+      </main>
+      <footer>
+        {{ if .Page.TOCHTML }}<nav class="toc" aria-label="On this page"><h2>On this page</h2>{{ .Page.TOCHTML }}</nav>{{ end }}
+        {{ .Page.SidebarHTML }}
+        {{ .Site.SidebarDefaultHTML }}
+      </footer>
+    </section>
+    {{ template "footer.html" . }}
+  </div>
+</body>
+</html>

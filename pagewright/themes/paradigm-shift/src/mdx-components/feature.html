@@ -1,0 +1,8 @@
+<!-- Props: title, text, image_src, image_alt (strings) -->
+<section class="pw-feature">
+  <header><h2>{{ .title }}</h2></header>
+  <div class="content">
+    {{ if .text }}<p>{{ .text }}</p>{{ end }}
+    {{ if .image_src }}<span class="image main"><img src="{{ .image_src }}" alt="{{ .image_alt }}" loading="lazy"></span>{{ end }}
+  </div>
+</section>

@@ -1,0 +1,22 @@
+Paradigm Shift for PageWrightCloud
+
+Original design: Paradigm Shift by HTML5 UP / AJ (@ajlkn)
+Source: https://html5up.net/paradigm-shift
+Creator: https://html5up.net / https://aj.lkn.io/
+License: Creative Commons Attribution 3.0 Unported (CC BY 3.0)
+https://creativecommons.org/licenses/by/3.0/
+Full license: /assets/licenses/CC-BY-3.0.txt
+
+Adapted for PageWrightCloud in 2026. The adapted theme is distributed under
+CC BY 3.0, separately from PageWrightCloud's application license.
+
+Changes: replaced the static demo with Go templates, generated navigation,
+Markdown content, reusable components, design tokens, and a persistent credit
+footer. Removed Google Fonts and Font Awesome imports; uses system fonts.
+Replaced JavaScript-dependent presentation with accessible static content.
+Gallery images link directly to their full versions instead of opening a modal.
+The original contact form, JavaScript libraries, icon fonts, and demo photos
+are not distributed or required by this adaptation.
+
+Retain the design credit and license link when publishing this theme.
+Your own site content and media are not automatically licensed under CC BY 3.0.

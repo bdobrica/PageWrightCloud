@@ -1,0 +1,49 @@
+/*
+ * Paradigm Shift by HTML5 UP — CC BY 3.0.
+ * PageWrightCloud adaptation: tokens, navigation, accessible static components.
+ */
+body { background: var(--color-bg); color: var(--color-text); }
+h1, h2, h3, h4, h5, h6, strong, b { color: inherit; }
+h1 { font-size: clamp(2.5rem, 5vw, 5rem); overflow-wrap: anywhere; }
+a:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 5px;
+}
+.skip-link { position: fixed; left: 1rem; top: -8rem; z-index: 10; background: var(--color-bg); padding: .75rem; }
+.skip-link:focus { top: 1rem; }
+.brand { display: inline-block; font-weight: 700; margin-bottom: 2rem; }
+.brand-logo { max-height: 3rem; max-width: 8rem; vertical-align: middle; margin-right: .5rem; }
+.nav-list, .nav-list ul { list-style: none; padding: 0; }
+.nav-list li { padding: .25rem 0; }
+.nav-list ul { margin: .25rem 0 .5rem; padding-inline-start: 1rem; }
+.nav-list li.active > a { font-weight: 700; border-bottom: 2px solid currentColor; }
+#wrapper > .page > header { padding-top: 4rem; }
+#wrapper > .page > .content { min-width: 0; padding-top: 4rem; }
+.content > h1:first-child { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.content img { max-width: 100%; height: auto; }
+.content pre { overflow-x: auto; }
+.content table { display: block; overflow-x: auto; }
+.content .pw-hero { margin-bottom: 3rem; }
+.pw-hero h2 { font-size: clamp(1.75rem, 3vw, 3rem); letter-spacing: -.03em; text-transform: none; }
+.pw-hero .image { margin-top: 2rem; }
+.pw-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 2rem 0; }
+.pw-gallery figure { margin: 0; min-width: 0; }
+.pw-gallery img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.pw-gallery figcaption { font-size: .85rem; margin-top: .5rem; }
+.pw-gallery a { display: block; border: 0; }
+.pw-video { margin: 2rem 0; }
+.pw-video iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; }
+.button { white-space: normal; height: auto; min-height: 3rem; line-height: 1.5; padding: 1rem 1.5rem; }
+.toc ul { list-style: none; padding-left: 0; }
+.toc ul ul { padding-inline-start: 1rem; }
+#wrapper > .copyright { color: var(--color-text); font-size: .85rem; opacity: 1; }
+#wrapper > .copyright p { margin-bottom: .75rem; }
+@media screen and (max-width: 1152px) {
+  #wrapper > .page > header, #wrapper > .page > .content { padding-top: 3rem; }
+}
+@media screen and (max-width: 736px) {
+  .pw-gallery { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
